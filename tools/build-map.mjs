@@ -3,7 +3,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { feature } from 'topojson-client';
-import { PROVINCES, CASTLES, RIDGES, RIVERS, PLAINS, STRAITS, CASTLE_PROVINCE, EXTRA_PROVINCES, EXTRA_CASTLES, RANGE_CELL_SIZE, RANGE_CELLS, PASSES } from '../data/geo.mjs';
+import { PROVINCES, CASTLES, RIVERS, STRAITS, CASTLE_PROVINCE, EXTRA_PROVINCES, EXTRA_CASTLES, RANGE_CELL_SIZE, RANGE_CELLS, PASSES } from '../data/geo.mjs';
 
 const require = createRequire(import.meta.url);
 const topo = require('world-atlas/countries-10m.json');
@@ -168,16 +168,27 @@ const lineDist = (h, line) => {
   return d;
 };
 const noise = (q, r) => { let n = (q * 374761393 + r * 668265263) ^ 0x5bd1e995; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+// 地形は標高から（data/dem_jp.bin: tools/relief.py で作る1kmごとの標高）。マスの中の13点の標高の、平均と高低差で決める。川は川筋の近く
+const DEMI = JSON.parse(readFileSync(new URL('../data/dem_jp.json', import.meta.url)));
+const DEMB = readFileSync(new URL('../data/dem_jp.bin', import.meta.url));
+const DEM = new Int16Array(DEMB.buffer, DEMB.byteOffset, DEMB.byteLength / 2);
+const elevAt = (x, y) => { const [lat, lon] = unproj(x, y); const gx = Math.floor((lon - DEMI.lon0) / (DEMI.lon1 - DEMI.lon0) * DEMI.w), gy = Math.floor((DEMI.lat1 - lat) / (DEMI.lat1 - DEMI.lat0) * DEMI.h); return gx < 0 || gy < 0 || gx >= DEMI.w || gy >= DEMI.h ? 0 : DEM[gy * DEMI.w + gx]; };
+const terrainOf = (h) => {
+  const es = samples.map(([dx, dy]) => Math.max(0, elevAt(h.x + dx, h.y + dy)));
+  const mean = es.reduce((a, b) => a + b, 0) / es.length, rel = Math.max(...es) - Math.min(...es);
+  return { mean, rel };
+};
+// 険しさ＝高低差＋標高×0.3。上から3割を山、次の27%を森、残りを平地（川筋の近くは川）。山の割合はバージョン1とそろえる
+const TERR = { M: 0.30, F: 0.27 };
+const rough = hexes.map((h) => { const { mean, rel } = terrainOf(h); return rel + 0.3 * mean; });
+const sortedR = [...rough].sort((x, y) => y - x);
+const cutM = sortedR[Math.floor(TERR.M * sortedR.length)], cutF = sortedR[Math.floor((TERR.M + TERR.F) * sortedR.length)];
 hexes.forEach((h, i) => {
-  const inPlain = PLAINS.some(([lat, lon, rad]) => { const [x, y] = proj(lat, lon); return Math.hypot(h.x - x, h.y - y) <= rad; });
   const nRiver = Math.min(...RIVERS.map((l) => lineDist(h, l)));
-  const nRidge = Math.min(...RIDGES.map((l) => lineDist(h, l)));
-  const z = noise(h.q, h.r);
   let t = 'P';
-  if (nRiver < S * 0.8) t = 'R';
-  else if (inPlain) t = 'P';
-  else if (nRidge < S0 * 1.5 || (coast[i] * S >= 4 * S0 && z < 0.35)) t = 'M';
-  else if ((coast[i] * S >= 2 * S0 && z < 0.6) || (coast[i] * S >= 1 * S0 && z < 0.3) || nRidge < S0 * 2.6) t = 'F';
+  if (rough[i] >= cutM) t = 'M';
+  else if (nRiver < S * 0.8) t = 'R';
+  else if (rough[i] >= cutF) t = 'F';
   h.t = t;
 });
 

@@ -79,6 +79,16 @@ const base = () => (BASE ??= {
   lakes: BASE_LAKES.reduce((p, l) => polyPath(l.pts, p), new Path2D()),
   rivers: BASE_RIVERS.reduce((p, l) => riverPath(l, p), new Path2D()),
 });
+// 地図の下絵（別ファイル）: 標高データから作った陰影つきの地図（経度127.5〜143・緯度29.5〜43、ゲームと同じ等距円筒）。
+// 読み込めなければ、これまでどおり線で描いた海岸線
+const RELIEF = { src: 'tiles/relief.webp', lon0: 127.5, lon1: 143, lat0: 29.5, lat1: 43 };
+const RELIEF_TINT = 0.75; // 陰影の地図の上の勢力の色の濃さ（マスの塗りの濃さに掛ける）
+const KXR = Math.cos((35.5 * Math.PI) / 180) * 111.32, KYR = 110.57; // map.json と同じ投影（経度129・緯度42が原点）
+let reliefImg: HTMLImageElement | null = null;
+function loadRelief(redraw: () => void) {
+  if (typeof Image === 'undefined') return;
+  const im = new Image(); im.onload = () => { reliefImg = im; redraw(); }; im.src = RELIEF.src;
+}
 export const HEX_ALPHA: [string, number | null][] = [['なし', null], ['濃', 0.8], ['中', 0.55], ['淡', 0.35]];
 
 export type ArmyStyle = 'round' | 'totsu' | 'koma' | 'nobori' | 'hata' | 'gunzei' | 'hayashi';
@@ -153,6 +163,7 @@ export class MapView {
   private seaPattern: CanvasPattern | null = null;
 
   constructor(public canvas: HTMLCanvasElement) {
+    loadRelief(() => this.redraw());
     this.ctx = canvas.getContext('2d')!;
     new ResizeObserver(() => this.resize()).observe(canvas);
     canvas.addEventListener('pointerdown', (e) => this.down(e));
@@ -381,16 +392,21 @@ export class MapView {
     const visible = HEXES.filter((h) => { const [x, y] = CENTERS[h.i]; return x > viewMinX && x < viewMaxX && y > viewMinY && y < viewMaxY; });
 
     const under = this.hexAlpha !== null;
+    const relief = under ? reliefImg : null;
     if (under) {
       // 下絵: 本物の陸（よその陸は暗く）と海岸線。ヘックスはこの上に半透明で重ねる
       const B = base();
       ctx.save(); ctx.beginPath(); ctx.rect(BOUNDS.x0, BOUNDS.y0, BOUNDS.x1 - BOUNDS.x0, BOUNDS.y1 - BOUNDS.y0); ctx.clip(); // 範囲の外の大陸は描かない
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      ctx.save(); ctx.translate(2.2, 2.6); ctx.fill(B.jp, 'evenodd'); ctx.fill(B.other, 'evenodd'); ctx.restore();
-      ctx.fillStyle = '#7d7460'; ctx.fill(B.other, 'evenodd');
-      ctx.fillStyle = '#d8c9a4'; ctx.fill(B.jp, 'evenodd');
+      if (!relief) { ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.save(); ctx.translate(2.2, 2.6); ctx.fill(B.jp, 'evenodd'); ctx.fill(B.other, 'evenodd'); ctx.restore(); }
+      if (relief) {
+        const x0 = (RELIEF.lon0 - 129) * KXR * ZK, y0 = (42 - RELIEF.lat1) * KYR * ZK;
+        ctx.drawImage(relief, x0, y0, (RELIEF.lon1 - RELIEF.lon0) * KXR * ZK, (RELIEF.lat1 - RELIEF.lat0) * KYR * ZK);
+      } else {
+        ctx.fillStyle = '#7d7460'; ctx.fill(B.other, 'evenodd');
+        ctx.fillStyle = '#d8c9a4'; ctx.fill(B.jp, 'evenodd');
+      }
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(40,28,15,0.75)'; ctx.lineWidth = 1.3 * px; ctx.stroke(B.jp); ctx.stroke(B.other);
+      ctx.strokeStyle = relief ? 'rgba(30,22,12,0.35)' : 'rgba(40,28,15,0.75)'; ctx.lineWidth = (relief ? 0.8 : 1.3) * px; ctx.stroke(B.jp); ctx.stroke(B.other);
       ctx.restore();
       this.fogEdge(ctx);
     } else {
@@ -408,20 +424,23 @@ export class MapView {
       if (hl && !lit) base = mix(rgbToHex(base), '#1a130d', 0.5);
       else if (this.highlight) base = mix(rgbToHex(base), '#fff3d0', 0.15);
       const tf = h.t === 'M' ? 0.86 : h.t === 'F' ? 0.93 : 1;
-      ctx.fillStyle = tf === 1 ? base : shade(rgbToHex(base), tf); // 険山も塗りは山と同じ
       this.hexPath(ctx, h.i, HEX_SIZE + 0.25);
-      if (under) ctx.globalAlpha = this.hexAlpha!;
+      // 陰影の地図の上では地形の濃淡はつけず、勢力の色だけをうっすら重ねる
+      ctx.fillStyle = relief ? base : tf === 1 ? base : shade(rgbToHex(base), tf); // 険山も塗りは山と同じ
+      if (under) ctx.globalAlpha = this.hexAlpha! * (relief ? RELIEF_TINT : 1);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
     ctx.lineCap = 'round';
-    for (const h of visible) if (!(under && h.t === 'R')) this.drawTerrain(ctx, h.i, isSoloPeak(h.i) ? 'Y' : isBlocked(h.i) ? 'X' : h.t);
+    for (const h of visible) if (!(under && h.t === 'R') && !(relief && !isBlocked(h.i))) this.drawTerrain(ctx, h.i, isSoloPeak(h.i) ? 'Y' : isBlocked(h.i) ? 'X' : h.t); // 陰影の地図では山・森の記号は描かない（険山と富士山だけ）
     if (under) {
       // 湖と川はヘックスの上に（地形の川のヘックスと同じ線）
       const B = base();
       ctx.save(); ctx.beginPath(); ctx.rect(BOUNDS.x0, BOUNDS.y0, BOUNDS.x1 - BOUNDS.x0, BOUNDS.y1 - BOUNDS.y0); ctx.clip();
-      ctx.fillStyle = 'rgba(52,86,110,0.92)'; ctx.fill(B.lakes);
-      ctx.strokeStyle = 'rgba(30,24,16,0.6)'; ctx.lineWidth = 1 * px; ctx.stroke(B.lakes);
+      if (!relief) { // 陰影の地図には湖が描いてある
+        ctx.fillStyle = 'rgba(52,86,110,0.92)'; ctx.fill(B.lakes);
+        ctx.strokeStyle = 'rgba(30,24,16,0.6)'; ctx.lineWidth = 1 * px; ctx.stroke(B.lakes);
+      }
       ctx.strokeStyle = 'rgba(62,118,160,0.85)'; ctx.lineWidth = Math.max(2.2 * px, HEX_SIZE * 0.09); ctx.stroke(B.rivers);
       ctx.restore();
     }
