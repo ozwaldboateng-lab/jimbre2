@@ -7,7 +7,6 @@ import { HEXES } from '../engine/map';
 import { OPENINGS } from '../data/openings';
 import * as R from '../engine/rules';
 import { newGame } from '../engine/setup';
-import { newKarairiGame, S1592 } from '../engine/s1592';
 import { capital } from '../engine/ops';
 import { clanCastles, clanKoku, clanTroops, hexOwner } from '../engine/state';
 import type { GameState } from '../engine/types';
@@ -26,9 +25,7 @@ const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const fmt = (n: number) => Math.round(n).toLocaleString('ja-JP');
 const man = (k: number) => `${k.toFixed(1)}万石`; // clanKoku は万石
 const kanjiNum = (n: number) => [...String(n)].map((d) => '〇一二三四五六七八九'[+d]).join('');
-const ERA_KANJI: Record<string, string> = { '1552': '天文二十一年', '1560': '永禄三年', '1582': '天正十年', '1592': '文禄元年' };
-// 唐入りを決めたことがあれば、タイトルに「文禄元年 唐入り」が出る
-const karairiUnlocked = () => { try { return !!localStorage.getItem('sengoku-karairi'); } catch { return false; } };
+const ERA_KANJI: Record<string, string> = { '1552': '天文二十一年', '1560': '永禄三年', '1582': '天正十年' };
 const DIFF_NOTE: Record<R.Difficulty, string> = { easy: 'AIは慎重に攻め、動員も控えめ。', normal: '標準。', hard: 'AIは攻め気が強く、囲みを狙う。', veryhard: 'AIの見積もりが鋭く、隙を見逃さない。' };
 
 type Screen = 'top' | 'era' | 'clan' | 'help' | 'opening';
@@ -77,8 +74,7 @@ export function closeTitleScreen() { $('title').hidden = true; }
 
 let openAnim = 0; // 序幕の地図のアニメーションの番号
 function setPreview() {
-  preview = scen === S1592.id ? newKarairiGame('normal', 1) : newGame('oda', 'normal', 1, scen);
-  if (scen === S1592.id) pick = 'hashiba';
+  preview = newGame('oda', 'normal', 1, scen);
   if (!preview.clans[pick]?.alive) pick = 'oda';
   view!.state = preview;
   view!.highlight = null;
@@ -171,7 +167,7 @@ function eraHtml() {
   return `<div class="ttl-era">
     <button type="button" class="ttl-back" data-act="t-back">← 戻る</button>
     <h2>時代を選ぶ</h2>
-    <div class="era-cards">${[...SCENARIOS, ...(karairiUnlocked() ? [S1592] : [])].sort((a, b) => a.year - b.year).map((x) => `<button type="button" class="era-card" data-act="pick-scen" data-id="${x.id}">
+    <div class="era-cards">${[...SCENARIOS].sort((a, b) => a.year - b.year).map((x) => `<button type="button" class="era-card" data-act="pick-scen" data-id="${x.id}">
       <span class="era-y">${ERA_KANJI[x.id] ?? kanjiNum(x.year)}<small>（${x.year}）</small></span>
       <span class="era-n">${esc(ERA_NAME[x.id] ?? x.title)}</span>
       <span class="era-l">${esc(x.lede)}</span></button>`).join('')}</div>
@@ -183,8 +179,8 @@ function clanHtml() {
   const sc = scenarioOf(scen);
   const c = st.clans[pick];
   const lg = c.leader ? st.generals[c.leader] : null;
-  const featured = scen === S1592.id ? ['hashiba'] : (sc.featured ?? FEATURED).filter((id) => st.clans[id]?.alive);
-  const others = Object.values(st.clans).filter((x) => x.alive && !x.foreign && !featured.includes(x.id) && x.id !== 'kokujin').sort((a, b) => clanKoku(st, b.id) - clanKoku(st, a.id));
+  const featured = (sc.featured ?? FEATURED).filter((id) => st.clans[id]?.alive);
+  const others = Object.values(st.clans).filter((x) => x.alive && !featured.includes(x.id) && x.id !== 'kokujin').sort((a, b) => clanKoku(st, b.id) - clanKoku(st, a.id));
   const chip = (id: string) => { const x = st.clans[id]; return `<button type="button" class="clan-card" data-act="pick-clan" data-id="${id}" aria-pressed="${id === pick}"><span class="nm"><span class="swatch" style="background:${x.color}"></span>${esc(x.name)}</span><span class="fig">城${clanCastles(st, id).length}・${man(clanKoku(st, id))}</span></button>`; };
   return `<aside class="ttl-sheet" aria-label="家を選ぶ">
     <div class="ttl-sheet-top"><button type="button" class="ttl-back" data-act="t-back">← 時代</button><span class="ttl-era-tag">${ERA_KANJI[scen] ?? ''}「${esc(ERA_NAME[scen] ?? '')}」</span></div>
@@ -267,7 +263,7 @@ function applyBeat(instant: boolean) {
 function openingHtml() {
   const bs = opBeats(), b = bs[opIdx];
   if (!b) return '';
-  const sc = [...SCENARIOS, S1592].find((x) => x.id === scen);
+  const sc = SCENARIOS.find((x) => x.id === scen);
   const body = b.who
     ? `<div class="op-who">${deps!.face(b.who, 168) || `<span class="op-noface">${esc((b.name ?? '').slice(0, 2))}</span>`}<div><div class="op-name">${esc(b.name ?? '')}<span>${esc(b.label ?? '')}</span></div><p class="op-line">「${esc(b.text)}」</p></div></div>`
     : `<div class="op-narr">${b.head ? `<h2>${esc(b.head)}</h2>` : ''}<p>${esc(b.text)}</p></div>`;

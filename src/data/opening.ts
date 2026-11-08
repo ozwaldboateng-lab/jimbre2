@@ -22,7 +22,4 @@ export const OPENING_PEOPLE: [string, string, string, number][] = [
   ['g_tsuma', '武家の妻', '', 0],
   ['g_chonin', '町人', '', 0],
   ['g_hyakusho', '百姓', '', 0],
-  ['gihei_face_1', '義兵一', '', 0],
-  ['gihei_face_2', '義兵二', '', 0],
-  ['gihei_face_3', '義兵三', '', 0],
 ];

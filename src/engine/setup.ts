@@ -26,23 +26,12 @@ export function makeCastle(i: number, owner: string | null): Castle {
   const c = CASTLE_DEFS[i];
   return {
     i, id: c.id, name: c.name, hex: c.hex, owner, baseKoku: c.koku, dev: 1, garrison: 0, gMorale: 1, governor: null,
-    baseCom: Math.round(c.koku * R.COM_PER_KOKU + (COMMERCE_BONUS[c.id] ?? 0)), cdev: 1, chisui: R.CHISUI_START, chian: c.owner ? R.CHIAN_START : 50, kind: CASTLE_TYPE[c.id] ?? FOREIGN_KIND[c.id] ?? 'toride', tsume: TSUME[c.id],
+    baseCom: Math.round(c.koku * R.COM_PER_KOKU + (COMMERCE_BONUS[c.id] ?? 0)), cdev: 1, chisui: R.CHISUI_START, chian: c.owner ? R.CHIAN_START : 50, kind: CASTLE_TYPE[c.id] ?? 'toride', tsume: TSUME[c.id],
   };
 }
-// 国外の家（朝鮮・明）。唐入りまでは眠らせておく（alive=false・戦にならない）
-export const FOREIGN_CLANS = [
-  { id: 'joseon', name: '朝鮮', color: '#4f7f9a', prestige: 60 },
-  { id: 'ming', name: '明', color: '#b08a3e', prestige: 90 },
-];
-// 国外の城の種類（大きな邑城・山城）
-const FOREIGN_KIND: Record<string, Castle['kind']> = { hanseong: 'hira', pyongyang: 'hirayama', jinju: 'hirayama', busan: 'hira', dongnae: 'hira', haengju: 'yama', namwon: 'hira', jeonju: 'hira', gaeseong: 'hira', uiju: 'hira', jiuliancheng: 'hira', ulsan: 'hirayama', sangju: 'hira', chungju: 'hira', hamhung: 'hira' };
-function foreignClan(d: (typeof FOREIGN_CLANS)[number]): Clan {
-  return { id: d.id, name: d.name, color: d.color, leader: null, foreign: true, prestige: d.prestige, food: 0, alive: false, stance: '守勢', target: null, gold: 0, guns: 0, budget: { chisui: 10, hodo: 10 }, focus: null, mobilize: R.MOBILIZE_DEFAULT, court: 0 };
-}
-// 旧いセーブ: 地図に足した城（対馬・壱岐・朝鮮・遼東）と国外の家を加える
+// 旧いセーブ: 地図に足した城（対馬・壱岐）を加える
 export function migrateMap(s: GameState) {
   for (let i = s.castles.length; i < CASTLE_DEFS.length; i++) { const c = makeCastle(i, CASTLE_DEFS[i].owner); c.garrison = garrisonMax(c); s.castles.push(c); }
-  for (const d of FOREIGN_CLANS) if (!s.clans[d.id]) s.clans[d.id] = foreignClan(d);
 }
 
 export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.now() & 0x7fffffff), scenario = '1560', camp = true): GameState {
@@ -57,7 +46,6 @@ export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.n
   const guns = sc.guns ?? INITIAL_GUNS;
   for (const d of [...CLANS, ...(sc.clans ?? [])]) clans[d.id] = { id: d.id, name: d.name, color: d.color, leader: null, prestige: sc.prestige?.[d.id] ?? d.prestige, food: 0, alive: castles.some((c) => c.owner === d.id), stance: '均衡', target: null, gold: 0, guns: guns[d.id] ?? 0, budget: { chisui: 10, hodo: 10 }, focus: null, mobilize: R.MOBILIZE_DEFAULT, court: sc.court?.[d.id] ?? INITIAL_COURT[d.id] ?? 0 };
 
-  for (const d of FOREIGN_CLANS) clans[d.id] = foreignClan(d);
 
   const generals: Record<string, General> = {};
   const born = new Map<string, number>((sc.generals ?? []).map(([d, b]) => [d[0], b]));

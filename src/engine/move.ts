@@ -3,7 +3,6 @@ import { HEXES, NEIGHBORS, isLink } from './map';
 import * as R from './rules';
 import { allied, castleAt, hostile, occupancy } from './state';
 import type { Army, GameState } from './types';
-import { crossBlock, isCrossing, landBlock } from './karairi';
 
 export interface Reach { cost: Map<number, number>; prev: Map<number, number>; }
 
@@ -18,7 +17,7 @@ export function zocHexes(s: GameState, clan: string): Set<number> {
   const z = new Set<number>();
   for (const a of Object.values(s.armies)) {
     if (!hostile(s, clan, a.clan)) continue; // 同盟軍はZOCを持たない
-    for (const j of NEIGHBORS[a.hex]) if (!isCrossing(a.hex, j)) z.add(j); // 海峡の向こうには ZOC は及ばない
+    for (const j of NEIGHBORS[a.hex]) z.add(j);
   }
   return z;
 }
@@ -39,7 +38,6 @@ export function reachable(s: GameState, a: Army): Reach {
     for (const j of NEIGHBORS[i]) {
       const oj = occ.get(j);
       if (oj && oj.clan !== a.clan) continue; // 自家の軍勢のいるマスは通り抜けられる（止まれはしない）
-      if (isCrossing(i, j) && (i !== a.hex || crossBlock(s, a) || landBlock(s, a, j))) continue; // 渡海は船の空きがあるとき、その場からだけ
       const cj = castleAt(s, j);
       if (cj && cj.owner !== a.clan && cj.garrison > 0) continue; // 城兵がいれば攻撃が必要
       if (cj && allied(s, a.clan, cj.owner)) continue; // 同盟国の城には入れない
@@ -71,7 +69,6 @@ export function attackTargets(s: GameState, a: Army): Target[] {
   const occ = occupancy(s);
   const out: Target[] = [];
   for (const j of NEIGHBORS[a.hex]) {
-    if (isCrossing(a.hex, j) && (crossBlock(s, a) || landBlock(s, a, j))) continue; // 海の向こうを攻めるには船が要る
     const o = occ.get(j);
     if (o) { if (hostile(s, a.clan, o.clan)) out.push({ kind: 'army', hex: j, army: o }); continue; }
     const c = castleAt(s, j);

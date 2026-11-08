@@ -167,7 +167,7 @@ export function seizeItems(s: GameState, loser: string, by: string | null) {
 export function aiEconomy(s: GameState, clan: string) {
   aiTrade(s, clan);
   aiEquip(s, clan);
-  if (!s.clans[clan].foreign) aiInvest(s, s.clans[clan], clanIncome(s, clan)); // 余った金を城に回す
+  aiInvest(s, s.clans[clan], clanIncome(s, clan)); // 余った金を城に回す
 }
 // 商い: 兵糧の売買・鉄砲の購入と配備・名物の購入
 export function aiTrade(s: GameState, clan: string) {
@@ -182,7 +182,7 @@ export function aiTrade(s: GameState, clan: string) {
   // 鉄砲: 兵の20%まで
   const target = Math.round(upkeep * 0.2 / R.FOOD_PER_SOLDIER), have = clanGuns(s, clan);
   const spare = C.gold - reserve - 2000;
-  if (have < target && spare > 0 && !C.foreign) buyGuns(s, clan, Math.floor(Math.min(target - have, spare / gunPrice(s, clan)))); // 朝鮮・明は日本の市で鉄砲を買わない
+  if (have < target && spare > 0) buyGuns(s, clan, Math.floor(Math.min(target - have, spare / gunPrice(s, clan))));
   // 自城（とその隣）にいる部隊に持たせる
   for (const a of clanArmies(s, clan)) {
     if (!C.guns) break;
@@ -198,7 +198,7 @@ export function aiTrade(s: GameState, clan: string) {
   }
   // 名物: 金に余裕があれば市場から
   const market = marketItems(s).sort((x, y) => itemPrice(s, clan, x) - itemPrice(s, clan, y));
-  if (!C.foreign && market.length && C.gold > reserve + itemPrice(s, clan, market[0]) * 3 && s.turn % 6 === 0) buyItem(s, clan, market[0]); // 朝鮮・明は名物を買わない
+  if (market.length && C.gold > reserve + itemPrice(s, clan, market[0]) * 3 && s.turn % 6 === 0) buyItem(s, clan, market[0]);
 }
 // 下賜: 持たせていない名物を部隊長へ（刀剣は兵の多い部隊長、茶器は当主から）
 export function aiEquip(s: GameState, clan: string) {

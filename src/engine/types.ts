@@ -1,33 +1,12 @@
 import type { Difficulty } from './rules';
 import type { Tactical } from './tactical';
 
-// 唐入りの戦の進み（幕間で唐入りを決め、「唐入りを始める」を押してから）
-export interface KarairiWar {
-  active: boolean; startTurn: number;
-  openTurn: number; // 渡海できるようになる月（対馬から使いを送ると2か月後）
-  fleet: number; // 船の数（艘）。渡海できる兵と兵糧の量を決める
-  escort: string[]; // 渡海の道を守る水軍の将
-  foodLeft?: number; // この月にまだ海を渡せる兵糧（石）
-  yi: number; // 李舜臣の水軍の勢い（0〜1。撃退されると下がり、月ごとに戻る）
-  yiFate?: 'dead' | 'captured'; // 海戦に勝ったとき、李舜臣が討死・捕縛されたか（以後、遊撃は来ない）
-  raid?: { turn: number; zone: string; sunk: number; troops: number; repelled: boolean; cut?: number; choice?: 'fight' | 'convoy' | 'port'; lostShips?: number; leader?: string } | null; // この月の襲撃（cut: 送った兵糧の沈む割合、sunk: 沈んだ石）
-  raids: number; // これまでの襲撃の数
-  mingTurn?: number; // 明が援軍を出した月
-  weary?: number; // 厭戦（0〜100）
-  held?: number; // 先月の終わりに持っていた朝鮮の城の数
-  lost?: number; mingLost?: number; joseonLost?: number; // 海の向こうで失った兵（日本・明・朝鮮）
-  lord?: string; // 唐入りを始めた当主（亡くなれば撤兵）
-  peaceTurn?: number; // 和議を探った月
-  reinforced?: number; // この月に船で海の向こうへ送った補充の兵
-  seen?: string[]; // 一度だけ見せる場面（名護屋・釜山上陸・義兵・北の冬）
-  end?: 'daimin' | 'wagi' | 'withdraw' | 'collapse'; endWhy?: string; // 唐入りの結末
-}
 // 月をまたぐ城攻め: 日没で決着がつかなければ、合戦の盤面をそのまま翌月へ持ち越す
 export interface SiegeSave { clan: string; defender: string | null; armies: number[]; months: number; since: number; tac: Tactical; }
 
 export type Terrain = 'P' | 'F' | 'M' | 'R';
 
-export interface Hex { i: number; q: number; r: number; t: Terrain; p: number; k: number; d: number; c?: number; f?: number; } // f: 国外（朝鮮・遼東。唐入りで開く）
+export interface Hex { i: number; q: number; r: number; t: Terrain; p: number; k: number; d: number; c?: number; }
 
 export interface Castle {
   i: number; id: string; name: string; hex: number; owner: string | null;
@@ -97,13 +76,11 @@ export interface Army {
   ashi?: number; // 兵のうち足軽（常備兵）の割合 0〜1
   fought?: number; // 最後に合戦したターン
   cannon?: number; // 持たせた大筒（門）
-  abroad?: boolean; // 唐入り: 月の初めに海の向こう（朝鮮）にいたか
   front?: number; // 属する方面軍団（なければ直轄）
 }
 
 export interface Clan {
   id: string; name: string; color: string; leader: string | null;
-  foreign?: boolean; // 国外の家（朝鮮・明）。唐入りまで alive=false のまま眠る
   prestige: number; food: number; alive: boolean; stance: '攻勢' | '均衡' | '守勢';
   offensiveSince?: number; // AI: 攻勢に転じたターン（しばらく様子を見てから陣触を出す）
   target: string | null; // AIの主攻勢力
@@ -172,8 +149,6 @@ export interface GameState {
   nextArmyId: number;
   treaties: Treaty[];
   orders: { army: number; hex: number; command: boolean; mp: number }[]; // 今の手番の出陣命令
-  // 天下統一ののちの幕間（大評定）で決めたこと: 出るか・大義・南蛮の大船・伴天連追放・人の売り買いの禁令・朝鮮へ使いを送るか・湊を調べたか
-  karairi?: { choice: 'go' | 'peace'; cause?: string; ships?: boolean; expel?: boolean; slaveBan?: boolean; envoy?: boolean; investigated?: boolean; turn: number; speaker: string } & Partial<KarairiWar>;
   sieges?: Record<number, SiegeSave>; // 月をまたいで続く城攻め（城の番号 → 合戦の続き）
   dipTried: Record<string, number>; // "提案側|相手" → 最後に交渉したターン
   brokenAt?: Record<string, number>; // 手切れした組 → ターン

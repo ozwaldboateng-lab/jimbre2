@@ -1,8 +1,8 @@
 // 陣触と陣払い: 平時の軍団は城の名簿（s.camps）として地図に出ず、兵糧もかからない。陣触で集まって地図に現れる
 // 陣触: 翌月に名簿の兵がそろって現れる。急ぎの陣触: その月のうちに名簿の半分が現れ、残りは翌月に追いつく
-// 陣払い: 本国の自分の城か、その隣にいる軍団を名簿に戻す（その月の行動を使う）。海の向こうでは陣払いできない
+// 陣払い: 本国の自分の城か、その隣にいる軍団を名簿に戻す（その月の行動を使う）
 import { membersOf, staffOf, treeOf, attachAuto, levelOf } from './corps';
-import { HEXES, NEIGHBORS, graphDistances, hexDist, isForeignHex } from './map';
+import { HEXES, NEIGHBORS, graphDistances, hexDist } from './map';
 import { nearestOwnCastle } from './ops';
 import * as R from './rules';
 import { addLog, allied, hostile, hexOwner, castleAt, clanCastles, clanName, drillOf, initialMorale, maxTroops, occupancy } from './state';
@@ -37,13 +37,11 @@ export function syncStatus(s: GameState, a: Army) {
 // 陣払いできる城: 本国の自分の城（いるマスか、その隣）
 export function homeCastle(s: GameState, a: Army): Castle | null {
   const here = castleAt(s, a.hex);
-  if (here && here.owner === a.clan && !isForeignHex(here.hex)) return here;
-  return NEIGHBORS[a.hex].map((j) => castleAt(s, j)).find((c): c is Castle => !!c && c.owner === a.clan && !isForeignHex(c.hex)) ?? null;
+  if (here && here.owner === a.clan) return here;
+  return NEIGHBORS[a.hex].map((j) => castleAt(s, j)).find((c): c is Castle => !!c && c.owner === a.clan) ?? null;
 }
 export function campBlock(s: GameState, a: Army): string | null {
   if (a.ikki) return '一揆勢は陣払いできない';
-  if (s.clans[a.clan]?.foreign) return '国外の軍勢は陣払いしない';
-  if (isForeignHex(a.hex)) return '海の向こうでは陣払いできない（日本へ戻ってから）';
   if (a.routed) return '潰走中は陣払いできない';
   if (a.acted) return 'この月はもう動いた';
   if ((s.orders ?? []).some((o) => o.army === a.id)) return '出陣を命じている（取り消すと陣払いできる）';
@@ -200,7 +198,7 @@ function announce(s: GameState, a: Army, c: Castle) {
 // 新しいゲームの始まり: 全家の軍団を陣払いの名簿にする（平時から始まる）
 export function campAll(s: GameState) {
   for (const a of Object.values(s.armies)) {
-    if (a.ikki || s.clans[a.clan]?.foreign) continue;
+    if (a.ikki) continue;
     const c = homeCastle(s, a);
     if (!c) continue;
     delete s.armies[a.id];
@@ -217,7 +215,7 @@ export const AUTO = { FRONT: 6, THREAT: 3, NEWS_NEAR: 5, IDLE: 3, CALM: 4, ATTAC
 export interface AutoOpts { policy: 'attack' | 'defend' | 'build'; camps: Army[]; field: Army[]; targetHexes: number[] }
 export function autoJinbure(s: GameState, clan: string, o: AutoOpts) {
   const C = s.clans[clan];
-  if (!C?.alive || C.foreign) return;
+  if (!C?.alive) return;
   // 迫る敵: 敵の軍勢のうち、自分の領の外にいる（攻めてきている）ものか、この家を狙う家のもの。自分の領で構えているだけの隣の家の軍勢には反応しない（陣触の連鎖を防ぐ）
   const hostileArmies = Object.values(s.armies).filter((x) => x.clan !== clan && !x.routed && hostile(s, clan, x.clan) && (x.ikki || hexOwner(s, x.hex) !== x.clan || s.clans[x.clan]?.target === clan));
   const near = (hex: number, r: number) => hostileArmies.filter((x) => hexDist(x.hex, hex) <= r).reduce((t, x) => t + x.troops, 0);

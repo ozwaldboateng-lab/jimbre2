@@ -1,14 +1,13 @@
 // 兵站: 領国のつながり（本国・飛び地・海路）、補給線（自城からの距離と敵による遮断）、小荷駄（部隊の携行兵糧）、城の蔵（籠城の備え）。
 // 家の蔵（clan.food）は本国と、海でつながる飛び地の分。海でもつながらない飛び地は、その中の城の蔵で食べる。
 import { HEXES, NEIGHBORS } from './map';
+import { armyHas } from './traits';
 import { capital } from './ops';
 import { bugyoOf, roleOf } from './ranks';
 import * as R from './rules';
 import { addLog, allied, castleAt, clanCastles, garrisonMax, hexOwner, hostile, occupancy } from './state';
 import type { Army, Castle, GameState } from './types';
-import { isCrossing, karairiOn } from './karairi';
 import { TRAITS } from '../data/traits';
-import { isForeignHex } from './map';
 
 // 海に面したヘックス（格子の隣が6つそろわない）
 const hexIndex = new Map(HEXES.map((h) => [`${h.q},${h.r}`, h.i]));
@@ -57,7 +56,7 @@ export function supplyNet(s: GameState, clan: string): SupplyNet {
     const q = [c.hex]; seen.set(c.hex, id);
     while (q.length) {
       const h = q.pop()!;
-      for (const j of NEIGHBORS[h]) if (!seen.has(j) && !isCrossing(h, j) && passable(s, clan, j, occ)) { seen.set(j, id); q.push(j); } // 海峡は陸続きではない
+      for (const j of NEIGHBORS[h]) if (!seen.has(j) && passable(s, clan, j, occ)) { seen.set(j, id); q.push(j); }
     }
     compOf.set(c.i, id);
   }
@@ -82,7 +81,6 @@ export function supplyNet(s: GameState, clan: string): SupplyNet {
     if (cur.c >= range) continue;
     if (!friendly(h) && zoc(h) && !castleAt(s, h)) continue; // 敵に接する敵地からは延びない
     for (const j of NEIGHBORS[h]) {
-      if (isCrossing(h, j)) continue; // 海を渡る兵糧は船で（海路）
       const a = occ.get(j);
       if (a && hostile(s, clan, a.clan)) continue;
       const step = friendly(j) ? 0 : 1;
@@ -153,23 +151,8 @@ export function monthlySupply(s: GameState, clan: string, kyoExtra: number, besi
     if (sp.ok) {
       // 補給下: 運送で減る分も含めて蔵から送り、小荷駄も満たす
       const refill = Math.max(0, R.CARRY_MONTHS - carryOf(a)) * base;
-      const mult = (1 + R.SUPPLY_LOSS * sp.dist * net.loss) * (sp.kind === 'sea' ? 1 + R.SEA_LOSS : 1);
+      const mult = (1 + R.SUPPLY_LOSS * sp.dist * net.loss) * (sp.kind === 'sea' ? 1 + R.SEA_LOSS * (armyHas(s, a, 'suigun') ? 0.5 : 1) : 1); // 水軍の将が傘下にいれば海路の減りは半分
       const want = (base + refill) * mult;
-      // 唐入り: 海の向こうへ船で運ぶ兵糧は、この月に渡せる量まで（足りなければ現地の城の蔵、それも尽きれば小荷駄）
-      const overSea = sp.kind === 'sea' && karairiOn(s) && isForeignHex(a.hex);
-      const shipped = overSea ? Math.min(want, Math.max(0, s.karairi!.foodLeft ?? 0)) : want;
-      const cut = overSea && s.karairi!.raid?.turn === s.turn ? s.karairi!.raid.cut ?? 0 : 0; // 李舜臣に沈められる分
-      if (overSea && cut) s.karairi!.raid!.sunk += Math.round(shipped * cut);
-      if (shipped < want || cut) {
-        s.karairi!.foodLeft = Math.max(0, (s.karairi!.foodLeft ?? 0) - shipped);
-        const arrived = shipped * (1 - cut);
-        const got = arrived + drawEnclave(enclaveCastles(sp.comp), want - arrived);
-        homeDraw += shipped;
-        if (got < want * 0.999) { a.food = Math.max(0, carryOf(a) - (1 - got / want)); if (a.food <= 0) starvingArmies.add(a.id); else if (mine) lowArmies.push(s.generals[a.main]?.name ?? ''); }
-        else a.food = R.CARRY_MONTHS;
-        continue;
-      }
-      if (overSea) s.karairi!.foodLeft = (s.karairi!.foodLeft ?? 0) - want;
       if (sp.kind === 'enclave') {
         const got = drawEnclave(enclaveCastles(sp.comp), want);
         if (got < want * 0.999) { a.food = Math.max(0, carryOf(a) - (1 - got / want)); if (a.food <= 0) starvingArmies.add(a.id); }
@@ -202,9 +185,7 @@ export function monthlySupply(s: GameState, clan: string, kyoExtra: number, besi
     }
     if (kind === 'enclave') continue;
     const need = Math.max(0, max - storeOf(c));
-    const abroadCap = karairiOn(s) && isForeignHex(c.hex) ? Math.max(0, s.karairi.foodLeft ?? 0) : Infinity; // 海の向こうの城の蔵も船で
-    const give = Math.min(need, C.food, abroadCap);
-    if (abroadCap !== Infinity) s.karairi!.foodLeft = abroadCap - give;
+    const give = Math.min(need, C.food);
     c.store = storeOf(c) + give; C.food -= give;
   }
   if (lowArmies.length) addLogSafe(s, `補給が届かず、${lowArmies.join('・')}隊の小荷駄（持ち歩く兵糧）が尽きた。来月から飢える。`, true);

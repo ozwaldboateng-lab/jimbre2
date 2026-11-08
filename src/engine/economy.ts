@@ -13,9 +13,7 @@ import { monthIkki } from './ikki';
 import { cutOff, harvestToEnclave, isSupplied, monthlySupply, storeOf } from './supply';
 import { addLog, hostile, occupancy, castleAt, castleKoku, clanArmies, clanAshi, clanCapacity, mobilizeCap, clanCastles, drillOf, farmTroops, garrisonMax, hexOwner, initialMorale, maxTroops } from './state';
 import type { Castle, GameState } from './types';
-import { karairiOn, troopsLeft } from './karairi';
 import { armyHas, CHIKUJO_REPAIR, govTrait, KENSEI_CAP, KENSEI_DRILL } from './traits';
-import { isForeignHex } from './map';
 
 export function besieged(s: GameState, c: Castle): boolean {
   const occ = occupancy(s);
@@ -74,16 +72,14 @@ export function monthEnd(s: GameState) {
 
       // 補充: 自城または自城に隣接し、補給下にある軍団
       const nearCastle = inOwnCastle || NEIGHBORS[a.hex].some((j) => { const cj = castleAt(s, j); return cj && cj.owner === clan.id; });
-      const overSea = karairiOn(s) && a.clan === s.player && isForeignHex(a.hex); // 海の向こうの当家の軍勢へは、補充の兵も船で（今月の渡海の空きの分だけ）
       const fl = mine && a.front !== undefined ? fiefLeft.get(a.front) : undefined;
-      if (nearCastle && supplied && (fl ?? capacityLeft) > 0 && (!overSea || troopsLeft(s) > 0)) {
-        const want = Math.min(overSea ? Math.max(0, troopsLeft(s)) : Infinity, R.REINFORCE_BASE + s.generals[a.main].lea * 10 + frontReinforce(s, a), maxTroops(s, a) - a.troops, fl ?? capacityLeft, Math.floor(clan.food / R.RECRUIT_COST));
+      if (nearCastle && supplied && (fl ?? capacityLeft) > 0) {
+        const want = Math.min(R.REINFORCE_BASE + s.generals[a.main].lea * 10 + frontReinforce(s, a), maxTroops(s, a) - a.troops, fl ?? capacityLeft, Math.floor(clan.food / R.RECRUIT_COST));
         if (want > 0) {
           // 新しく集めた農兵の分だけ練度と足軽の割合が薄まる
           a.drill = (drillOf(a) * a.troops + R.DRILL_RECRUIT * want) / (a.troops + want);
           a.ashi = ((a.ashi ?? 0) * a.troops) / (a.troops + want);
           a.troops += want; if (fl !== undefined) fiefLeft.set(a.front!, fl - want); else capacityLeft -= want; clan.food -= want * R.RECRUIT_COST;
-          if (overSea) s.karairi!.reinforced = (s.karairi!.reinforced ?? 0) + want;
           if (inOwnCastle) a.departTroops = a.troops;
         }
       }

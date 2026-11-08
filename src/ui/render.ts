@@ -3,7 +3,7 @@ import { MINES, MINE_KIND_NAME } from '../data/economy';
 import { BASE_LAKES, BASE_LAND, BASE_RIVERS } from '../data/basemap';
 import { bk, meibun } from '../engine/bakufu';
 import { supplyNet } from '../engine/supply';
-import { CASTLE_DEFS, CROSSINGS, HEXES, HEX_SIZE, PROVINCES, hexCenter, isBlocked, isForeignHex, isSoloPeak } from '../engine/map';
+import { HEXES, HEX_SIZE, PROVINCES, hexCenter, isBlocked, isSoloPeak } from '../engine/map';
 import { PASSES, RANGES } from '../data/ranges';
 import type { Reach, Target } from '../engine/move';
 import { allied, castleAt, castleKoku, hexOwner } from '../engine/state';
@@ -13,24 +13,14 @@ const SQ3 = Math.sqrt(3);
 const EDGE_DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
 const hexIndex = new Map(HEXES.map((h) => [`${h.q},${h.r}`, h.i]));
 const EDGE_NB: number[][] = HEXES.map((h) => EDGE_DIRS.map(([dq, dr]) => hexIndex.get(`${h.q + dq},${h.r + dr}`) ?? -1));
-// 国外（唐入りまで眠っている朝鮮・明）のマス: 沈んだ色で塗り、城と名を薄く
-const FOREIGN_FILL = '#5f666c';
-const isSealedClan = (s: GameState, id: string | null) => !!id && !!s.clans[id]?.foreign && !s.clans[id].alive;
-const isSealed = (s: GameState, h: number) => isForeignHex(h) && isSealedClan(s, hexOwner(s, h));
 const CENTERS = HEXES.map((h) => hexCenter(h.i));
-// 見られる範囲: 画面の真ん中が日本と朝鮮・遼東のヘックスの範囲から出ないように（端のマスも真ん中まで寄せられる）。
+// 見られる範囲: 画面の真ん中が日本のヘックスの範囲から出ないように（端のマスも真ん中まで寄せられる）。
 // 下絵の大陸は、その外側8マスまでしか描かない
 const AREA = (() => {
   const xs = CENTERS.map((c) => c[0]), ys = CENTERS.map((c) => c[1]);
   return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
 })();
 const BOUNDS = { x0: AREA.x0 - HEX_SIZE * 8, y0: AREA.y0 - HEX_SIZE * 8, x1: AREA.x1 + HEX_SIZE * 8, y1: AREA.y1 + HEX_SIZE * 8 };
-// 国外の家ごとの真ん中（名を置く所）
-const FOREIGN_CENTER: Record<string, [number, number]> = (() => {
-  const acc: Record<string, [number, number, number]> = {};
-  for (const h of HEXES) { if (!h.f) continue; const o = CASTLE_DEFS[h.d]?.owner; if (!o) continue; const a = (acc[o] ??= [0, 0, 0]); a[0] += CENTERS[h.i][0]; a[1] += CENTERS[h.i][1]; a[2]++; }
-  return Object.fromEntries(Object.entries(acc).map(([k, [x, y, n]]) => [k, [x / n, y / n]]));
-})();
 const VERT = [...Array(6)].map((_, k) => { const a = ((60 * k - 30) * Math.PI) / 180; return [Math.cos(a), Math.sin(a)]; });
 
 const C = {
@@ -406,9 +396,8 @@ export class MapView {
     // 塗り（勢力色×和紙）と地形
     for (const h of visible) {
       const owner = hexOwner(s, h.i);
-      const sealed = isSealed(s, h.i);
-      const tint = this.mode === 'power' || sealed ? null : this.tintOf(s, h);
-      let base = sealed ? FOREIGN_FILL : tint ?? (owner ? mix(C.washi, s.clans[owner].color, 0.5) : C.neutral);
+      const tint = this.mode === 'power' ? null : this.tintOf(s, h);
+      let base = tint ?? (owner ? mix(C.washi, s.clans[owner].color, 0.5) : C.neutral);
       const hl = this.highlight, lit = !hl || (Array.isArray(hl) ? hl.includes(owner ?? '') : owner === hl);
       if (hl && !lit) base = mix(rgbToHex(base), '#1a130d', 0.5);
       else if (this.highlight) base = mix(rgbToHex(base), '#fff3d0', 0.15);
@@ -464,10 +453,7 @@ export class MapView {
     for (const c of s.castles) {
       const [x, y] = CENTERS[c.hex];
       if (x < viewMinX || x > viewMaxX || y < viewMinY || y > viewMaxY) continue;
-      const dim = isSealed(s, c.hex);
-      if (dim) ctx.globalAlpha = 0.55;
-      this.drawCastle(ctx, x, y, dim ? '#6a7078' : c.owner ? s.clans[c.owner].color : '#7d735c', c.owner === s.player, px, castleKoku(c), c.kind ?? 'hira');
-      ctx.globalAlpha = 1;
+      this.drawCastle(ctx, x, y, c.owner ? s.clans[c.owner].color : '#7d735c', c.owner === s.player, px, castleKoku(c), c.kind ?? 'hira');
       if (c.naio !== undefined && c.naio >= s.turn && c.naioBy === s.player) {
         // 内応の印
         ctx.fillStyle = '#8fb36a'; ctx.beginPath(); ctx.arc(x + HEX_SIZE * 0.42, y - HEX_SIZE * 0.42, HEX_SIZE * 0.24, 0, 7); ctx.fill();
@@ -545,7 +531,7 @@ export class MapView {
         const ty = y + HEX_SIZE * (hasArmy ? 0.74 : 0.48);
         ctx.lineWidth = 3 * px; ctx.strokeStyle = 'rgba(20,14,8,0.85)'; ctx.lineJoin = 'round';
         ctx.strokeText(c.name, x, ty);
-        ctx.fillStyle = c.owner === s.player ? '#ffe7a8' : isSealed(s, c.hex) ? 'rgba(220,215,205,0.55)' : C.white;
+        ctx.fillStyle = c.owner === s.player ? '#ffe7a8' : C.white;
         ctx.fillText(c.name, x, ty);
         // 自家の城の名簿（陣払い中の軍団）の数: 城名の下に小さく「名簿2」
         if (c.owner === s.player) {
@@ -604,25 +590,6 @@ export class MapView {
           ctx.fillStyle = '#f0d68c'; ctx.fillText(name, x, ty + px);
         }
       }
-    }
-    // 唐入り: 渡海の路（対馬〜釜山）を点線で
-    if (s.karairi?.active) {
-      for (const [ha, hb, name] of CROSSINGS) {
-        const [ax, ay] = CENTERS[ha], [bx, by] = CENTERS[hb];
-        const open = s.turn >= (s.karairi.openTurn ?? 0);
-        ctx.save(); ctx.setLineDash([HEX_SIZE * 0.35, HEX_SIZE * 0.25]); ctx.lineWidth = Math.max(2 * px, HEX_SIZE * 0.08);
-        ctx.strokeStyle = open ? 'rgba(240,214,140,0.9)' : 'rgba(200,200,200,0.5)';
-        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo((ax + bx) / 2 + HEX_SIZE, (ay + by) / 2, bx, by); ctx.stroke(); ctx.restore();
-        if (this.scale > 0.7) { ctx.font = `600 ${Math.max(10, 12 * Math.sqrt(this.scale / 1.6)) * px}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3 * px; ctx.strokeStyle = 'rgba(15,15,18,0.85)'; const mx = (ax + bx) / 2 + HEX_SIZE * 1.1, my = (ay + by) / 2; ctx.strokeText(`${name}${open ? '' : '（閉）'}`, mx, my); ctx.fillStyle = '#f0d68c'; ctx.fillText(`${name}${open ? '' : '（閉）'}`, mx, my); }
-      }
-    }
-    // 国外の名（唐入りまで眠っている朝鮮・明）
-    for (const [clan, [x, y]] of Object.entries(FOREIGN_CENTER)) {
-      if (!isSealedClan(s, clan) || x < viewMinX || x > viewMaxX || y < viewMinY || y > viewMaxY) continue;
-      const fs = Math.max(20, 34 / Math.sqrt(Math.max(0.4, this.scale))) * px * this.scale;
-      ctx.font = `700 ${fs}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.lineWidth = 4 * px; ctx.strokeStyle = 'rgba(15,15,18,0.75)'; ctx.strokeText(`${s.clans[clan].name}（国外）`, x, y);
-      ctx.fillStyle = 'rgba(225,220,205,0.6)'; ctx.fillText(`${s.clans[clan].name}（国外）`, x, y);
     }
     // 出陣先の印（城名より上に描く）
     for (const [hx, n] of ordered) {

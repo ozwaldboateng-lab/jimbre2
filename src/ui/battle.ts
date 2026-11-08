@@ -542,7 +542,7 @@ export function openBattle(s: GameState, a: Army, target: Target, joined: Army[]
   const atk = clanName(s, tac.attackerClan), def = clanName(s, tac.defenderClan);
   const sv = tac.castle !== null ? s.sieges?.[tac.castle] : undefined;
   $('bt-title').textContent = tac.kind === 'siege' ? `${s.castles[tac.castle!].name}攻防戦${sv && sv.clan === tac.attackerClan ? `（包囲${sv.months + 1}か月目）` : ''}` : '野戦';
-  const ie = (id: string | null, n: string) => (id && !s.clans[id]?.foreign ? `${n}家` : n); // 朝鮮・明は「家」をつけない
+  const ie = (id: string | null, n: string) => (id ? `${n}家` : n);
   $('bt-sub').textContent = `${ie(tac.attackerClan, atk)}（攻）対 ${ie(tac.defenderClan, def)}（守）　あなたは${playerSide === 'A' ? '攻め手' : '守り手'}`;
   return new Promise((resolve) => {
     finish = resolve;

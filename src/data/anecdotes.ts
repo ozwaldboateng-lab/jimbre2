@@ -1,6 +1,6 @@
 // 逸話: 人物が生きていて年が合えば起きる（家・役職・勝ち負けは問わない）。どの家の話でも場面で見せる
 // 文の中の {id} は、その時の武将の名に置き換える。効果は主役本人の能力だけ（家の兵・金・外交には触れない）
-// 本文は二つのファイルに分けている（ここに1550〜60年代、anecdotes2.ts に1560年代後半から唐入りまで）
+// 本文は二つのファイルに分けている（ここに1550〜60年代、anecdotes2.ts に1560年代後半から1590年代まで）
 import type { OpeningBeat } from './openings';
 import { ANECDOTES_B } from './anecdotes2';
 import { ANECDOTES_C } from './anecdotes3';

@@ -1,20 +1,19 @@
 // 画面の組み立てと操作
 import { defenderSupports, estimate, supportArmies } from '../engine/combat';
 import { endTurn } from '../engine/game';
-import { HEXES, PROVINCES, NEIGHBORS, TERRAIN_NAME, hexCenter, hexDist, isForeignHex, rangeName } from '../engine/map';
+import { HEXES, PROVINCES, NEIGHBORS, TERRAIN_NAME, hexCenter, hexDist, rangeName } from '../engine/map';
 import { PASSES } from '../data/ranges';
 import { attackTargets, pathTo, reachable, type Target } from '../engine/move';
 import { canPlot, capital, checkVictory, doPlot, naioActive, plotChance, disband, execute, moveArmy, recruit, recruitChance, recruitRonin, release, roninChance } from '../engine/ops';
 import * as R from '../engine/rules';
 import { migrateMap, newGame } from '../engine/setup';
-import { newKarairiGame, S1592 } from '../engine/s1592';
 import { dismiss, dismissBlock, fillArmy, fillBlock, replaceBlock, replaceMain, reshuffleAt } from '../engine/reorg';
 import { afterCampEdit, armyOrCamp, campBlock, campsAt, campsOf, dismissFromCamp, dissolveCamp, formCamp, JB, muster, musterBlock, toCamp } from '../engine/jinbure';
 import { FUSHIN_COST, fushin, fushinBlock, genHex, govTrait, NINJA_COST, NINJA_NAME, NINJA_RANGE, ninjaBlock, ninjaChance, ninjaDo, ninjaHead, ninjaReach, setNinjaHead, TEA_COST, TEA_GUESTS, TEA_ON, teaBlock, teaCeremony, teaGrade, traitName, traitOf, type NinjaAct } from '../engine/traits';
 import { TRAIT_NOTE } from '../data/traits';
 import { FACE_ON, mergeArmies, mergeBlock, mergeLeaders, mergePreview, RIVAL_ON, splitArmy, splitBlock } from '../engine/reorg';
 import {
-  addLog, hostile, armyCombat, armyStats, ashiOf, clanAshi, drillOf, castleAt, castleKoku, clanArmies, clanCapacity, clanCastles, clanKoku, clanName, clanTroops, clanUpkeep,
+  hostile, armyCombat, armyStats, ashiOf, clanAshi, drillOf, castleAt, castleKoku, clanArmies, clanCapacity, clanCastles, clanKoku, clanName, clanTroops, clanUpkeep,
   castleDef, dateLabel, garrisonMax, treatyOf, hexOwner, initialMorale, maxTroops, occupancy, troopMult,
 } from '../engine/state';
 import type { Army, BattleReport, BigEvent, Castle, Front, GameState, General, Item } from '../engine/types';
@@ -59,15 +58,9 @@ import { dueOf, goodwill, kanjo, kanjoBlock, kazo, kazoCost, migrateOn, onLabel,
 import { promoteBlockOf, promoteOne } from '../engine/ranks';
 import { envoyLine, lineFor, type Scene, type SceneLine } from '../engine/lines';
 import { PERSONAS, personaActive, type EnvoyScene } from '../data/envoys';
-import { peaceBlock, peaceChance, seekPeace, W, withdraw } from '../engine/karairi';
 import { autoStance, setStanceHook, type StanceInfo } from '../engine/stance';
 import type { Stance } from '../engine/move';
-import { ADMIRALS as KADM, navalWinP, setNavalHook, YI_FATE, type NavalChoice, type NavalInfo } from '../engine/karairi';
-import { ADMIRALS, buildShips, crossingEnds, crossingOpen, crossBlock, escortCut, foodCap, K, karairiOn, setEscort, startKarairi, syncCrossings, troopCap, troopsLeft } from '../engine/karairi';
 import { ENDING_ART } from '../data/ending';
-import { SEKAIZU_ART } from '../data/sekaizu';
-import { BUSAN_ART, FUYU_ART, GIHEI_ART, KOWA_ART, NAGOYA_ART, SHIMAKAGE_ART } from '../data/karairiArt';
-import { HYOJO_ART, MINATO_ART } from '../data/scenes';
 import { SCENE_LABEL } from '../data/lines';
 import { absorb as absorbClan } from '../engine/diplomacy';
 import { captureCastle, killGeneral } from '../engine/ops';
@@ -85,11 +78,10 @@ import { MISSIONARIES } from '../data/nanban';
 import { fame, hire, offerChance, refuse } from '../engine/ronin';
 import { attach, attachBlock, childrenOf, directOf, leaveArmy, levelOf, migrateCorps, staffOf, treeOf } from '../engine/corps';
 import { BIO } from '../data/bios';
-import { KOREA_BIOS } from '../data/korea';
 import { roleOf, bugyoCoef, bugyoOf, bugyoSlots, canBugyo, setBugyo, canTsukai, rankName, setTsukai, tsukaiLabel, tsukaiOf, tsukaiSlots, migrateRanks } from '../engine/ranks';
 
-const SAVE_KEY = 'sengoku1560:save:v1';
-const AUTO_KEY = 'sengoku1560:auto:v1';
+const SAVE_KEY = 'jinbure2:save';
+const AUTO_KEY = 'jinbure2:auto';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -125,7 +117,6 @@ export function boot(saved?: { state?: GameState }) {
   $('btn-todo').onclick = () => openTodo();
   $('stats').addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-tip]') as HTMLElement | null; if (d && statTip(d.dataset.tip!)) toast(`${d.dataset.tip}: ${statTip(d.dataset.tip!)}`); });
   setProposalHook((st, from, kind) => askPlayer(st, from, kind));
-  setNavalHook((st, info) => askNaval(st, info));
   // 自動テストの間は尋ねずに自動で決める（localStorage 'sengoku-stance'='ask' で尋ねる）
   { let ask = true; try { ask = !navigator.webdriver || localStorage.getItem('sengoku-stance') === 'ask'; } catch { /* 読めなくても続ける */ } if (ask) setStanceHook((st, info) => askStance(st, info)); }
   $('zin').onclick = () => view.zoomBy(1.3);
@@ -173,7 +164,6 @@ export function boot(saved?: { state?: GameState }) {
     if (t0.id === 'sel-tea-host') { teaHost = t0.value; openMenu(); return; }
     const el = e.target as HTMLSelectElement;
     if (el.id === 'sel-gift') { dipGift = el.value || null; openMenu(); }
-    if (el.dataset.escort !== undefined && s && karairiOn(s)) { const ids = [...s.karairi.escort]; ids[+el.dataset.escort] = el.value; setEscort(s, ids.filter((x, i, arr) => x && arr.indexOf(x) === i)); openMenu(); }
     if (el.dataset.budget && s) {
       const me = s.clans[s.player], v = +el.value;
       if (el.dataset.budget === 'mobilize') me.mobilize = v; else me.budget[el.dataset.budget as 'chisui' | 'hodo'] = v;
@@ -266,7 +256,6 @@ export function boot(saved?: { state?: GameState }) {
 // 地図の曲: 戦のあった月（先月・今月）や、敵が当家の城に迫っていれば戦の曲、ほかは平時の曲
 function mapMood(st: GameState) {
   const C = st.clans[st.player];
-  if (st.karairi?.active) { mood('war'); return; }
   const fighting = (C.foughtTurn ?? -9) >= st.turn - 2 || Object.values(st.armies).some((a) => a.clan !== st.player && hostile(st, a.clan, st.player) && clanCastles(st, st.player).some((c) => hexDist(a.hex, c.hex) <= 1));
   mood(fighting ? 'war' : 'peace');
 }
@@ -275,7 +264,7 @@ function startWith(state: GameState) {
   state.treaties ??= []; state.dipTried ??= {}; state.lastClash ??= {}; state.orders ??= []; state.revealed = (state.revealed ?? []).filter((id) => state.generals[id]);
   s = state;
   mapMood(state);
-  migrateMap(s); syncCrossings(s); // 唐入りのあいだだけ渡海の路を開く
+  migrateMap(s);
   view.state = s;
   mode = { kind: 'none' };
   closeModal();
@@ -288,7 +277,6 @@ function startWith(state: GameState) {
 function refresh() {
   if (!s) return;
   const st = s;
-  if (!st.over) queueMicrotask(() => { if (s === st && !st.over) karairiScenes(st); }); // 唐入りの節目の場面（一度だけ）
   const me = st.clans[st.player];
   $('date').textContent = `${dateLabel(st)}（${st.year}）`;
   const cap = clanCapacity(st, st.player), troops = clanTroops(st, st.player);
@@ -406,7 +394,6 @@ function onHexClick(hex: number) {
 }
 
 function inspectHex(hex: number, occ = occupancy(s!)) {
-  if (isForeignHex(hex) && !s!.clans[hexOwner(s!, hex) ?? '']?.alive) { select({ kind: 'hex', i: hex }); return; } // 国外: 様子を見るだけ
   const army = occ.get(hex);
   if (army) { select({ kind: 'army', id: army.id }); return; }
   const c = castleAt(s!, hex);
@@ -432,7 +419,6 @@ function afterAction() {
   if (!s) return;
   checkVictory(s);
   if (s.over) showGameOver();
-  else karairiScenes(s);
 }
 
 function nextArmy() {
@@ -461,7 +447,7 @@ function renderPanel() {
 
 // 顔画像（あれば）。size: 表示幅（高さは4:5）
 function face(id: string | null | undefined, w: number, cls = 'face') {
-  const src = id ? PORTRAITS[id] ?? (id.startsWith('gihei_') ? PORTRAITS[`gihei_face_${1 + ([...id].reduce((a, c) => a + c.charCodeAt(0), 0) % 3)}`] : undefined) : undefined; // 名のない義兵は共通の顔（3人から）
+  const src = id ? PORTRAITS[id] : undefined;
   return src ? `<img class="${cls}" src="${src}" width="${w}" height="${Math.round(w * 1.25)}" alt="" loading="lazy">` : '';
 }
 // 顔があれば顔、なければ家紋風の丸
@@ -558,14 +544,13 @@ function armyPanel(a: Army | undefined) {
       parts.push(`<div class="est" style="margin-top:6px">出陣命令: <b>${esc(tn)}</b>（${ord.command ? '自ら指揮' : '委任'}）。${besiege ? `<b>包囲${sv!.months + 1}か月目</b>。評定終了で先月の続きから攻める。` : '評定終了で開戦。'}</div>`);
       acts.push(`<button class="act" data-act="cancel-order">${besiege ? '囲みを解く（出陣を取り消す）' : '出陣を取り消す'}</button>`);
     }
-    if (karairiOn(st) && crossingEnds().includes(a.hex)) { const why = crossBlock(st, a); parts.push(`<div class="est" style="margin-top:6px">渡海: ${why ? esc(why) : `この軍団（兵${fmt(a.troops)}）は今月、船で海を渡れる（あと${fmt(troopsLeft(st))}人分）`}</div>`); }
     if (targets.length) acts.push(`<span class="hint" style="width:100%;margin:0">赤枠の敵をクリックで攻撃（${targets.length}）</span>`);
     acts.push(`<button class="act" data-act="next">次の部隊 (N)</button>`);
     if (!a.acted) acts.push(`<button class="act" data-act="wait">待機</button>`);
     // 合流（隣の自軍と）・分遣
     for (const j of NEIGHBORS[a.hex]) { const b = occupancy(st).get(j); if (!b || b.clan !== st.player || b.ikki) continue; const why = mergeBlock(st, a, b); acts.push(`<button class="act" data-act="merge-ask" data-id="${b.id}" ${why ? `disabled title="${esc(why)}"` : ''}>合流: ${esc(st.generals[b.main].name)}隊と</button>`); }
     { const why = splitBlock(st, a); acts.push(`<button class="act" data-act="split-ask" ${why ? `disabled title="${esc(why)}"` : ''}>分ける</button>`); }
-    if (!st.clans[a.clan].foreign) { const why = campBlock(st, a); acts.push(`<button class="act" data-act="to-camp" ${why ? `disabled title="${esc(why)}"` : ''}>陣払い（名簿に戻す）</button>`); }
+    { const why = campBlock(st, a); acts.push(`<button class="act" data-act="to-camp" ${why ? `disabled title="${esc(why)}"` : ''}>陣払い（名簿に戻す）</button>`); }
     { const why = fillBlock(st, a); if (!why) acts.push(`<button class="act" data-act="fill-army">空きを埋める（おまかせ）</button>`); }
     { const home = castleAt(st, a.hex)?.owner === st.player ? castleAt(st, a.hex) : NEIGHBORS[a.hex].map((j) => castleAt(st, j)).find((x) => x?.owner === st.player); if (home) acts.push(`<button class="act" data-act="open-jindate" data-id="${home.i}">陣立て（${esc(home.name)}）</button>`); else acts.push(`<button class="act" data-act="open-corps">軍団の編成</button>`); }
     if (nearOwn && st.clans[st.player].guns > 0 && (a.guns ?? 0) < gunCap(a)) acts.push(`<button class="act" data-act="arm-guns">鉄砲を持たせる（蔵${fmt(st.clans[st.player].guns)}丁）</button>`);
@@ -692,9 +677,6 @@ function hexPanel(i: number) {
   const h = HEXES[i];
   const owner = hexOwner(st, i);
   const dc = st.castles[h.d];
-  if (isForeignHex(i) && !st.clans[owner ?? '']?.alive) return `<div class="ph"><div><h2>${esc(PROVINCES[h.p].name)}</h2><div class="sub">国外（${esc(clanName(st, owner))}）　${esc(dc.name)}の辺り</div></div></div>
-  <dl class="kv"><dt>地形</dt><dd>${esc(TERRAIN_NAME[h.t])}</dd></dl>
-  <p class="hint">海の向こうの国。ここへは攻め入れない。天下を統一したのちの唐入りで、対馬から船で渡れるようになる。</p>`;
   const rn = rangeName(i);
   if (rn) return `<div class="ph"><div><h2>${esc(rn)}</h2><div class="sub">${esc(PROVINCES[h.p].name)}　${esc(clanName(st, owner))}${owner ? '家' : ''}領</div></div></div>
   <dl class="kv"><dt>地形</dt><dd>険山</dd><dt>石高</dt><dd>${man(h.k * dc.dev)}</dd><dt>移動</dt><dd>不可</dd></dl>
@@ -1241,7 +1223,7 @@ function openTitle() {
   openTitleScreen({
     auto, autoLabel: auto ? `${dateLabel(auto)}・${auto.clans[auto.player].name}家` : '',
     help: (st) => TABS.help(st), face: (id, w) => face(id, w),
-    start: (clan, diff, scen) => { startWith(scen === S1592.id ? newKarairiGame(diff) : newGame(clan, diff, undefined, scen, campStart())); store(AUTO_KEY, JSON.stringify(s)); if (scen === S1592.id) openMenu('gunji', 'karairi'); },
+    start: (clan, diff, scen) => { startWith(newGame(clan, diff, undefined, scen, campStart())); store(AUTO_KEY, JSON.stringify(s)); },
     resume: () => { if (auto) startWith(auto); },
   });
 }
@@ -1251,7 +1233,7 @@ type MenuKey = 'naisei' | 'gunji' | 'jinji' | 'gaiko' | 'akinai' | 'kiroku';
 // やりたいことでまとめたメニュー（いくつかのタブは旧タブを束ねたもの: COMPOSITE）
 const MENUS: { key: MenuKey; name: string; tabs: [string, string][] }[] = [
   { key: 'naisei', name: '内政', tabs: [['shiro', '城'], ['yosan', '予算と動員'], ['bugyo', '奉行'], ['deleg', '委任']] },
-  { key: 'gunji', name: '軍事', tabs: [['jindate', '陣立て'], ['butai', '部隊'], ['corps', '軍団'], ['karairi', '唐入り']] },
+  { key: 'gunji', name: '軍事', tabs: [['jindate', '陣立て'], ['butai', '部隊'], ['corps', '軍団']] },
   { key: 'jinji', name: '人事', tabs: [['vassals', '家臣団'], ['rewards', '恩賞'], ['fronts', '知行'], ['katoku', '家督'], ['tsukai', '使番'], ['gift', '下賜'], ['tokusei', '特性'], ['jinzai', '人材']] },
   { key: 'gaiko', name: '外交', tabs: [['gaike', '諸大名'], ['bakufu', '幕府'], ['court', '朝廷'], ['mission', '布教']] },
   { key: 'akinai', name: '商い', tabs: [['rice', '兵糧'], ['gunbuy', '鉄砲'], ['item', '名物の市場'], ['nanban', '南蛮市']] },
@@ -1292,7 +1274,7 @@ function openMenu(m: MenuKey = curMenu, tab: string = lastTab[m]) {
   const owner = menuOfTab(tab);
   if (owner && owner !== m) m = owner;
   const def = MENUS.find((x) => x.key === m)!;
-  if (!def.tabs.some(([k]) => k === tab) || (tab === 'karairi' && !karairiOn(st))) tab = def.tabs[0][0];
+  if (!def.tabs.some(([k]) => k === tab)) tab = def.tabs[0][0];
   curMenu = m; lastTab[m] = tab;
   const caps = Object.values(st.generals).filter((g) => g.status === 'captive' && g.captor === st.player).length;
   const tabName = (k: string, l: string) => (k === 'tsukai' ? tsukaiLabel(st.player) : k === 'jinzai' && caps ? `${l} ${caps}` : l);
@@ -1305,7 +1287,7 @@ function openMenu(m: MenuKey = curMenu, tab: string = lastTab[m]) {
     : safeTab(tab, st);
   openModal(`<h2 id="modal-title">${def.name}</h2><p class="lede">${esc(dateLabel(st))}　金 ${fmt(me.gold)}貫（月+${fmt(clanIncome(st, st.player))}${clanMine(st, st.player) ? `、うち鉱山${fmt(clanMine(st, st.player))}` : ''}）・兵糧 ${fmt(me.food)}石・城${clanCastles(st, st.player).length}・兵${fmt(clanTroops(st, st.player))}</p>
     <div class="tabs menu-tabs" role="tablist" aria-label="主メニュー">${MENUS.map((x, k) => `<button role="tab" data-act="mtab" data-id="${x.key}" aria-selected="${x.key === m}" title="${x.name} (${k + 1})">${x.name}</button>`).join('')}</div>
-    <div class="tabs" role="tablist" aria-label="${def.name}">${def.tabs.filter(([k]) => k !== 'karairi' || karairiOn(st)).map(([k, l]) => `<button role="tab" data-act="stab" data-id="${k}" aria-selected="${k === tab}">${tabName(k, l)}</button>`).join('')}</div>${body}`);
+    <div class="tabs" role="tablist" aria-label="${def.name}">${def.tabs.map(([k, l]) => `<button role="tab" data-act="stab" data-id="${k}" aria-selected="${k === tab}">${tabName(k, l)}</button>`).join('')}</div>${body}`);
   menuShown = true; genShown = null;
   $('modal-body').querySelectorAll<HTMLSelectElement>('select[data-move]').forEach((sel) => sel.addEventListener('change', () => {
     const g = st.generals[sel.dataset.move!]; g.loc = +sel.value; toast(`${g.name}を${st.castles[g.loc].name}へ移した`);
@@ -1534,7 +1516,7 @@ function openGeneral(id: string, back: boolean) {
   const age = ageOf(st, g);
   const next = g.clan === st.player && g.rank > 0 && g.status !== 'young' && st.clans[st.player].leader !== g.id ? ` / 次の昇進 ${R.MERIT_AT[g.rank - 1]}` : '';
   const items = [g.tea, g.sword, g.nanban].filter((x) => x && st.items[x]).map((x) => esc(itemLabel(st.items[x!])));
-  const bio = BIO[g.id] ?? KOREA_BIOS[g.id];
+  const bio = BIO[g.id];
   openModal(`<div class="gdetail">${face(g.id, 180, 'gface')}
     <h2 id="modal-title">${esc(g.name)}</h2>
     <p class="lede">${esc(g.clan ? clanName(st, g.clan) + '家' : g.formerClan ? `在野（旧${clanName(st, g.formerClan)}家）` : '在野')}${g.clan ? `　${rankName(st, g)}` : ''}${g.kin ? '　一門' : ''}${g.kiri ? '　洗礼' : ''}${age !== null && age >= 0 ? `　${age}歳（${g.born}年生）` : ''}${traitOf(g) ? `　<span class="pill trait" title="${esc(TRAIT_NOTE[traitOf(g)!])}">${esc(traitName(g))}</span>` : ''}</p>${traitOf(g) ? `<p class="hint" style="margin:0 0 4px">特性「${esc(traitName(g))}」: ${esc(TRAIT_NOTE[traitOf(g)!])}</p>` : ''}
@@ -1832,7 +1814,7 @@ const TABS: Record<string, (st: GameState) => string> = {
       return `<tr${mine ? ' class="me"' : ''}><td>${mine ? `<span class="swatch" style="background:${x.color}"></span> ${esc(x.name)}（当家）` : `<button class="linkish" data-act="dip-open" data-id="${x.id}"><span class="swatch" style="background:${x.color}"></span> ${esc(x.name)}</button>${near.has(x.id) ? '' : ' <span class="hint" style="margin:0">遠方</span>'}`}</td>
         <td>${x.leader ? nameLink(st.generals[x.leader]) : '—'}</td><td class="n">${clanCastles(st, x.id).length}</td><td class="n">${clanKoku(st, x.id).toFixed(1)}</td><td class="n">${fmt(clanTroops(st, x.id))}</td>
         <td class="n">${mine ? '—' : `${(myP / Math.max(1, clanPower(st, x.id))).toFixed(1)}倍`}</td><td>${mine ? '—' : relationLabel(st, x.id)}</td>
-        <td class="dip-cell">${mine ? '' : x.foreign ? '<span class="pill warn">国外・唐入りの敵</span>' : `${dipButton(st, 'alliance', x.id)}${dipButton(st, 'marriage', x.id)}${dipButton(st, 'surrender', x.id)}${(() => { const t = treatyOf(st, st.player, x.id); return t ? `<button class="mini" data-act="dip-break" data-id="${x.id}" title="同盟・婚姻を破る（威信−${t.kind === 'marriage' ? DIP.BREAK_MARRIAGE : DIP.BREAK_ALLIANCE}）">手切れ</button>` : ''; })()}`}</td></tr>`;
+        <td class="dip-cell">${mine ? '' : `${dipButton(st, 'alliance', x.id)}${dipButton(st, 'marriage', x.id)}${dipButton(st, 'surrender', x.id)}${(() => { const t = treatyOf(st, st.player, x.id); return t ? `<button class="mini" data-act="dip-break" data-id="${x.id}" title="同盟・婚姻を破る（威信−${t.kind === 'marriage' ? DIP.BREAK_MARRIAGE : DIP.BREAK_ALLIANCE}）">手切れ</button>` : ''; })()}`}</td></tr>`;
     };
     const shown = dipAll ? others : others.filter((x) => near.has(x.id) || treatyOf(st, st.player, x.id));
     return `<p class="lede" style="margin-top:0">存続 ${others.length + 1}家。国人衆の城 ${st.castles.filter((x) => !x.owner).length}。全${domesticCount(st)}城の制圧か、ほかの家がすべて滅べば天下統一（国人衆の城は残っていてよい）。同盟・婚姻・降伏勧告はこの一覧から申し入れられる（数字は成功の見込み。押せないものは押す・触れると理由が出る）。家の名を押すと、その家の詳しい様子が開く。</p>
@@ -2089,51 +2071,6 @@ const TABS: Record<string, (st: GameState) => string> = {
       '剣豪・砲術・軍師は軍団の傘下に置けば働く。築城・僧は城主に置けば働く。算勘は奉行（兵站奉行）に就ければ働く。外交は家にいれば（待機・奉行・城主）外交と和議に効く。水軍は唐入りで水軍の将に。',
     ])}`;
   },
-  // 唐入り: 渡海の路・船・水軍の将・李舜臣
-  karairi: (st) => {
-    if (!karairiOn(st)) return '<p class="hint">天下を統一し、唐入りを決めると開く。</p>';
-    const k = st.karairi;
-    const open = crossingOpen(st);
-    const left = troopsLeft(st), cap = troopCap(st);
-    const tsu = st.castles.find((c) => c.id === 'kaneishi'), bus = st.castles.find((c) => c.id === 'busan');
-    const abroad = Object.values(st.armies).filter((a) => a.clan === st.player && isForeignHex(a.hex));
-    const atTsu = Object.values(st.armies).filter((a) => a.clan === st.player && crossingEnds().includes(a.hex) && !isForeignHex(a.hex));
-    const cands = Object.values(st.generals).filter((g) => g.clan === st.player && g.status === 'free' && g.id !== st.clans[st.player].leader && !g.liege).sort((a, b) => Number(ADMIRALS.has(b.id)) - Number(ADMIRALS.has(a.id)) || (b.lea + b.int) - (a.lea + a.int));
-    const sel = (n: number) => { const cur = k.escort[n] ?? ''; return `<select data-escort="${n}" aria-label="水軍の将${n + 1}"><option value="">（なし）</option>${cands.map((g) => `<option value="${g.id}" ${g.id === cur ? 'selected' : ''}>${esc(g.name)}${ADMIRALS.has(g.id) ? '（水軍）' : ''}　統${g.lea}・知${g.int}</option>`).join('')}</select>`; };
-    const yi = k.yiFate === 'dead' ? '李舜臣は討死した（遊撃は来ない）' : k.yiFate === 'captured' ? '李舜臣は捕らえられた（遊撃は来ない）' : k.yi >= 0.8 ? '盛ん' : k.yi >= 0.5 ? 'やや衰え' : '衰えている';
-    return `<dl class="kv">
-      <dt>渡海の路</dt><dd>${open ? `対馬（${esc(tsu?.name ?? '')}）〜釜山（${esc(bus?.name ?? '')}）　<span class="pill good">開いている</span>` : `<span class="pill warn">${k.openTurn - st.turn}か月後に開く</span>（朝鮮の返事を待っている）`}</dd>
-      <dt>船</dt><dd>${fmt(k.fleet)}艘　→ 月に兵${fmt(cap)}人・兵糧${fmt(foodCap(st))}石まで海を渡せる</dd>
-      <dt>今月の渡海</dt><dd>あと兵${fmt(Math.max(0, left))}人</dd>
-      <dt>海の向こう</dt><dd>${abroad.length ? `${abroad.length}隊・兵${fmt(abroad.reduce((t, a) => t + a.troops, 0))}（毎月 兵糧およそ${fmt(Math.round(abroad.reduce((t, a) => t + a.troops, 0) * R.FOOD_PER_SOLDIER * (1 + R.SEA_LOSS)))}石を船で送る）` : 'まだ誰も渡っていない'}</dd>
-      <dt>対馬に集結</dt><dd>${atTsu.length ? atTsu.map((a) => `${esc(st.generals[a.main].name)}隊 ${fmt(a.troops)}`).join('、') : '—'}</dd>
-      <dt>朝鮮の水軍</dt><dd>${k.yiFate ? yi : `李舜臣の勢い: ${yi}`}　これまでの襲撃 ${k.raids}度${k.raid && k.raid.turn === st.turn - 1 ? `　<span class="pill ${k.raid.repelled ? 'good' : 'warn'}">先月の海戦: ${k.raid.choice === 'fight' ? (k.raid.repelled ? '打って出て退けた' : `打って出て敗れた（船${k.raid.lostShips ?? 0}艘）`) : k.raid.choice === 'port' ? '湊に籠もった' : '荷を守って抜けた'}${k.raid.sunk ? `・兵糧${fmt(k.raid.sunk)}石` : ''}${k.raid.troops ? `・兵${fmt(k.raid.troops)}` : ''}を失う</span>` : ''}</dd>
-      <dt>護り</dt><dd>現れる見込み −${Math.round(escortCut(st) * 60)}%　海戦で打って出て勝つ見込み ${k.escort.length ? `${Math.round(navalWinP(st) * 100)}%` : '—（水軍の将がいない）'}</dd>
-      <dt>朝鮮の王</dt><dd>${(() => { const g = st.generals.seonjo; return g && g.status !== 'dead' ? `宣祖は${esc(st.castles[g.loc].name)}にいる` : '—'; })()}</dd>
-      <dt>朝鮮の軍勢</dt><dd>${(() => { const J = Object.values(st.armies).filter((a) => a.clan === 'joseon'); const gh = J.filter((a) => a.main.startsWith('gihei_') || ['gwak_jaeu', 'kim_cheonil', 'go_gyeongmyeong', 'hyujeong', 'yujeong'].includes(a.main)); return `${J.length}隊・兵${fmt(J.reduce((t, a) => t + a.troops, 0))}（うち義兵${gh.length}隊）`; })()}</dd>
-      <dt>明</dt><dd>${st.clans.ming?.alive ? `援軍${Object.values(st.armies).filter((a) => a.clan === 'ming').length}隊・兵${fmt(Object.values(st.armies).filter((a) => a.clan === 'ming').reduce((t, a) => t + a.troops, 0))}` : '鴨緑江の向こうで様子を見ている（平壌が落ちるか、義州に迫るか、時が経てば動く）'}</dd>
-      <dt>取った城</dt><dd>${st.castles.filter((c) => isForeignHex(c.hex) && c.owner === st.player).length} / ${st.castles.filter((c) => isForeignHex(c.hex)).length}</dd>
-      <dt>厭戦</dt><dd><div class="meter" style="max-width:240px"><i style="width:${Math.round(k.weary ?? 0)}%;background:${(k.weary ?? 0) >= 70 ? 'var(--bad)' : (k.weary ?? 0) >= 40 ? 'var(--warn)' : 'var(--good)'}"></i></div>${Math.round(k.weary ?? 0)} / 100${(k.weary ?? 0) > W.UNREST ? '　<span class="pill warn">国内の治安と家臣の恩が月ごとに下がっている</span>' : ''}</dd>
-      <dt>海の向こうの損害</dt><dd>当家 ${fmt(k.lost ?? 0)}・朝鮮 ${fmt(k.joseonLost ?? 0)}・明 ${fmt(k.mingLost ?? 0)}</dd>
-    </dl>
-    <h3 class="sect-h">戦の終わらせ方</h3>
-    <div class="actions">${(() => { const why = peaceBlock(st); return `<button class="act" data-act="kr-peace" ${why ? `disabled title="${esc(why)}"` : ''}>和議を探る（沈惟敬の仲立ち・成る見込み ${why ? '—' : `${Math.round(peaceChance(st) * 100)}%`}）</button>`; })()}<button class="act" data-act="kr-withdraw">撤兵する</button></div>
-    <p class="hint" style="margin-top:2px">和議が成れば、今の占領地を保ったまま戦を終える（取った城が多く、明の損害が大きいほど成りやすい。厭戦が高いと足元を見られる）。流れれば厭戦が上がり、3か月は探れない。撤兵すれば、取った城を捨てて兵を引く。九連城（明）を落とせば、大明へ攻め入る道が開く。</p>
-    <div class="actions"><button class="act" data-act="kr-build" ${st.clans[st.player].gold < K.BUILD_COST ? 'disabled title="金が足りない"' : ''}>造船（金${fmt(K.BUILD_COST)}貫で${K.BUILD_SHIPS}艘）</button></div>
-    <h3 class="sect-h">水軍の将（渡海の路を守る・3人まで）</h3>
-    <div class="actions" style="flex-wrap:wrap;gap:6px">${sel(0)}${sel(1)}${sel(2)}</div>
-    ${hints([
-      '軍勢を対馬の金石城（渡海の路の端）へ集め、そこから釜山鎮を攻める。釜山を落とせば、そこから朝鮮の地へ進める。',
-      `海を渡れる兵は月に船1艘あたり${K.SHIP_TROOPS}人、兵糧は${K.SHIP_FOOD}石。海の向こうの軍勢は、日の本の蔵から船で兵糧を受け取る（1割減る）。船が足りない月は、取った城の蔵と小荷駄で食いつなぐ。`,
-      '李舜臣の水軍は、どこからともなく島陰から現れて渡海の船を襲う。海を一度押さえても安心はできない。現れると海戦になり、「打って出る」「荷を守って抜ける」「湊に籠もる」を選ぶ。打って出て勝てば李舜臣の勢いが大きく衰える（月ごとに戻る）。負ければ船と荷を多く失う。',
-      '水軍の将（統率と知略。九鬼嘉隆・脇坂安治・藤堂高虎・加藤嘉明・村上武吉・村上元吉・来島通康・乃美宗勝・安宅冬康・小早川隆景は腕が上がる）を置けば、現れにくく、抜けるときの損も減り、打って出られる。',
-      '水軍の将は「待機」の家臣から選ぶ。部隊に加えたり役に就けたりすると外れる。',
-      '朝鮮の王は、日本の軍勢が都に迫ると北へ退く（漢城→開城→平壌→安州→義州）。',
-      '取った朝鮮の城の辺りには、義兵（儒者・僧・農民）が起つ。残り火が強いほど起ちやすい。軍勢から離れた所に現れて道を断つので、補給の網が切れやすい。人の売り買いを禁じていれば、少し起ちにくい。',
-      '明は、平壌が落ちるか、日本の軍勢が義州に迫るか、渡海から8か月が経つと援軍を出す（先手は祖承訓、その4か月後に李如松の本隊と大砲）。',
-      '冬（11〜2月）、黄海・平安・咸鏡・江原の道にいる軍勢は凍えて兵と士気を失う。',
-    ])}`;
-  },
   fronts: (st) => {
     const fs = frontsOf(st).filter((f) => !f.vacant);
     const castles = clanCastles(st, st.player);
@@ -2387,8 +2324,6 @@ function dipButton(st: GameState, kind: DipKind, c: string, big = false) {
 }
 
 let askResolve: ((v: boolean) => void) | null = null;
-// 海戦: 李舜臣が現れたとき、水軍の将の応じ方を選ぶ
-let navalResolve: ((v: NavalChoice) => void) | null = null;
 // 野戦か籠城か: 直轄の城にいる軍団が攻められたとき
 let stanceResolve: ((v: Stance) => void) | null = null;
 function askStance(st: GameState, info: StanceInfo): Promise<Stance> {
@@ -2408,26 +2343,6 @@ function askStance(st: GameState, info: StanceInfo): Promise<Stance> {
         <button class="il-opt" data-act="stance" data-id="rojo"><b>籠城する　守り勝つ見込み ${pct(info.rojoWin)}${rec === 'rojo' ? '（おすすめ）' : ''}</b><span>城に籠もって守る。城の守りと城兵がすべて加わる。城攻めは月をまたいで続くことがある。後詰め（援軍）を待つ構え。</span></button>
       </div>
       <p class="hint">委任している城（領の城、軍事の委任）は、見込みで自動に決める（野戦の見込みが${pct(R.FIELD_PICK)}以上で、籠城の見込みと大きく変わらなければ野戦）。</p>`, false);
-  });
-}
-function askNaval(st: GameState, info: NavalInfo): Promise<NavalChoice> {
-  $('toast').hidden = true;
-  const yi = envoyLine(st, 'yiAppear', { id: 'yi_sunsin', name: '李舜臣' });
-  const L = info.leader;
-  const pct = (x: number) => `${Math.round(x * 100)}%`;
-  const convoyCut = info.base * (0.6 - escortCut(st) * 0.4);
-  return new Promise((resolve) => {
-    navalResolve = resolve;
-    openModal(`<h2 id="modal-title">海戦　李舜臣、島陰より</h2>
-      <img class="naval-art" src="${SHIMAKAGE_ART}" alt="霧の多島海の島陰から現れる朝鮮の水軍">
-      ${quoteHtml(st, yi, 96)}
-      <p class="lede" style="margin-top:8px">朝鮮海峡の島陰から、朝鮮の水軍が現れた。${info.shipped ? `今月渡った兵${fmt(info.shipped)}人と、` : ''}海の向こうの${info.abroad}隊へ送る兵糧の船団が狙われている。李舜臣の勢いは${info.yi >= 0.8 ? '盛ん' : info.yi >= 0.5 ? 'やや衰え' : '衰えている'}。</p>
-      ${L ? `<div class="ph" style="margin:6px 0">${faceOrMon(L.id, L.name, st.clans[st.player].color, 64)}<div><b>${esc(L.name)}</b>（統${L.lea}・知${L.int}${KADM.has(L.id) ? '・水軍の将' : ''}）が水軍を率いる。護りは${info.escorts.length}人。</div></div>` : '<p class="hint warn">水軍の将がいない。打って出ることはできない（唐入りの札で選べる）。</p>'}
-      <div class="il-opts naval-opts">
-        <button class="il-opt" data-act="naval" data-id="fight" ${L ? '' : 'disabled'}><b>打って出る　勝つ見込み ${pct(info.winP)}</b><span>勝てば李舜臣の勢いが大きく衰え、${Math.round(YI_FATE * 100)}%の見込みで李舜臣を討つか捕らえる（以後、遊撃は来ない）。沈む荷は少ない（約${pct(info.base * 0.25)}）。負ければ船の1割ほどと、多くの荷（約${pct(Math.min(0.6, info.base * 1.5))}）を失う。</span></button>
-        <button class="il-opt" data-act="naval" data-id="convoy"><b>荷を守って抜ける</b><span>戦わずに海峡を抜ける。運ぶ兵糧の約${pct(convoyCut)}が沈む（護りが厚いほど少ない）。李舜臣の勢いは変わらない。</span></button>
-        <button class="il-opt" data-act="naval" data-id="port"><b>湊に籠もる</b><span>この月は船を出さない。何も沈まないが、海の向こうへ兵糧が届かず、軍勢は取った城の蔵と小荷駄で食いつなぐ。</span></button>
-      </div>`, false);
   });
 }
 function askPlayer(st: GameState, from: string, kind: DipKind): Promise<boolean> {
@@ -2578,265 +2493,17 @@ function showEnding(st: GameState) {
     <div class="end-veil"></div>
     <div class="end-text">
       <h1>天下統一<small>${esc(dateLabel(st))}</small></h1>
-      <p>${lord ? `${esc(lord.name)}は` : ''}全国${domesticCount(st)}城を制し、${esc(me.name)}家の旗のもとに戦国の世を終わらせた。</p>
+      <p>${lord ? `${esc(lord.name)}は` : ''}${clanCastles(st, st.player).length >= domesticCount(st) ? `全国${domesticCount(st)}城を制し` : `並み居る大名家をことごとく従え`}、${esc(me.name)}家の旗のもとに戦国の世を終わらせた。</p>
       <p class="end-sub">長き乱世は去り、城下には市が立ち、湊には船が満ちる。</p>
       <dl class="kv end-kv">${span !== null && span >= 0 ? `<dt>年月</dt><dd>${st.startYear}年から${span >= 12 ? `${Math.floor(span / 12)}年` : ''}${span % 12 || span < 12 ? `${span % 12}か月` : ''}</dd>` : ''}<dt>石高</dt><dd>${clanKoku(st, st.player).toFixed(1)}万石</dd><dt>兵</dt><dd>${fmt(clanTroops(st, st.player))}</dd><dt>家臣</dt><dd>${vassals}人</dd><dt>官位</dt><dd>${esc(courtName(st, st.player))}</dd></dl>
-      <div class="actions">${st.karairi ? '' : '<button class="act primary" data-act="end-next">その後……</button>'}<button class="act${st.karairi ? ' primary' : ''}" data-act="end-new">新しく始める</button><button class="act" data-act="end-close">地図を見る</button></div>
-    </div>`;
-  el.hidden = false;
-}
-
-// ───────── 幕間（唐入りの動機）: 天下統一ののち、五つの章を続けて見せ、大評定で決する ─────────
-// 語りは人物ごとの言い分として出す（地の文で断定しない）。数字はゲームの状態から
-type ILine = { gen: string; name: string; color: string; label: string; text: string };
-type IStep = { ch: string; art: 'hyojo' | 'sekaizu' | 'minato' } & ({ t: 'line'; l: ILine } | { t: 'choice'; id: string; prompt: string; opts: [string, string, string][] });
-type IVars = { offer: 'mis' | 'capitan' | 'merchant'; speaker: string; investigated: boolean; slaveBan: boolean; misId: string | null; ships: boolean; expel: boolean; cause: string };
-const IVARS0 = (): IVars => ({ offer: 'merchant', speaker: '', investigated: false, slaveBan: false, misId: null, ships: false, expel: false, cause: 'onsho' });
-let isteps: IStep[] = [], istep = 0, ivars: IVars = IVARS0();
-// 場面の絵
-const IART = () => ({ hyojo: HYOJO_ART, sekaizu: SEKAIZU_ART, minato: MINATO_ART });
-const CH = ['第一章　恩賞の行き詰まり', '第二章　世界図', '第三章　湊の噂', '第四章　南の海の知らせ', '第五章　国の疲れ', '大評定'];
-
-function icast(st: GameState) {
-  const me = st.clans[st.player];
-  const lord = me.leader ? st.generals[me.leader] : undefined;
-  const vassals = Object.values(st.generals).filter((g) => g.clan === st.player && g.id !== me.leader && g.status !== 'dead' && g.status !== 'young' && g.status !== 'captive');
-  const used = new Set<string>();
-  const pick = (f: (g: General) => number, filt: (g: General) => boolean = () => true) => { const g = vassals.filter((x) => !used.has(x.id) && filt(x)).sort((a, b) => f(b) - f(a))[0]; if (g) used.add(g.id); return g; };
-  const elder = pick((g) => dueOf(g) * 1000 + g.merit);
-  const hawk = pick((g) => g.bra + (dueOf(g) > 0 ? 30 : 0));
-  const wise = pick((g) => g.int);
-  const kiri = pick((g) => g.int, (g) => !!g.kiri);
-  const dove = pick((g) => g.lea + g.cha);
-  const bugyo = hyoroBugyo(st, st.player) ?? bugyoOf(st, st.player).sort((a, b) => b.int - a.int)[0] ?? pick((g) => g.int + g.lea);
-  const mis = me.mission === 'ban' ? null : ((st.year >= 1581 && st.year <= 1590) ? misDef('coelho') : MISSIONARIES.find(([m]) => missionaryActive(st, m))) ?? null;
-  return { me, lord, vassals, elder, hawk, wise, kiri, dove, bugyo, mis };
-}
-const gl = (st: GameState, g: General | undefined, label: string, text: string): ILine | null => g ? { gen: g.id, name: g.name, color: g.clan ? st.clans[g.clan].color : '#5a4a3a', label, text } : null;
-const pl = (id: string, label: string, text: string): ILine => ({ gen: id, name: PERSONAS[id]?.name ?? misName(id), color: PERSONAS[id]?.color ?? '#3a3a44', label, text });
-const merchantId = (st: GameState) => personaActive('shimai_soshitsu', st.year) ? 'shimai_soshitsu' : personaActive('imai_sokyu', st.year) ? 'imai_sokyu' : 'tsuda_sogyu';
-const tradeId = (st: GameState) => personaActive('imai_sokyu', st.year) ? 'imai_sokyu' : 'tsuda_sogyu';
-
-function iscript(st: GameState): IStep[] {
-  const c = icast(st);
-  const L: IStep[] = [];
-  const line = (ch: number, art: IStep['art'], l: ILine | null) => { if (l) L.push({ ch: CH[ch], art, t: 'line', l }); };
-  const lordShort = c.lord ? c.lord.name.slice(-2) : '殿';
-  // 第一章
-  const waiting = c.vassals.filter((g) => dueOf(g) > 0).length;
-  const ronin = Object.values(st.generals).filter((g) => g.status === 'ronin').length;
-  line(0, 'hyojo', gl(st, c.elder, '恩賞の訴え', `${lordShort}様、天下はついに治まり申した。……されど、功ある者に与える土地は、もはや日の本のどこにもございませぬ。恩賞を待つ者は${waiting}人。皆、口には出さねど、次の沙汰を待っておりまする。`));
-  if (ronin >= 5) line(0, 'hyojo', gl(st, c.hawk, '浪人', `主を失った浪人も諸国に溢れ、聞こえるだけで${ronin}人。刀を置けぬ者どもが、次の戦を待っておるのです。このままでは、いずれ国の中で火を噴きましょう。`));
-  // 第二章
-  if (c.mis) {
-    ivars.offer = 'mis'; ivars.speaker = ivars.misId = c.mis[0];
-    const m = c.mis[0];
-    line(1, 'sekaizu', pl(m, '世界図の献上', '天下一統、まことにおめでとうございます。お祝いに、南蛮の地球儀と世界図をお持ちいたしました。日の本は、この海の東の端にございます。'));
-    line(1, 'sekaizu', pl(m, '海の外', '海を渡れば朝鮮、その先に大明。明は日の本の十倍も広く、さらに西には天竺、その果てに我らの国々がございます。世界は、かくも広いのです。'));
-    line(1, 'sekaizu', pl(m, '大船の申し出', 'もし殿が唐へ渡られるお考えなら、ポルトガルの大船を二艘、わが会がご用意いたしましょう。その代わり、殿の国々で教えを広めることを、末永くお許しくださいませ。'));
-    L.push({ ch: CH[1], art: 'sekaizu', t: 'choice', id: 'ships', prompt: '宣教師の申し出を、どうするか。', opts: [['yes', '大船を借りる', '唐へ渡るときの船が増える。その代わり、布教を許し続けることになる。'], ['no', '断る', '借りは作らない。']] });
-  } else if (c.me.mission === 'ban' || (st.ships ?? []).length) {
-    ivars.offer = 'capitan'; ivars.speaker = 'capitan';
-    line(1, 'sekaizu', pl('capitan', '世界図の献上', '殿、天下一統のお祝いです。南蛮の世界図と地球儀、ごらんください。日の本は、ここ。海の向こうに朝鮮と大明、その先は天竺と南蛮です。'));
-    line(1, 'sekaizu', pl('capitan', '大船の申し出', '唐へ渡られるなら、大船も鉄砲も、銀次第でいかようにも。わたしどもは商人です。よいお取引を。'));
-    L.push({ ch: CH[1], art: 'sekaizu', t: 'choice', id: 'ships', prompt: 'カピタンの申し出を、どうするか。', opts: [['yes', '大船を買い入れる', '銀で南蛮の船を雇う。唐へ渡るときの船が増える。'], ['no', '見送る', '今は船を求めない。']] });
-  } else {
-    ivars.offer = 'merchant'; ivars.speaker = tradeId(st);
-    line(1, 'sekaizu', pl(tradeId(st), '世界図の献上', '天下一統、祝着至極に存じまする。堺の蔵より、南蛮渡りの世界図を献じまする。大明との勘合が絶えて久しく、商いは細るばかりでござる。'));
-  }
-  // 第三章（調べるかどうかで、この先が足される）
-  line(2, 'minato', pl(merchantId(st), '湊の噂', `${lordShort}様、湊でよからぬ噂がございます。南蛮の船に、日の本の者が売られて積まれていくと……。男も女も、子どもまで。`));
-  L.push({ ch: CH[2], art: 'minato', t: 'choice', id: 'investigate', prompt: '湊の噂を、どうするか。', opts: [['yes', '調べさせる', '湊の代官と商人に、売り買いの次第を調べさせる。'], ['no', '捨て置く', '商いの邪魔はしない。']] });
-  return L;
-}
-// 第三章の続き〜第五章・大評定（選んだあとに足す）
-function iscriptRest(st: GameState, investigated: boolean): IStep[] {
-  const c = icast(st);
-  const L: IStep[] = [];
-  const line = (ch: number, art: IStep['art'], l: ILine | null) => { if (l) L.push({ ch: CH[ch], art, t: 'line', l }); };
-  if (investigated) {
-    line(2, 'minato', pl(merchantId(st), '調べの次第', '調べがつきました。売り手の多くは国内の人買いと、戦の乱取りで人を攫った者ども。買うのは南蛮の商人にございます。長崎では、伴天連が売り買いの証文に名を添えていた、と申す者もおりまする。'));
-    line(2, 'minato', gl(st, c.dove, '恥', '……戦で村から人を攫ったのは、我らの兵でもございます。南蛮ばかりを責めるわけにはまいりませぬ。'));
-    if (c.mis) {
-      const m = c.mis[0];
-      line(2, 'minato', gl(st, c.lord, '詰問', '伴天連に問う。一つ、なぜ日の本の者を売り買いさせるのか。一つ、なぜ信者に寺社を壊させるのか。一つ、なぜ民に改宗を強いるのか。一つ、なぜ牛馬を食うのか。'));
-      line(2, 'minato', pl(m, '答え', m === 'coelho'
-        ? '人を売るのは日本の方々です。我らはそれを止めようとしております。止めたくば、殿が売る者をお禁じになればよろしい。寺社のことは、信者が自ら為したことにございます。'
-        : '仰せのことには、我らにも恥ずべき点がございます。ポルトガルの王も人の売り買いを禁じております。我らも商人たちに固く申し付けましょう。寺社と改宗のことも、二度と無理はさせませぬ。'));
-    }
-    L.push({ ch: CH[2], art: 'minato', t: 'choice', id: 'slave', prompt: '人の売り買いを、どうするか。', opts: [['ban', '人の売り買いを禁じる', '国の内外で人を売り買いすることを禁じる。南蛮の商いは少し細るが、民は安堵する（全城の治安＋3）。'], ['keep', '今はまだ禁じない', '湊の商いを優先する。']] });
-  }
-  // 第四章
-  const sea = ivars.offer === 'capitan' || c.me.mission === 'ban' ? 'capitan' : merchantId(st);
-  line(3, 'minato', pl(sea, '南の海の知らせ', sea === 'capitan'
-    ? 'イスパニアの者どもは、呂宋（ルソン）を取りました。わたしどもポルトガルは天竺のゴアとマラッカに砦を持ちますが、商い一筋です。……イスパニアは違う。あの国は、取れる国はみな取ります。'
-    : '南の海の噂をお聞きになりましたか。呂宋はイスパニアの国となり、天竺のゴアもマラッカも、とうに南蛮の手にございます。湊の者どもは、次はどこかと囁いておりまする。'));
-  if (ivars.misId === 'coelho') line(3, 'minato', gl(st, c.elder, '博多の小船', '先ごろ、伴天連が大筒を積んだ小船で博多の湊に参りました。商いの船にも、祈りの船にも見えませなんだ。'));
-  line(3, 'minato', gl(st, c.wise, '見方', '教えを広めた先に兵が来る、と見る者もおりまする。呂宋がそうであったと。……また、南蛮が明を取る前に、日の本が先に明を押さえるべし、と申す者もございます。'));
-  if (c.kiri) line(3, 'minato', gl(st, c.kiri, '反論', '伴天連は国を奪いはしませぬ。わたしは教えに救われ申した。疑うなら、銀に目の眩んだ南蛮の商人をこそ疑われよ。'));
-  line(3, 'minato', pl(tradeId(st), '反論', '明を取るなど夢物語にございます。南蛮の船は、銀と生糸のために来る。恐れるより、商いで富むことをお考えくだされ。'));
-  if (ivars.misId) L.push({ ch: CH[3], art: 'minato', t: 'choice', id: 'expel', prompt: '伴天連を、どうするか。', opts: [['expel', '伴天連を追放する', `宣教師を国外へ退ける（禁教）。南蛮の商いも細る。${ivars.ships && ivars.offer === 'mis' ? '借りるはずの大船の話も流れる。' : ''}`], ['stay', '留め置く', '布教はこれまでどおり許す。']] });
-  // 第五章
-  const low = clanCastles(st, st.player).filter((x) => x.chian < 40).length;
-  const ember = clanCastles(st, st.player).filter((x) => (x.ember ?? 0) > 0).length;
-  const me = st.clans[st.player];
-  line(4, 'hyojo', gl(st, c.bugyo, '国の様子', `国の様子をご報告いたします。治安の悪い城が${low}、残り火の燻る城が${ember}。蔵の兵糧は${fmt(me.food)}石、鉄砲は${fmt(clanGuns(st, st.player))}丁。……長い戦で田は荒れ、民は疲れております。この国力で、南蛮の大船と大筒に抗えましょうか。そして、海の外の戦に耐えられましょうか。`));
-  // 大評定
-  line(5, 'hyojo', gl(st, c.hawk, '出兵', '海を渡れば土地は限りない。功ある者に報いるには、これしかございませぬ！ 日の本の武を、明の者どもに見せてやりましょうぞ。'));
-  line(5, 'hyojo', gl(st, c.wise, '先んじる', '南蛮が明を取れば、次は日の本。ならば先に明を押さえ、海を我らのものとすべきかと存じます。……ただし、これは賭けにございます。'));
-  line(5, 'hyojo', pl(tradeId(st), '交易', 'まずは使いを出し、明に勘合を開かせるべし。戦は商いを潰しまする。堺も博多も、戦より銀を望んでおりまする。'));
-  line(5, 'hyojo', gl(st, c.dove, '慎重', '国の傷はまだ癒えておりませぬ。今は田を耕し、城を直すときでございます。'));
-  L.push({ ch: CH[5], art: 'hyojo', t: 'choice', id: 'cause', prompt: '海の外へ、兵を出すか。何を大義とするか。', opts: [['onsho', '恩賞のため', '功ある者に海の外の土地で報いる。武断の家臣が喜び、慎重な者は不満を抱く。'], ['saki', '南蛮に先んじて', '南蛮が明を取る前に。知略の家臣が乗り、交易を望む商人は渋る。'], ['kango', '勘合を開かせる', '明に交易を認めさせるため。商人が後押しする。'], ['ikou', '天下人の威光', '日の本の主の名を海の外に轟かせる。'], ['peace', '海の外へは出ない', '天下の静謐を守り、太平の世を築く。ここで物語を締めくくる。']] });
-  return L;
-}
-// 出兵と決めたあと: 朝鮮への最初の一手
-function iscriptFirst(st: GameState): IStep[] {
-  const c = icast(st);
-  const L: IStep[] = [];
-  const line = (l: ILine | null) => { if (l) L.push({ ch: CH[5], art: 'hyojo', t: 'line', l }); };
-  line(gl(st, c.dove, '最初の一手', 'ならば、せめて最初の一手は慎重に。まず対馬の宗氏を通じて朝鮮に使いを出し、道を開かれませ。断られれば、それが名分となりましょう。'));
-  line(gl(st, c.hawk, '最初の一手', '使いなど無用。時を与えれば、朝鮮も明も備えを固めまする。ただちに陣触を下されませ！'));
-  L.push({ ch: CH[5], art: 'hyojo', t: 'choice', id: 'first', prompt: '朝鮮への最初の一手は。', opts: [['envoy', '対馬の宗氏を通じて使いを送る', '朝鮮に道を開くよう求める。断られれば、それが出兵の名分になる。'], ['now', 'ただちに陣触を下す', '使いは送らず、全国の大名に渡海の支度を命じる。']] });
-  return L;
-}
-
-function openInterlude(st: GameState) {
-  mood('somber');
-  $('ending').hidden = true;
-  let el = document.getElementById('interlude');
-  if (!el) { el = document.createElement('div'); el.id = 'interlude'; document.body.appendChild(el); el.addEventListener('click', onInterludeClick); }
-  ivars = IVARS0();
-  isteps = iscript(st); istep = 0;
-  drawInterlude(st);
-  el.hidden = false;
-}
-function drawInterlude(st: GameState) {
-  const el = $('interlude');
-  const p = isteps[istep];
-  if (!p) return;
-  let body = '';
-  if (p.t === 'line') {
-    const l = p.l;
-    body = `<div class="il-quote" data-act="il-next"><div class="quote">${face(l.gen, 120) || `<span class="mon mon-q" style="width:120px;height:150px;font-size:30px;background:${l.color}">${esc(l.name.slice(0, 2))}</span>`}<div class="qbody"><div class="qname">${esc(l.name)}<span>${esc(l.label)}</span></div><p>「${esc(l.text)}」</p></div></div><div class="il-more">押すと次へ</div></div>`;
-  } else {
-    body = `<p class="il-ask">${esc(p.prompt)}</p><div class="il-opts">${p.opts.map(([k, t, d]) => `<button class="il-opt" data-act="il-choose" data-id="${k}"><b>${esc(t)}</b><span>${esc(d)}</span></button>`).join('')}</div>${p.id === 'cause' ? '<p class="hint il-note">唐入りは、朝鮮と明の人々にとっては侵略の戦である。この戦が何を残すのか──この先では渡海の兵站、義兵や水軍の抵抗、厭戦も描く。</p>' : ''}`;
-  }
-  el.innerHTML = `<img class="end-art" src="${IART()[p.art]}" alt=""><div class="end-veil"></div>
-    <div class="il-head"><h2>${esc(p.ch)}</h2><small>${esc(dateLabel(st))}　天下一統ののち</small></div>
-    <div class="end-text il-text">${body}</div>`;
-}
-const CAUSE_NAME: Record<string, string> = { onsho: '恩賞のため', saki: '南蛮に先んじて', kango: '勘合を開かせる', ikou: '天下人の威光', peace: '海の外へは出ない' };
-function onInterludeClick(e: Event) {
-  const t = (e.target as HTMLElement).closest('[data-act]') as HTMLElement | null;
-  if (!t || !s) return;
-  const st = s, act = t.dataset.act;
-  if (act === 'il-next') { istep++; drawInterlude(st); return; }
-  if (act === 'il-choose') {
-    const p = isteps[istep];
-    if (p.t !== 'choice') return;
-    const v = t.dataset.id ?? '';
-    const c = icast(st);
-    const after: IStep[] = [];
-    const say = (l: ILine | null) => { if (l) after.push({ ch: p.ch, art: p.art, t: 'line', l }); };
-    if (p.id === 'ships') {
-      ivars.ships = v === 'yes';
-      const sp = ivars.speaker;
-      say(pl(sp, ivars.ships ? '承知' : '残念', sp === 'capitan'
-        ? (ivars.ships ? 'よいお取引です。船は湊にお回しいたします。銀のご用意を。' : 'さようですか。お気が変わりましたら、いつでも。')
-        : (ivars.ships ? 'ありがたき仰せ。大船二艘、必ずお届けいたします。教えのこと、なにとぞお忘れなきよう。' : '……残念に存じます。されど、殿のお考えが変わることを、神に祈っております。')));
-    }
-    if (p.id === 'investigate') { ivars.investigated = v === 'yes'; after.push(...iscriptRest(st, ivars.investigated)); }
-    if (p.id === 'slave' && v === 'ban') { ivars.slaveBan = true; banSlaveTrade(st); }
-    if (p.id === 'expel') {
-      ivars.expel = v === 'expel';
-      if (ivars.expel) { if (ivars.offer === 'mis') ivars.ships = false; setMission(st, st.player, 'ban'); addLog(st, '伴天連を国外へ追放した。', 'info', true); }
-      if (ivars.expel && c.kiri) say(gl(st, c.kiri, '嘆き', '……殿のご裁断とあらば、従いまする。されど、わが胸の内の教えまでは、追い出せませぬ。'));
-      else if (!ivars.expel && ivars.misId) say(pl(ivars.misId, '安堵', '殿のご寛容に感謝いたします。我らも、疑いを招かぬよう努めます。'));
-    }
-    if (p.id === 'cause') {
-      ivars.cause = v;
-      if (v === 'peace') { decideInterlude(st, 'envoy'); return; }
-      after.push(...iscriptFirst(st));
-    }
-    if (p.id === 'first') { decideInterlude(st, v); return; }
-    isteps.splice(istep + 1, 0, ...after);
-    istep++; drawInterlude(st); return;
-  }
-  if (act === 'il-new') { $('interlude').hidden = true; store(AUTO_KEY, null); s = null; openTitle(); return; }
-  if (act === 'il-close') { $('interlude').hidden = true; return; }
-  if (act === 'il-start') {
-    $('interlude').hidden = true;
-    startKarairi(st); store(AUTO_KEY, JSON.stringify(st));
-    const t = st.castles.find((c) => c.id === 'kaneishi'); if (t) view.centerOn(t.hex, 1.6);
-    refresh(); openMenu('gunji', 'karairi');
-    return;
-  }
-}
-function decideInterlude(st: GameState, first: string) {
-  const cause = ivars.cause, go = cause !== 'peace';
-  // 大義に沿った者は恩が上がり、退けられた者は下がる
-  const c = icast(st);
-  const nudge = (g: General | undefined, d: number) => { if (g) g.on = Math.max(0, Math.min(100, onOf(g) + d)); };
-  nudge(c.hawk, go && cause === 'onsho' ? 6 : go ? 2 : -8);
-  nudge(c.wise, cause === 'saki' ? 6 : 0);
-  nudge(c.dove, go ? -6 : 6);
-  st.karairi = { choice: go ? 'go' : 'peace', cause, ships: ivars.ships, expel: ivars.expel, slaveBan: ivars.slaveBan, envoy: go && first === 'envoy', investigated: ivars.investigated, turn: st.turn, speaker: ivars.speaker };
-  addLog(st, go ? `「${CAUSE_NAME[cause]}」を掲げ、唐入りを決した。` : '海の外へは兵を出さぬと決めた。', 'info', true);
-  if (go) { try { localStorage.setItem('sengoku-karairi', JSON.stringify({ clan: st.player, name: st.clans[st.player].name, year: st.year, month: st.month, scenario: st.scenario, ...st.karairi })); } catch { /* 記録できなくても続ける */ } }
-  store(AUTO_KEY, JSON.stringify(st));
-  finale(st);
-}
-function banSlaveTrade(st: GameState) {
-  for (const c of clanCastles(st, st.player)) c.chian = Math.min(100, c.chian + 3);
-  addLog(st, '国の内外で人を売り買いすることを禁じた。', 'info', true);
-}
-function finale(st: GameState) {
-  const el = $('interlude');
-  const k = st.karairi!;
-  const lord = st.clans[st.player].leader ? st.generals[st.clans[st.player].leader!].name : '';
-  const peace = k.choice === 'peace';
-  const extra = [k.slaveBan ? '人の売り買いは固く禁じられた。' : '', k.expel ? '伴天連は国を追われた。' : '', k.ships ? '南蛮の大船が湊に入る。' : ''].filter(Boolean).join('');
-  el.innerHTML = `<img class="end-art" src="${peace ? ENDING_ART : NAGOYA_ART}" alt=""><div class="end-veil"></div>
-    <div class="end-text">
-      <h1>${peace ? '太平' : '陣触'}<small>${esc(dateLabel(st))}</small></h1>
-      ${peace
-        ? `<p>${esc(lord)}は海の外へ目を向けなかった。${extra}刀は蔵に納められ、田には稲が実り、街道には旅人が行き交う。</p><p class="end-sub">戦国の世は終わり、長い太平が始まった。</p>`
-        : `<p>${esc(lord)}は「${esc(CAUSE_NAME[k.cause!])}」を掲げ、唐入りを決した。${extra}${k.envoy ? 'まず対馬の宗氏を通じて、朝鮮に使いが送られる。' : '全国の大名に陣触が下り、湊に船と兵糧が集まり始める。'}</p><p class="end-sub">軍勢を対馬へ集め、船で釜山へ渡る。海を渡れる兵と兵糧は船の数しだい。島陰には朝鮮の水軍が潜む。</p>`}
-      <div class="actions">${peace ? '' : '<button class="act primary" data-act="il-start">唐入りを始める</button>'}<button class="act${peace ? ' primary' : ''}" data-act="il-new">新しく始める</button><button class="act" data-act="il-close">地図を見る</button></div>
-    </div>`;
-}
-
-// 国内の城の数（国外の朝鮮・遼東は数えない）
-const domesticCount = (st: GameState) => st.castles.filter((c) => !isForeignHex(c.hex)).length;
-
-// 唐入りの結末: 絵を一面に、締めの言葉と、戦の重さを数字で
-const KEND: Record<string, { h: string; art: () => string; text: (lord: string, k: NonNullable<GameState['karairi']>) => string; sub: string }> = {
-  daimin: { h: '大明へ', art: () => ENDING_ART, text: (l) => `${l}の軍勢は鴨緑江を越え、遼東の九連城を落とした。大明の門は開かれた。`, sub: 'だが、海の向こうの戦はまだ終わらない。この先にも、海を越えた兵と、焼かれた村と、帰らぬ人々がいる。' },
-  wagi: { h: '和議', art: () => KOWA_ART, text: (l) => `${l}は沈惟敬の仲立ちで明と和を結び、取った城を保ったまま兵を休めた。`, sub: '和議の文は、双方の使者が互いに都合よく書き換えたものだったとも伝わる。この平和が長く続くかは、誰にも分からない。' },
-  withdraw: { h: '撤兵', art: () => MINATO_ART, text: (l, k) => k.endWhy === 'lordDied' ? `唐入りを始めた当主が世を去った。遺された者たちは、ひそかに兵を海の向こうから呼び戻した。` : `${l}は唐入りを止め、兵を海の向こうから引き揚げた。`, sub: '七年にも及ぶかもしれなかった戦は、何を残したのか。朝鮮の地には焼け跡が、日の本には疲れと恨みが残った。' },
-  collapse: { h: '国の崩れ', art: () => HYOJO_ART, text: (l) => `終わらない唐入りに、国の内は疲れ果てた。${l}の天下は内から崩れ始める。`, sub: '海の向こうに兵を送り続けた代償は、あまりに大きかった。' },
-};
-function showKarairiEnd(st: GameState) {
-  mood('somber');
-  closeModal();
-  const k = st.karairi!;
-  const E = KEND[k.end!];
-  let el = document.getElementById('ending');
-  if (!el) { el = document.createElement('div'); el.id = 'ending'; document.body.appendChild(el); el.addEventListener('click', onModalClick); }
-  const lord = st.clans[st.player].leader ? st.generals[st.clans[st.player].leader!].name : '当主';
-  const months = st.turn - (k.startTurn ?? st.turn);
-  const held = st.castles.filter((c) => isForeignHex(c.hex) && c.owner === st.player).length;
-  el.innerHTML = `<img class="end-art" src="${E.art()}" alt="">
-    <div class="end-veil"></div>
-    <div class="end-text">
-      <h1>${E.h}<small>${esc(dateLabel(st))}　唐入りの結末</small></h1>
-      <p>${esc(E.text(lord, k))}</p>
-      <p class="end-sub">${esc(E.sub)}</p>
-      <dl class="kv end-kv"><dt>唐入り</dt><dd>${months >= 12 ? `${Math.floor(months / 12)}年` : ''}${months % 12}か月</dd><dt>取った城</dt><dd>${held}</dd><dt>失った兵（当家）</dt><dd>${fmt(k.lost ?? 0)}</dd><dt>朝鮮・明の損害</dt><dd>${fmt((k.joseonLost ?? 0) + (k.mingLost ?? 0))}</dd><dt>厭戦</dt><dd>${Math.round(k.weary ?? 0)}</dd><dt>李舜臣との海戦</dt><dd>${k.raids ?? 0}度</dd></dl>
       <div class="actions"><button class="act primary" data-act="end-new">新しく始める</button><button class="act" data-act="end-close">地図を見る</button></div>
     </div>`;
   el.hidden = false;
 }
+
+// 全国の城の数
+const domesticCount = (st: GameState) => st.castles.length;
+
 
 // 合流の札: 大将の決め方（身分 → 当主 → 方面軍団長 → 一門 → 統率 → 功績）と、面目・不仲の知らせ
 function openMergeSheet(st: GameState, a: Army, b: Army) {
@@ -2860,39 +2527,14 @@ function openSplitSheet(st: GameState, a: Army) {
     <div class="actions"><button class="act" data-act="close">やめる</button></div>`);
 }
 
-// 唐入りの節目の場面（一度だけ）: 名護屋の陣・釜山上陸・義兵起つ・北の冬
-const KSCENE: Record<string, { h: string; art: () => string; text: string; when: (st: GameState) => boolean }> = {
-  nagoya: { h: '名護屋の陣', art: () => NAGOYA_ART, text: '肥前名護屋の丘を、諸大名の陣屋が埋めつくした。湾には大小の船がひしめく。全国から集った兵は風を待ち、一番隊の目は海の向こうを見つめている。', when: (st) => st.scenario === S1592.id && st.turn === st.karairi?.startTurn },
-  busan: { h: '釜山上陸', art: () => BUSAN_ART, text: '夜明けの海を埋めた船団が釜山の湊に迫り、狼煙が上がった。釜山鎮は落ち、日の本の軍勢は朝鮮の地に足を踏み入れた。この先に何が待つのかを知る者はいない。', when: (st) => st.castles.find((c) => c.id === 'busan')?.owner === st.player },
-  gihei: { h: '義兵起つ', art: () => GIHEI_ART, text: '国を奪われた民は黙っていなかった。儒者が檄を飛ばし、僧が経を置き、農民が鍬を取った。義兵は山と谷を知り尽くし、どこからともなく現れて道を断つ。', when: (st) => Object.values(st.armies).some((a) => a.clan === 'joseon' && (a.main.startsWith('gihei_') || ['gwak_jaeu', 'kim_cheonil', 'go_gyeongmyeong', 'hyujeong', 'yujeong'].includes(a.main))) },
-  winter: { h: '北の冬', art: () => FUYU_ART, text: '北の冬は、日の本の兵が知る冬ではなかった。大河は凍り、兵糧は届かず、焚き火を囲む兵の数は日ごとに減っていく。', when: (st) => [11, 12, 1, 2].includes(st.month) && Object.values(st.armies).some((a) => a.clan === st.player && isForeignHex(a.hex) && ['hwanghae', 'pyongan', 'hamgyong', 'gangwon', 'liaodong'].includes(PROVINCES[HEXES[a.hex].p].id)) },
-};
-function karairiScenes(st: GameState) {
-  const k = st.karairi;
-  if (!k?.active || k.end || st.over) return;
-  const el0 = document.getElementById('interlude');
-  if (el0 && !el0.hidden) return;
-  for (const [key, sc] of Object.entries(KSCENE)) {
-    if ((k.seen ?? []).includes(key) || !sc.when(st)) continue;
-    (k.seen ??= []).push(key);
-    let el = document.getElementById('interlude');
-    if (!el) { el = document.createElement('div'); el.id = 'interlude'; document.body.appendChild(el); el.addEventListener('click', onInterludeClick); }
-    el.innerHTML = `<img class="end-art" src="${sc.art()}" alt=""><div class="end-veil"></div>
-      <div class="end-text"><h1>${esc(sc.h)}<small>${esc(dateLabel(st))}</small></h1><p>${esc(sc.text)}</p>
-      <div class="actions"><button class="act primary" data-act="il-close">続ける</button></div></div>`;
-    el.hidden = false;
-    return; // 一度に一つ
-  }
-}
 
 function showGameOver() {
   mood('somber'); sfx('lose');
   const st = s!;
   const win = st.over === 'win';
-  if (st.karairi?.end) { showKarairiEnd(st); return; }
   if (win) { showEnding(st); return; }
   openModal(`<div class="opening"><h1 id="modal-title">${win ? '天下統一' : '落日'}<small>${esc(dateLabel(st))}</small></h1>
-    <p>${win ? `${esc(st.clans[st.player].name)}家は全国${domesticCount(st)}城を制し、戦国の世を終わらせた。` : `${esc(st.clans[st.player].name)}家は最後の城を失った。`}</p>
+    <p>${win ? `${esc(st.clans[st.player].name)}家は戦国の世を終わらせた。` : `${esc(st.clans[st.player].name)}家は最後の城を失った。`}</p>
     <div class="actions"><button class="act primary" data-act="newgame">新しく始める</button><button class="act" data-act="close">地図を見る</button></div></div>`, true);
 }
 
@@ -2901,11 +2543,9 @@ function onModalClick(e: Event) {
   if (!btn) return;
   const act = btn.dataset.act!, id = btn.dataset.id ?? '';
   if (act === 'stance') { const r = stanceResolve; stanceResolve = null; closeModal(); r?.(id as Stance); return; }
-  if (act === 'naval') { const r = navalResolve; navalResolve = null; closeModal(); r?.(id as NavalChoice); return; }
   if (act === 'ask-yes' || act === 'ask-no') { const r = askResolve; askResolve = null; closeModal(); r?.(act === 'ask-yes'); return; }
   if (act === 'close') { closeModal(); return; }
   if (act === 'newgame') { store(AUTO_KEY, null); s = null; openTitle(); return; }
-  if (act === 'end-next') { if (s) openInterlude(s); return; }
   if (act === 'end-new' || act === 'end-close') { $('ending').hidden = true; if (act === 'end-new') { store(AUTO_KEY, null); s = null; openTitle(); } return; }
   if (!s) return;
   const st = s;
@@ -3016,9 +2656,6 @@ function onModalClick(e: Event) {
   }
   if (act === 'mtab') { openMenu(id as MenuKey); return; }
   if (act === 'stab') { openMenu(curMenu, id); return; }
-  if (act === 'kr-peace') { const ok = seekPeace(st); toast(ok ? '和議が成った' : '和議は流れた'); refresh(); if (st.over) { closeModal(); showGameOver(); } else openMenu(); return; }
-  if (act === 'kr-withdraw') { btn.dataset.act = 'kr-withdraw-ok'; btn.textContent = 'もう一度押すと撤兵する（取った城を捨てる）'; btn.classList.add('warn'); return; }
-  if (act === 'kr-withdraw-ok') { withdraw(st); refresh(); closeModal(); showGameOver(); return; }
   if (act === 'merge-do') { const [k, o] = id.split(':').map(Number); const keep = st.armies[k], other = st.armies[o]; if (keep && other && !mergeBlock(st, keep, other)) { mergeArmies(st, keep, other); toast(`${st.generals[keep.main].name}隊に合流した`); select({ kind: 'army', id: keep.id }); } closeModal(); refresh(); return; }
   if (act === 'split-do') { const [aid, gid, f] = id.split(':'); const a = st.armies[+aid], g = st.generals[gid]; const b = a && g ? splitArmy(st, a, g, +f) : null; if (b) { toast(`${g.name}隊が分かれた`); select({ kind: 'army', id: b.id }); } closeModal(); refresh(); return; }
   if (act === 'open-jindate-m') { jinCastle = +id; openMenu('gunji', 'jindate'); return; }
@@ -3114,7 +2751,6 @@ function onModalClick(e: Event) {
     return;
   }
   if (act === 'fushin') { const c = st.castles[+id]; if (c && fushin(st, c)) toast(`${c.name}を改めた`); refresh(); openMenu(); return; }
-  if (act === 'kr-build') { if (buildShips(st)) toast(`船${K.BUILD_SHIPS}艘を造った`); refresh(); openMenu(); return; }
   if (act === 'sub') { lastSub[lastTab[curMenu]] = id; openMenu(); document.querySelector('#modal .sheet')!.scrollTop = 0; return; }
   if (act === 'dip-open') { dipFocus = id; openMenu(curMenu, 'gaike'); document.querySelector('#modal .sheet')!.scrollTop = 0; return; }
   if (act === 'dip-filter') { dipAll = id === 'all'; openMenu(curMenu, 'gaike'); return; }

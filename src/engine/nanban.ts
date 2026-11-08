@@ -89,7 +89,7 @@ function monthKarasen(s: GameState) {
   const gone = (s.karasen ?? []).filter((x) => s.turn >= x.until);
   for (const x of gone) if (portOwner(s, x.port) === s.player) addLog(s, `唐船が${karaPortName(x.port)}を去った。`, 'econ', true);
   s.karasen = (s.karasen ?? []).filter((x) => s.turn < x.until);
-  if (s.karairi?.active || rand(s) >= R.KARASEN_CHANCE) return; // 唐入りのあいだは来ない
+  if (rand(s) >= R.KARASEN_CHANCE) return;
   const cands = KARA_PORTS.filter(([id]) => !karasenAt(s, id));
   if (!cands.length) return;
   let r = rand(s) * cands.reduce((t, x) => t + x[2], 0);
@@ -193,7 +193,7 @@ function monthMissions(s: GameState) {
     const d = graphDistances([from0?.hex ?? 0]);
     // 訪ねるのは近くの数家だけ（布教は港と身を寄せた家から少しずつ広がる）
     const dist = (id: string) => d[capital(s, id)?.hex ?? 0] ?? 99;
-    const near = new Set(Object.values(s.clans).filter((C) => C.alive && !C.foreign && clanCastles(s, C.id).length).sort((x, y) => dist(x.id) - dist(y.id)).slice(0, R.MISSION_NEAR).map((C) => C.id));
+    const near = new Set(Object.values(s.clans).filter((C) => C.alive && clanCastles(s, C.id).length).sort((x, y) => dist(x.id) - dist(y.id)).slice(0, R.MISSION_NEAR).map((C) => C.id));
     const cands = Object.values(s.clans).filter((C) => near.has(C.id) && C.id !== R.IKKI_CLAN && C.mission !== 'allow'
       && !(C.mission === 'ban' && C.missionAt !== undefined && s.turn - C.missionAt < R.MISSION_REVISIT_BAN)
       && !(C.missionAsked !== undefined && s.turn - C.missionAsked < R.MISSION_REVISIT)

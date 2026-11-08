@@ -5,8 +5,7 @@ export type EnvoyScene =
   | 'misVisit' | 'misAllow' | 'misBan' | 'misHold'
   | 'shipArrive' | 'shipGuns' | 'shipCannon' | 'shipItem'
   | 'courtEdict' | 'courtRank' | 'courtHigh'
-  | 'mGuns' | 'mRiceBuy' | 'mRiceSell' | 'mItem' | 'mTea'
-  | 'yiRaid' | 'yiRepelled' | 'yiWait' | 'yiAppear' | 'soRefused' | 'mingCome' | 'mingMain' | 'giheiRise';
+  | 'mGuns' | 'mRiceBuy' | 'mRiceSell' | 'mItem' | 'mTea';
 
 export const ENVOY_LABEL: Record<EnvoyScene, string> = {
   bkDonate: '献金の返礼', bkOrderYes: '御内書', bkOrderNo: '御内書を退ける', bkPostYes: '任官', bkPostNo: '任官を退ける', bkSponsor: '将軍に立つ',
@@ -14,7 +13,6 @@ export const ENVOY_LABEL: Record<EnvoyScene, string> = {
   misVisit: '布教の願い出', misAllow: '布教の許し', misBan: '禁教', misHold: '返事を待つ',
   shipArrive: '南蛮船の来航', shipGuns: '鉄砲の商い', shipCannon: '大筒の商い', shipItem: '南蛮の品',
   courtEdict: '勅', courtRank: '叙任', courtHigh: '叙任',
-  yiRaid: '島陰より', yiRepelled: '退く', yiWait: '待つ', yiAppear: '島陰より', soRefused: '朝鮮の返事', mingCome: '明の援軍', mingMain: '明の本隊', giheiRise: '義兵',
   mGuns: '鉄砲の商い', mRiceBuy: '兵糧の買い付け', mRiceSell: '兵糧の売り', mItem: '名物の商い', mTea: '茶器の商い',
 };
 
@@ -31,10 +29,6 @@ export const ENVOY_ROSTER: [string, string, string, number, number][] = [
   ['chaya_shirojiro', '茶屋四郎次郎', '', 1545, 1596],
   ['capitan', 'カピタン', '', 1500, 1700],
   ['misu', '御簾', '', 1000, 2000],
-  ['yi_sunsin', '李舜臣', '', 1545, 1598],
-  ['won_gyun', '元均', '', 1540, 1597],
-  ['chen_lin', '陳璘', '', 1543, 1607],
-  ['so_yoshitoshi', '宗義智', '', 1568, 1615],
 ];
 
 // 話すだけの人物（武将ではない）。顔は PORTRAITS の同じ id（なければ家紋風の札）
@@ -51,10 +45,6 @@ export const PERSONAS: Record<string, { name: string; title: string; color: stri
   chaya_shirojiro: { name: '茶屋四郎次郎', title: '京の呉服商', color: '#4a3a5a', from: 1570, to: 1596 },
   capitan: { name: '南蛮船のカピタン', title: '南蛮船', color: '#3c4a5c' },
   misu: { name: '御簾の内より', title: '御簾', color: '#6a4a2a' },
-  yi_sunsin: { name: '李舜臣', title: '朝鮮水軍', color: '#4f7f9a', to: 1598 },
-  won_gyun: { name: '元均', title: '朝鮮水軍', color: '#4f7f9a', to: 1597 },
-  chen_lin: { name: '陳璘', title: '明の水軍', color: '#b08a3e' },
-  so_yoshitoshi: { name: '宗義智', title: '対馬', color: '#6a5a4a', from: 1580 },
 };
 export const personaActive = (id: string, year: number) => { const p = PERSONAS[id]; return !!p && year >= (p.from ?? 0) && year <= (p.to ?? 9999); };
 
@@ -182,37 +172,5 @@ export const ENVOY_LINES: Record<EnvoyScene, string[]> = {
     '「{item}」……。よい器は、使う人を選びまする。どうぞ、お手元で。',
     '道具は飾るものにあらず。「{item}」で、一服お点てなされませ。',
     '「{item}」をお求めとは。茶の心のわかるお方とお見受けいたす。',
-  ],
-  // 李舜臣（襲撃）
-  yiRaid: [
-    '倭の船は重く、島の間を知らぬ。潮の変わる時を待て。……今だ、撃て。',
-    '海は我らのものだ。一艘たりとも釜山へは通さぬ。',
-    '戦うは今。死を覚悟する者は生き、生を望む者は死ぬ。',
-  ],
-  yiRepelled: [
-    '今日は引く。だが海は広い。また島陰で会おう。',
-    '敵の護りが厚い。退け。船を失ってはならぬ。',
-  ],
-  // 宗義智（使いの返事）
-  soRefused: [
-    '朝鮮は「道を仮す」ことを拒みました。……戦は避けられませぬ。せめて、この島の者たちが巻き込まれぬよう。',
-    '使いは門前払いにございました。朝鮮の王は、明への義を曲げぬと。',
-  ],
-  mingCome: [
-    '倭の小勢など、遼東の騎兵で一蹴してくれよう。朝鮮の王よ、安んじて待たれよ。',
-    '天朝の兵が来たからには、倭の者どもも長くはおれまい。',
-  ],
-  mingMain: [
-    '天子の命により、四万の兵と大砲を率いて参った。平壌を取り戻し、倭を海へ追い落とす。',
-    '先手の敗れは聞いた。侮るでない。……大砲を前へ。城門を打ち砕け。',
-  ],
-  giheiRise: ['国を奪われて黙っている民はおらぬ。'],
-  yiWait: [
-    '倭の船が湊から出てこぬ。よい。出てこぬ限り、陸の倭は飢える。',
-    '待つのも戦のうちだ。潮と風が変われば、また来る。',
-  ],
-  yiAppear: [
-    '倭の船団を見つけた。島の陰に隠れよ。……旗を上げるのは、敵が狭い水路に入ってからだ。',
-    '敵の荷船は重い。足の速い船で横を突け。将の船だけを狙え。',
   ],
 };

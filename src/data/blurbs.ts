@@ -1,5 +1,5 @@
 // タイトルの家選びに出す、家ごとのひとこと（シナリオごと。なければ '*' を使う）
-export const ERA_NAME: Record<string, string> = { '1552': '美濃の蝮', '1560': '桶狭間の後', '1582': '本能寺の変', '1592': '唐入り' };
+export const ERA_NAME: Record<string, string> = { '1552': '美濃の蝮', '1560': '桶狭間の後', '1582': '本能寺の変' };
 
 export const BLURBS: Record<string, Record<string, string>> = {
   '*': {
@@ -36,9 +36,6 @@ export const BLURBS: Record<string, Record<string, string>> = {
     date: '天文の乱で父と争った晴宗が、奥州の名門を継ぐ。',
     chosokabe: '土佐の国人、長宗我部国親。七雄の一つから身を起こす。',
     shimazu: '薩摩の島津貴久。三州の統一を目指す。',
-  },
-  '1592': {
-    hashiba: '天下を一つにした豊臣秀吉は、海の向こうへ目を向けた。名護屋に十五万の兵が集い、一番隊が対馬で風を待つ。だが朝鮮には義兵と李舜臣が、その先には明の大軍がいる。',
   },
   '1582': {
     akechi: '主君信長を本能寺に討った。畿内を押さえたが、諸将は動かず、天下の目は冷たい。',

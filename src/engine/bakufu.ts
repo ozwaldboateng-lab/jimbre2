@@ -48,8 +48,6 @@ export interface Meibun { ok: boolean; reasons: string[] }
 // att が def（の hex にある城・部隊）を攻める名分。def が国人（null）なら問わない
 export function meibun(s: GameState, att: string, def: string | null, hex?: number): Meibun {
   if (!def) return { ok: true, reasons: ['国人衆'] };
-  // 唐入り: 朝鮮・明との戦は唐入りの陣触による（私戦ではない）。朝鮮・明の側からは国を守る戦
-  if (s.karairi?.active && (s.clans[def]?.foreign || s.clans[att]?.foreign)) return { ok: true, reasons: [s.clans[att]?.foreign ? '国を守る戦' : '唐入りの陣触'] };
   const B = bk(s), r: string[] = [];
   const prov = hex !== undefined ? provName(hex) : capitalHex(s, def) !== undefined ? provName(capitalHex(s, def)!) : '';
   const recent = (k: string, n: number) => B.aggr[k] !== undefined && s.turn - B.aggr[k] <= n;

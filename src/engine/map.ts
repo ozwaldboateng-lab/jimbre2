@@ -5,11 +5,10 @@ import { RANGES } from '../data/ranges';
 
 interface RawMap {
   size: number;
-  provinces: { id: string; name: string; f?: number }[];
-  hexes: { q: number; r: number; t: Hex['t']; p: number; k: number; d: number; c?: number; f?: number }[];
+  provinces: { id: string; name: string }[];
+  hexes: { q: number; r: number; t: Hex['t']; p: number; k: number; d: number; c?: number }[];
   castles: { id: string; name: string; owner: string | null; hex: number; koku: number }[];
   links: [number, number, string][];
-  crossings?: [number, number, string][];
 }
 const M = raw as unknown as RawMap;
 
@@ -18,10 +17,6 @@ export const PROVINCES = M.provinces;
 export const HEXES: Hex[] = M.hexes.map((h, i) => ({ i, ...h }));
 export const CASTLE_DEFS = M.castles;
 export const LINKS = M.links;
-// 渡海の路（対馬〜釜山）。陸の隣ではなく、唐入りの船で渡る
-export const CROSSINGS = M.crossings ?? [];
-// 国外（朝鮮・遼東）のマス。唐入りまでは入れない
-export const isForeignHex = (h: number) => !!HEXES[h]?.f;
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 const index = new Map(HEXES.map((h) => [`${h.q},${h.r}`, h.i]));

@@ -20,9 +20,7 @@ export function treatyOf(s: GameState, a: string, b: string) {
 }
 export const allied = (s: GameState, a: string | null, b: string | null) => !!a && !!b && a !== b && !!treatyOf(s, a, b);
 // 自軍から見て敵か（国人衆の城は常に敵）
-// 眠っている国外の家（唐入りの前の朝鮮・明）とは戦にならない
-const sealed = (s: GameState, id: string | null) => !!id && !!s.clans[id]?.foreign && !s.clans[id].alive;
-export const hostile = (s: GameState, me: string, other: string | null) => other !== me && !allied(s, me, other) && !sealed(s, other) && !sealed(s, me);
+export const hostile = (s: GameState, me: string, other: string | null) => other !== me && !allied(s, me, other);
 export function noteClash(s: GameState, a: string | null, b: string | null) {
   if (a && b) { s.lastClash ??= {}; s.lastClash[pairKey(a, b)] = s.turn; }
 }
@@ -107,7 +105,6 @@ export const maxTroops = (s: GameState, a: Army) => Math.round((personalCap(s, s
 
 
 export function addLog(s: GameState, text: string, kind: LogEntry['kind'], mine: boolean) {
-  if (s.karairi?.active) text = text.replace(/(朝鮮|明)家/g, '$1'); // 国外の国は「家」と呼ばない
   s.log.push({ turn: s.turn, text, kind, mine });
   if (s.log.length > 400) s.log.splice(0, s.log.length - 400);
 }

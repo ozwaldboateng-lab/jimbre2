@@ -123,15 +123,14 @@ export function ninjaDo(s: GameState, clan: string, act: NinjaAct, target: { gen
   // しくじり: 暗殺は捕らわれやすい。相手は当家を恨む
   const caughtP = act === 'assassinate' ? 0.4 : act === 'arson' ? 0.2 : 0.1;
   const T = s.clans[tc];
-  if (T && !T.foreign) { T.target = clan; if (act === 'assassinate') C.prestige = Math.max(0, C.prestige - 3); }
-  if (rand(s) < caughtP) { captureGeneral(s, g, tc); C.ninja = null; addLog(s, `${g.name}の${NINJA_NAME[act]}はしくじり、${T?.name ?? ''}${T && !T.foreign ? '家' : ''}に捕らわれた。`, 'info', mine); return 'caught'; }
-  addLog(s, `${g.name}の${NINJA_NAME[act]}はしくじった（${T?.name ?? ''}${T && !T.foreign ? '家' : ''}は当家を恨む）。`, 'info', mine);
+  if (T) { T.target = clan; if (act === 'assassinate') C.prestige = Math.max(0, C.prestige - 3); }
+  if (rand(s) < caughtP) { captureGeneral(s, g, tc); C.ninja = null; addLog(s, `${g.name}の${NINJA_NAME[act]}はしくじり、${T?.name ?? ''}${T ? '家' : ''}に捕らわれた。`, 'info', mine); return 'caught'; }
+  addLog(s, `${g.name}の${NINJA_NAME[act]}はしくじった（${T?.name ?? ''}${T ? '家' : ''}は当家を恨む）。`, 'info', mine);
   return 'fail';
 }
 // AI: 忍びの家臣がいれば忍び頭に据え、ときどき主攻の家に流言・放火・探り（暗殺は稀で、当主は狙わない）
 export function aiNinja(s: GameState, clan: string) {
   const C = s.clans[clan];
-  if (C.foreign) return;
   if (!ninjaHead(s, clan)) { const g = Object.values(s.generals).find((x) => x.clan === clan && x.status === 'free' && traitOf(x) === 'ninja'); C.ninja = g?.id ?? null; if (!g) return; }
   if (!C.target || !s.clans[C.target]?.alive || rand(s) > 0.15) return;
   const reach = ninjaReach(s, clan);

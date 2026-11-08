@@ -3,8 +3,7 @@
 // 面目: 同じ身分で功績の多い者が大将を譲れば恩−5。不仲: 大将と不仲の者が傘下に入れば双方の恩−10
 import { bondOf } from './bushi';
 import { attachAuto, directOf, leaveArmy, levelOf, staffOf, treeOf } from './corps';
-import { isCrossing } from './karairi';
-import { NEIGHBORS, hexDist as hexDistance, isForeignHex } from './map';
+import { NEIGHBORS, hexDist as hexDistance } from './map';
 import { nearestOwnCastle } from './ops';
 import * as R from './rules';
 import { addLog, castleAt, maxTroops, occupancy } from './state';
@@ -22,7 +21,7 @@ const cmp = (x: number[], y: number[]) => { for (let i = 0; i < x.length; i++) i
 export function mergeBlock(s: GameState, a: Army, b: Army): string | null {
   if (a.id === b.id || a.clan !== b.clan) return '自家の別の軍団とだけ';
   if (a.ikki || b.ikki) return '一揆勢は合流できない';
-  if (!NEIGHBORS[a.hex].includes(b.hex) || isCrossing(a.hex, b.hex)) return '隣り合う軍団とだけ';
+  if (!NEIGHBORS[a.hex].includes(b.hex)) return '隣り合う軍団とだけ';
   if (a.acted || b.acted) return 'この月はもう動いた軍団がいる';
   if (a.routed || b.routed) return '潰走中の軍団は合流できない';
   if ((s.orders ?? []).some((o) => o.army === a.id || o.army === b.id)) return '出陣を命じた軍団は合流できない';
@@ -99,7 +98,7 @@ export function mergeArmies(s: GameState, keep: Army, other: Army): { moved: str
 export const nearOwnCastle = (s: GameState, a: Army) => castleAt(s, a.hex)?.owner === a.clan || NEIGHBORS[a.hex].some((j) => castleAt(s, j)?.owner === a.clan);
 export function splitSpot(s: GameState, a: Army): number | null {
   const occ = occupancy(s);
-  return NEIGHBORS[a.hex].find((j) => !occ.has(j) && !isCrossing(a.hex, j) && isForeignHex(j) === isForeignHex(a.hex) && (!castleAt(s, j) || castleAt(s, j)!.owner === a.clan)) ?? null;
+  return NEIGHBORS[a.hex].find((j) => !occ.has(j) && (!castleAt(s, j) || castleAt(s, j)!.owner === a.clan)) ?? null;
 }
 export function splitBlock(s: GameState, a: Army, sub?: General): string | null {
   if (a.ikki) return '一揆勢は分けられない';
@@ -122,7 +121,7 @@ export function splitArmy(s: GameState, a: Army, sub: General, frac: number): Ar
   walk(sub.id);
   const id = s.nextArmyId++;
   const n = Math.max(500, Math.min(Math.round(a.troops * frac / 100) * 100, a.troops - 500));
-  const b: Army = { id, clan: a.clan, main: sub.id, deputy: null, troops: n, morale: a.morale, hex, mp: 0, acted: true, departTroops: n, routed: false, monto: a.monto, food: a.food, drill: a.drill, ashi: a.ashi, front: a.front, abroad: a.abroad,
+  const b: Army = { id, clan: a.clan, main: sub.id, deputy: null, troops: n, morale: a.morale, hex, mp: 0, acted: true, departTroops: n, routed: false, monto: a.monto, food: a.food, drill: a.drill, ashi: a.ashi, front: a.front,
     guns: Math.floor((a.guns ?? 0) * n / a.troops), cannon: Math.floor((a.cannon ?? 0) * n / a.troops), staff: [...subtree].filter((x) => x !== sub.id) };
   s.armies[id] = b;
   a.staff = staffOf(a).filter((x) => !subtree.has(x));
@@ -135,23 +134,6 @@ export function splitArmy(s: GameState, a: Army, sub: General, frac: number): Ar
   const capB = maxTroops(s, b); if (b.troops > capB) { a.troops += b.troops - capB; b.troops = capB; b.departTroops = capB; }
   addLog(s, `${s.generals[a.main].name}隊から${sub.name}隊（兵${b.troops.toLocaleString()}）が分かれた。`, 'info', a.clan === s.player);
   return b;
-}
-
-// AI（唐入り）: 対馬・壱岐・海の向こうで隣り合う自軍の小さな隊を、面目・不仲の障りがなければ一つにまとめる
-export function aiMerge(s: GameState, clan: string, where: (h: number) => boolean) {
-  for (const a of Object.values(s.armies)) {
-    if (a.clan !== clan || !where(a.hex) || a.acted || a.ikki) continue;
-    for (const j of NEIGHBORS[a.hex]) {
-      const b = Object.values(s.armies).find((x) => x.hex === j && x.clan === clan);
-      if (!b || mergeBlock(s, a, b)) continue;
-      const { keep, other } = mergeLeaders(s, a, b);
-      const pv = mergePreview(s, keep, other);
-      if (pv.face || pv.rivals.length) continue;
-      if (keep.troops >= maxTroops(s, keep) * 0.9) continue;
-      mergeArmies(s, keep, other);
-      break;
-    }
-  }
 }
 
 // ───────── おまかせ編成 ─────────

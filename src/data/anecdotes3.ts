@@ -1,4 +1,4 @@
-// 逸話の本文（第二弾: 1580年代を中心に、1552年と唐入りを少し）。型と使い方は anecdotes.ts を参照
+// 逸話の本文（第二弾: 1580年代を中心に、1552年と慶長を少し）。型と使い方は anecdotes.ts を参照
 import type { Anecdote } from './anecdotes';
 
 export const ANECDOTES_C: Anecdote[] = [
@@ -166,7 +166,7 @@ export const ANECDOTES_C: Anecdote[] = [
     ],
     gain: [['kinoshita_tokichiro', 'cha', 2]], log: '{kinoshita_tokichiro}が北野で身分を問わぬ大茶会を開いたという。',
   },
-  // ───── 唐入りの頃 ─────
+  // ───── 慶長の頃 ─────
   {
     id: 'jishin', title: '地震加藤', bg: 'zashiki_night', who: ['kato_kiyomasa', 'kinoshita_tokichiro'], from: 1596, to: 1597,
     beats: [

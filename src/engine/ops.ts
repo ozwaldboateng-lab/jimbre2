@@ -5,7 +5,7 @@ import { afterSuccession, heirOf } from './katoku';
 import { onCaptured } from './shioki';
 import { goodwill, initOn, onOf } from './on';
 import { pushScene } from './lines';
-import { graphDistances, HEXES, isForeignHex } from './map';
+import { graphDistances, HEXES } from './map';
 import * as R from './rules';
 import { addLog, clanCastles, clanName, garrisonMax, hostile, initialMorale, occupancy, rand } from './state';
 import { dropItems, seizeItems } from './money';
@@ -157,8 +157,8 @@ export function captureCastle(s: GameState, c: Castle, clan: string) {
 export function checkVictory(s: GameState) {
   if (s.over) return;
   if (!clanCastles(s, s.player).length) s.over = 'lose';
-  else if (!s.karairi?.active && (s.castles.every((c) => isForeignHex(c.hex) || c.owner === s.player)
-    || !Object.values(s.clans).some((C) => C.id !== s.player && C.alive && !C.foreign))) s.over = 'win'; // 全城を持つか、国内に他の家が残っていなければ天下統一（国人衆の城が残っていてもよい）。国外の城は数えない。唐入りのあいだは判定しない
+  else if (s.castles.every((c) => c.owner === s.player)
+    || !Object.values(s.clans).some((C) => C.id !== s.player && C.alive)) s.over = 'win'; // 全城を持つか、ほかの家が残っていなければ天下統一（国人衆の城が残っていてもよい）
 }
 
 // 登用成功率（SPEC: clamp(0.4 + (登用側主将魅力 − 旧主家威信)/100, 0, 1)）

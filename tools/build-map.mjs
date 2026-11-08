@@ -3,7 +3,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { feature } from 'topojson-client';
-import { PROVINCES, CASTLES, RIDGES, RIVERS, PLAINS, STRAITS, CASTLE_PROVINCE, EXTRA_PROVINCES, EXTRA_CASTLES, EXTRA_RIDGES, EXTRA_RIVERS, EXTRA_PLAINS, SEA_CROSSINGS } from '../data/geo.mjs';
+import { PROVINCES, CASTLES, RIDGES, RIVERS, PLAINS, STRAITS, CASTLE_PROVINCE, EXTRA_PROVINCES, EXTRA_CASTLES } from '../data/geo.mjs';
 
 const require = createRequire(import.meta.url);
 const topo = require('world-atlas/countries-10m.json');
@@ -239,7 +239,7 @@ PROVINCES.forEach((p, pi) => {
 hexes.forEach((h) => (h.k = Math.round(h.k * 100) / 100));
 castleOut.forEach((c, ci) => (c.koku = Math.round(hexes.filter((h) => h.d === ci).reduce((s, h) => s + h.k, 0) * 10) / 10));
 
-// ───────── 唐入りの地図: 対馬・壱岐（日本）と朝鮮半島・遼東（国外）を、日本の後ろに足す ─────────
+// ───────── 離島: 対馬・壱岐を、日本の後ろに足す ─────────
 // 日本のマス・城・国・地形・支配域は上で決めたまま変えない（セーブと城の番号を保つ）
 const nJapan = hexes.length;
 const feats = feature(topo, topo.objects.countries).features;
@@ -250,7 +250,6 @@ const jpPolys = polysOf('392');
 const regions = [
   { code: 'T', parts: [polyAt(jpPolys, 34.4, 129.33), polyAt(jpPolys, 34.2, 129.25)], min: 3, foreign: false },
   { code: 'I', parts: [polyAt(jpPolys, 33.79, 129.72)], min: 3, foreign: false },
-  { code: 'C', parts: [polyAt(polysOf('410'), 36.5, 127.8), polyAt(polysOf('408'), 40.0, 127.0)], min: 5, foreign: true },
 ];
 const extra = [];
 const occupied = new Set(hexes.map((h) => key(h.q, h.r)));
@@ -268,26 +267,7 @@ for (const reg of regions) {
     }
   // 小島は少なくとも1マス
   if (!got.length) { const [x, y] = [ (reg.parts[0].bbox[0] + reg.parts[0].bbox[2]) / 2, (reg.parts[0].bbox[1] + reg.parts[0].bbox[3]) / 2 ]; const r = Math.round(y / (1.5 * S)); const q = Math.round(x / (SQ3 * S) - r / 2); got.push({ q, r, isl: reg.code, f: reg.foreign }); }
-  // 朝鮮: 3マス未満のちぎれた島は省く
-  if (reg.code === 'C') {
-    const comp = components(got, []); const size = {}; comp.forEach((c) => (size[c] = (size[c] || 0) + 1));
-    for (let i = got.length - 1; i >= 0; i--) if (size[comp[i]] < 3) got.splice(i, 1);
-  }
   for (const h of got) { occupied.add(key(h.q, h.r)); extra.push(h); }
-}
-// 遼東: 鴨緑江の向こう、朝鮮のマスから2マス以内の明の陸
-{
-  const cn = polysOf('156').map((r) => ({ rings: r, bbox: bboxOf(r) })).filter((p) => { const [x0, y0] = proj(41.5, 123.0), [x1, y1] = proj(39.5, 126.0); return !(p.bbox[2] < x0 || p.bbox[0] > x1 || p.bbox[3] < y0 || p.bbox[1] > y1); });
-  const kor = extra.filter((h) => h.isl === 'C');
-  for (let r = Math.floor(proj(41.2, 0)[1] / (1.5 * S)); r <= Math.ceil(proj(39.7, 0)[1] / (1.5 * S)); r++)
-    for (let q = -40; q <= 0; q++) {
-      if (occupied.has(key(q, r))) continue;
-      const [cx, cy] = center(q, r); const [lat, lon] = unproj(cx, cy);
-      if (lon < 123.5 || lon > 125.2 || lat < 39.8 || lat > 41.0) continue;
-      if (!cn.some((p) => pip(p.rings, cx, cy))) continue;
-      if (!kor.some((k) => hexDist(k, { q, r }) <= 2)) continue;
-      occupied.add(key(q, r)); extra.push({ q, r, isl: 'L', f: true });
-    }
 }
 extra.forEach((h) => { const [x, y] = center(h.q, h.r); h.x = x; h.y = y; [h.lat, h.lon] = unproj(x, y); });
 const base = hexes.length;
@@ -303,26 +283,8 @@ linkIf(nearIn(33.5, 129.85, (h) => h.isl === 'K'), iki, '壱岐水道');
 linkIf(iki, nearIn(34.25, 129.3, (h) => h.isl === 'T'), '対馬海峡');
 // 対馬のマスどうしがちぎれていればつなぐ
 { const ts = exIdx.filter((i) => hexes[i].isl === 'T'); for (let a = 1; a < ts.length; a++) if (!adjOf(ts[a]).some((j) => hexes[j].isl === 'T')) linkIf(ts[a - 1], ts[a], '対馬'); }
-// 地形（足したマスだけ）
-{
-  const coastX = hexes.map(() => Infinity); const qx = [];
-  for (const i of exIdx) { const landN = adjOf(i).length; if (landN < 6) { coastX[i] = 0; qx.push(i); } }
-  for (let k = 0; k < qx.length; k++) { const i = qx[k]; for (const j of adjOf(i)) if (j >= base && coastX[j] > coastX[i] + 1) { coastX[j] = coastX[i] + 1; qx.push(j); } }
-  for (const i of exIdx) {
-    const h = hexes[i];
-    const inPlain = EXTRA_PLAINS.some(([lat, lon, rad]) => { const [x, y] = proj(lat, lon); return Math.hypot(h.x - x, h.y - y) <= rad; });
-    const nRiver = Math.min(...EXTRA_RIVERS.map((l) => lineDist(h, l)));
-    const nRidge = Math.min(...EXTRA_RIDGES.map((l) => lineDist(h, l)));
-    const z = noise(h.q, h.r), c = coastX[i];
-    let t = 'P';
-    if (nRiver < S * 0.8) t = 'R';
-    else if (inPlain) t = 'P';
-    else if (nRidge < S * 1.6 || (c >= 3 && z < 0.45)) t = 'M'; // 朝鮮は山がちに
-    else if ((c >= 1 && z < 0.6) || nRidge < S * 2.8) t = 'F';
-    if (h.isl === 'T' || h.isl === 'I') t = h.isl === 'T' ? 'M' : 'P';
-    h.t = t;
-  }
-}
+// 地形（足したマスだけ）: 対馬は山、壱岐は平地
+for (const i of exIdx) hexes[i].t = hexes[i].isl === 'T' ? 'M' : 'P';
 // 国と城
 const pBase = PROVINCES.length;
 const exCastles = [];
@@ -354,19 +316,15 @@ for (const [id, name, lat, lon, ow, prov] of EXTRA_CASTLES) {
   });
   for (const ci of exCastles) castleOut[ci].koku = Math.round(exIdx.filter((i) => hexes[i].d === ci).reduce((s, i) => s + hexes[i].k, 0) * 10) / 10;
 }
-// 渡海の路は城から城へ（対馬の金石城〜釜山鎮）
-const castleHex = (id) => castleOut.find((c) => c.id === id).hex;
-const crossings = SEA_CROSSINGS.map(([name, a, b]) => [castleHex(a), castleHex(b), name]);
-const allProv = [...PROVINCES.map((p) => ({ id: p[0], name: p[1] })), ...EXTRA_PROVINCES.map((p) => ({ id: p[0], name: p[1], ...(p[5] === 'C' || p[5] === 'L' ? { f: 1 } : {}) }))];
+const allProv = [...PROVINCES.map((p) => ({ id: p[0], name: p[1] })), ...EXTRA_PROVINCES.map((p) => ({ id: p[0], name: p[1] }))];
 console.log('japan hexes', nJapan, 'extra', extra.length, 'by region', JSON.stringify(extra.reduce((m, h) => ((m[h.isl] = (m[h.isl] || 0) + 1), m), {})), 'extra castles', exCastles.length, 'links', links.map((l) => l[2]).join(','));
 
 const out = {
   size: S,
   provinces: allProv,
-  hexes: hexes.map((h) => ({ q: h.q, r: h.r, t: h.t, p: h.p, k: h.k, d: h.d, ...(h.c !== undefined ? { c: h.c } : {}), ...(h.f ? { f: 1 } : {}) })),
+  hexes: hexes.map((h) => ({ q: h.q, r: h.r, t: h.t, p: h.p, k: h.k, d: h.d, ...(h.c !== undefined ? { c: h.c } : {}) })),
   castles: castleOut.map(({ id, name, owner, hex, koku }) => ({ id, name, owner, hex, koku })),
   links,
-  crossings, // 渡海の路（対馬〜釜山）。陸の隣ではない
 };
 mkdirSync(new URL('../src/data/', import.meta.url), { recursive: true });
 writeFileSync(new URL('../src/data/map.json', import.meta.url), JSON.stringify(out));

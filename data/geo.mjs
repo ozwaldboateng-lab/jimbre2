@@ -218,66 +218,12 @@ export const CASTLE_PROVINCE = {
   hinoe: 'hizen', obi: 'hyuga', chosa: 'osumi', yanagawa: 'm_sendo',
 };
 
-// ───────── 唐入りの地図（日本の後ろに足す。日本のマス・城・国の番号は変えない） ─────────
-// 対馬・壱岐（日本）。朝鮮半島と遼東（国外: 唐入りで開く）
-// [id, 表示名, 緯度, 経度, 石高(万石), 地域]  地域: T=対馬 I=壱岐 C=朝鮮 L=遼東
+// ───────── 離島: 対馬・壱岐（日本の後ろに足す） ─────────
+// [id, 表示名, 緯度, 経度, 石高(万石), 地域]  地域: T=対馬 I=壱岐
 export const EXTRA_PROVINCES = [
   ['tsushima', '対馬', 34.35, 129.3, 1, 'T'], ['iki', '壱岐', 33.79, 129.72, 2, 'I'],
-  ['keonggi', '京畿', 37.5, 127.0, 60, 'C'], ['chungcheong', '忠清', 36.5, 127.0, 70, 'C'],
-  ['gyeongsang', '慶尚', 35.8, 128.6, 110, 'C'], ['jeolla', '全羅', 35.3, 127.0, 110, 'C'],
-  ['gangwon', '江原', 37.8, 128.3, 30, 'C'], ['hwanghae', '黄海', 38.4, 125.8, 50, 'C'],
-  ['pyongan', '平安', 39.7, 125.8, 50, 'C'], ['hamgyong', '咸鏡', 40.8, 129.0, 35, 'C'],
-  ['liaodong', '遼東', 40.3, 124.2, 20, 'L'],
 ];
 // [id, 名, 緯度, 経度, 持ち主, 国id]
 export const EXTRA_CASTLES = [
   ['kaneishi', '金石城', 34.2, 129.29, null, 'tsushima'], ['kameoka', '亀丘城', 33.8, 129.72, null, 'iki'],
-  // 慶尚
-  ['busan', '釜山鎮', 35.1, 129.03, 'joseon', 'gyeongsang'], ['dongnae', '東萊城', 35.2, 129.08, 'joseon', 'gyeongsang'],
-  ['gimhae', '金海城', 35.23, 128.88, 'joseon', 'gyeongsang'], ['ulsan', '蔚山', 35.55, 129.32, 'joseon', 'gyeongsang'],
-  ['gyeongju', '慶州', 35.84, 129.21, 'joseon', 'gyeongsang'], ['daegu', '大邱', 35.87, 128.6, 'joseon', 'gyeongsang'],
-  ['sangju', '尚州', 36.41, 128.16, 'joseon', 'gyeongsang'], ['jinju', '晋州城', 35.19, 128.08, 'joseon', 'gyeongsang'],
-  ['seongju', '星州', 35.92, 128.28, 'joseon', 'gyeongsang'], ['andong', '安東', 36.57, 128.73, 'joseon', 'gyeongsang'],
-  // 全羅
-  ['jeonju', '全州', 35.82, 127.15, 'joseon', 'jeolla'], ['namwon', '南原城', 35.41, 127.39, 'joseon', 'jeolla'],
-  ['suncheon', '順天', 34.95, 127.49, 'joseon', 'jeolla'], ['naju', '羅州', 35.03, 126.71, 'joseon', 'jeolla'],
-  ['jwasuyeong', '全羅左水営', 34.74, 127.74, 'joseon', 'jeolla'],
-  // 忠清
-  ['chungju', '忠州', 36.97, 127.93, 'joseon', 'chungcheong'], ['cheongju', '清州', 36.64, 127.49, 'joseon', 'chungcheong'],
-  ['gongju', '公州', 36.46, 127.12, 'joseon', 'chungcheong'], ['hongju', '洪州', 36.6, 126.66, 'joseon', 'chungcheong'],
-  // 京畿
-  ['hanseong', '漢城', 37.57, 126.98, 'joseon', 'keonggi'], ['gaeseong', '開城', 37.97, 126.55, 'joseon', 'keonggi'],
-  ['haengju', '幸州山城', 37.6, 126.83, 'joseon', 'keonggi'], ['suwon', '水原', 37.28, 127.01, 'joseon', 'keonggi'],
-  // 江原
-  ['wonju', '原州', 37.34, 127.95, 'joseon', 'gangwon'], ['gangneung', '江陵', 37.75, 128.9, 'joseon', 'gangwon'],
-  ['chuncheon', '春川', 37.88, 127.73, 'joseon', 'gangwon'],
-  // 黄海
-  ['haeju', '海州', 38.04, 125.71, 'joseon', 'hwanghae'], ['hwangju', '黄州', 38.67, 125.77, 'joseon', 'hwanghae'],
-  // 平安
-  ['pyongyang', '平壌城', 39.03, 125.75, 'joseon', 'pyongan'], ['anju', '安州', 39.62, 125.66, 'joseon', 'pyongan'],
-  ['uiju', '義州', 40.2, 124.53, 'joseon', 'pyongan'],
-  // 咸鏡
-  ['hamhung', '咸興', 39.92, 127.54, 'joseon', 'hamgyong'], ['anbyon', '安辺', 39.03, 127.53, 'joseon', 'hamgyong'],
-  ['kilju', '吉州', 40.96, 129.33, 'joseon', 'hamgyong'], ['hoeryong', '会寧', 42.44, 129.75, 'joseon', 'hamgyong'],
-  // 遼東（明）
-  ['jiuliancheng', '九連城', 40.25, 124.15, 'ming', 'liaodong'],
 ];
-export const EXTRA_RIDGES = [
-  [[38.6, 128.4], [37.5, 128.9], [36.8, 129.1], [35.6, 129.1]], // 太白山脈
-  [[37.0, 128.4], [36.6, 127.9], [36.0, 127.7], [35.4, 127.6]], // 小白山脈（鳥嶺〜智異山）
-  [[41.0, 126.8], [40.0, 126.9], [39.2, 127.0]], // 狼林山脈
-  [[41.9, 129.0], [40.9, 128.2], [40.3, 127.6]], // 咸鏡山脈
-  [[41.5, 127.8], [40.9, 127.3]], // 蓋馬高原
-];
-export const EXTRA_RIVERS = [
-  [[36.9, 128.5], [36.4, 128.3], [35.9, 128.4], [35.4, 128.6], [35.1, 128.95]], // 洛東江
-  [[37.4, 128.4], [37.5, 127.6], [37.55, 127.0], [37.7, 126.6]], // 漢江
-  [[36.4, 127.6], [36.45, 127.1], [36.2, 126.9], [36.0, 126.7]], // 錦江
-  [[38.6, 127.3], [37.95, 126.9], [37.75, 126.7]], // 臨津江
-  [[39.6, 126.5], [39.05, 125.75], [38.75, 125.4]], // 大同江
-  [[40.2, 126.2], [39.65, 125.6]], // 清川江
-  [[41.7, 126.9], [41.2, 126.0], [40.6, 125.0], [40.1, 124.4]], // 鴨緑江
-];
-export const EXTRA_PLAINS = [[35.5, 126.9, 40], [37.4, 127.0, 25], [39.0, 125.75, 25], [35.85, 128.6, 20], [38.5, 125.3, 25]];
-// 渡海の路（陸続きでない。唐入りの船で渡る）: [名, 城id, 城id]
-export const SEA_CROSSINGS = [['朝鮮海峡', 'kaneishi', 'busan']];

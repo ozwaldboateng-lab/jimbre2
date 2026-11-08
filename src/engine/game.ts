@@ -5,8 +5,6 @@ import { runClanAI } from './ai';
 import { aiDiplomacy, expireTreaties } from './diplomacy';
 import { monthEnd } from './economy';
 import { continueSieges, resolveOrders } from './orders';
-import { karairiMonth, karairiMonthStart } from './karairi';
-import { koreaMonth } from './korea';
 import { monthlyRanks } from './ranks';
 import { monthlyLife } from './life';
 import { monthlyRonin } from './ronin';
@@ -44,12 +42,10 @@ export async function endTurn(s: GameState) {
   checkVictory(s);
   if (s.over) return;
   runDelegation(s); // 委任した内政
-  koreaMonth(s); // 唐入り: 王の退去・義兵・明の援軍
-  const order = Object.keys(s.clans).filter((c) => c !== s.player && s.clans[c].alive && (!s.clans[c].foreign || !!s.karairi?.active)); // 国外の家（朝鮮・明）は唐入りのあいだだけ動く
+  const order = Object.keys(s.clans).filter((c) => c !== s.player && s.clans[c].alive);
   for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rand(s) * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
-  for (const c of order) { if (s.over) break; if (!s.clans[c].foreign) await aiDiplomacy(s, c); }
+  for (const c of order) { if (s.over) break; await aiDiplomacy(s, c); }
   for (const c of order) { if (s.over) break; await runClanAI(s, c); }
-  await karairiMonth(s); // 唐入り: 李舜臣の遊撃と海戦（兵站の前に）
   monthEnd(s);
   monthlyWorks(s); // 新田開発・城の普請の進み
   fiefAccounts(s); // 領の蔵: 年貢・商いの8割と、領の兵の兵糧・給金・陪臣の恩賞
@@ -69,7 +65,6 @@ export async function endTurn(s: GameState) {
   s.turn++;
   monthCamps(s); // 陣触の軍団が現れ、急ぎの陣触の残りが追いつく
   continueSieges(s); // 月をまたぐ城攻め
-  karairiMonthStart(s);
   checkVictory(s);
 }
 

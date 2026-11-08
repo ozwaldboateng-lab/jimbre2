@@ -1,17 +1,13 @@
 // 勢力AI（SPEC: 攻勢/均衡/守勢、包囲・側面・城確保の評価、不利戦闘の回避、70%ローテーション）
 import { meibun, shogunClan } from './bakufu';
-import { isCrossing } from './karairi';
-import { isForeignHex, PROVINCES } from './map';
-import { aiMerge } from './reorg';
 import { aiNinja } from './traits';
-const STAGE = new Set(['tsushima', 'iki']);
 import { aiFillCorps, attachAuto } from './corps';
 import { estimate, groupEstimate } from './combat';
 import { orderAttack, ordersAt, resolveOrders } from './orders';
-import { graphDistances, hexDist, HEXES, NEIGHBORS } from './map';
+import { graphDistances, hexDist, NEIGHBORS } from './map';
 import { carryOf, isSupplied, supplyNet, type SupplyNet } from './supply';
 import { attackTargets, reachable, type Target } from './move';
-import { canPlot, capital, doPlot, formArmy, moveArmy, plotChance, recruitRonin } from './ops';
+import { canPlot, capital, doPlot, moveArmy, plotChance, recruitRonin } from './ops';
 import * as R from './rules';
 import { castleAt, hostile, rand, castleKoku, clanArmies, mobilizeCap, clanCastles, clanTroops, garrisonMax, maxTroops, occupancy, troopMult, castleDef , farmTroops } from './state';
 import type { Army, GameState, General } from './types';
@@ -25,8 +21,7 @@ import { aiBudget } from './policy';
 
 export function enemyNear(s: GameState, clan: string, hex: number, radius: number): number {
   let t = 0;
-  // 海の向こう（日本と朝鮮）の軍勢は、近くても渡ってこられないので数えない
-  for (const a of Object.values(s.armies)) if (hostile(s, clan, a.clan) && hexDist(a.hex, hex) <= radius && isForeignHex(a.hex) === isForeignHex(hex)) t += a.troops * a.morale;
+  for (const a of Object.values(s.armies)) if (hostile(s, clan, a.clan) && hexDist(a.hex, hex) <= radius) t += a.troops * a.morale;
   return t;
 }
 
@@ -50,15 +45,14 @@ function aiPlot(s: GameState, clan: string) {
 
 function organize(s: GameState, clan: string) {
   const c = s.clans[clan];
-  const foreign = !!c.foreign; // 朝鮮・明は南蛮・官位・調略・浪人の登用をしない
-  if (!foreign) aiNanban(s, clan);
+  aiNanban(s, clan);
   aiEconomy(s, clan);
   aiBudget(s, c);
-  if (!foreign) aiCourt(s, clan);
-  if (!foreign) aiPlot(s, clan);
-  if (!foreign) aiNinja(s, clan);
+  aiCourt(s, clan);
+  aiPlot(s, clan);
+  aiNinja(s, clan);
   // 在野武将の登用
-  if (!foreign) for (const g of Object.values(s.generals)) {
+  for (const g of Object.values(s.generals)) {
     if (g.status === 'ronin' && s.castles[g.loc].owner === clan && g.triedTurn !== s.turn && rand(s) < 0.3) recruitRonin(s, g, clan);
   }
   // 動員余力が大きければ城主を野戦軍の大将に回す
@@ -72,10 +66,7 @@ function organize(s: GameState, clan: string) {
     s.castles[g.loc].governor = null;
     g.status = 'free';
     const castle = s.castles[g.loc];
-    const occ0 = occupancy(s);
-    const spot = [castle.hex, ...NEIGHBORS[castle.hex].filter((j) => s.castles[HEXES[j].d]?.owner === clan)].find((h) => !occ0.has(h));
-    if (!foreign) { formCamp(s, clan, castle, g.id, R.NEW_ARMY_TROOPS + 500); continue; } // 平時の軍団は名簿として作る（陣触で出る）
-    if (spot === undefined || !formArmy(s, clan, castle, g.id, R.NEW_ARMY_TROOPS + 500, spot)) { castle.governor = g.id; g.status = 'governor'; break; }
+    formCamp(s, clan, castle, g.id, R.NEW_ARMY_TROOPS + 500); // 平時の軍団は名簿として作る（陣触で出る）
   }
   aiFillBugyo(s, clan);
   aiFillTsukai(s, clan);
@@ -89,13 +80,7 @@ function organize(s: GameState, clan: string) {
     const capLeft = mobilizeCap(s, clan) - farmTroops(s, clan);
     const affordable = c.food > R.NEW_ARMY_TROOPS * R.RECRUIT_COST + clanTroops(s, clan) * R.FOOD_PER_SOLDIER * 3;
     if (capLeft >= 1500 && affordable) {
-      if (!foreign) { formCamp(s, clan, castle, g.id, Math.min(R.NEW_ARMY_TROOPS + 500, capLeft)); continue; } // 名簿として
-      // 城か、城に隣接する自領の空きヘックスで編成
-      const spot = [castle.hex, ...NEIGHBORS[castle.hex].filter((j) => s.castles[HEXES[j].d]?.owner === clan)].find((h) => !occ.has(h));
-      if (spot !== undefined) {
-        const a = formArmy(s, clan, castle, g.id, Math.min(R.NEW_ARMY_TROOPS + 500, capLeft), spot);
-        if (a) { occ.set(a.hex, a); continue; }
-      }
+      formCamp(s, clan, castle, g.id, Math.min(R.NEW_ARMY_TROOPS + 500, capLeft)); continue; // 名簿として
     }
     const here = occ.get(castle.hex);
     if (here && here.clan === clan && attachAuto(s, here, g)) continue;
@@ -113,8 +98,6 @@ export function localPower(s: GameState, a: Army, hex: number): number {
 
 export function decideStance(s: GameState, clan: string) {
   const c = s.clans[clan];
-  // 唐入り: 明は攻める。朝鮮は明が来るまで守り、来てからは攻めに転じる
-  if (c.foreign) { c.target = s.player; c.stance = clan === 'ming' || s.clans.ming?.alive ? '攻勢' : '守勢'; return; }
   const power = (id: string) => clanArmies(s, id).reduce((t, a) => t + a.troops * a.morale, 0) + campsOf(s, id).reduce((t, a) => t + a.troops * a.morale * 0.8, 0) + clanCastles(s, id).reduce((t, k) => t + k.garrison * 0.5, 0);
   const own = power(clan);
   // 隣接勢力（自城から4ヘックス以内に城を持つ）
@@ -169,7 +152,6 @@ export async function tryAttack(s: GameState, a: Army, o: AttackOpts = {}): Prom
   const defClan = best ? (best.t.kind === 'army' ? best.t.army.clan : s.castles[best.t.castle].owner) : null;
   if (defClan && clanTroops(s, a.clan) >= 2 * clanTroops(s, defClan)) thr = Math.min(thr, 0.38);
   if (best && ordersAt(s, best.t.hex, a.clan).length) thr = Math.min(thr, 0.35); // 合流なら低い見込みでも加わる
-  if (best && isCrossing(a.hex, best.t.hex)) thr = Math.min(thr, 0.38); // 唐入り: 海を渡って攻める（陣触の勢い）
   if (defClan) thr += deterOf(s, defClan) * R.DETER_THRESHOLD; // 官位の高い家には慎重になる
   if (defClan && best && !meibun(s, a.clan, defClan, best.t.hex).ok) thr += R.MEIBUN_AI; // 名分がなければ慎重に
   if (defClan && defClan === shogunClan(s)) thr += R.SHOGUN_AI; // 将軍家に弓を引くのはなおさら
@@ -279,7 +261,6 @@ export function moveToward(s: GameState, a: Army, goal: number) {
     let sc = gd[h] * 10;
     let danger = 0;
     for (const j of NEIGHBORS[h]) {
-      if (isCrossing(h, j)) continue; // 海峡の向こうの敵は渡ってこられない
       const o = occ.get(j);
       if (!o || !hostile(s, a.clan, o.clan)) continue;
       danger += o.troops * o.morale;
@@ -313,8 +294,6 @@ export async function runClanAI(s: GameState, clan: string) {
   const d = R.DIFFICULTY[s.difficulty];
   aiIkki(s, clan);
   ikkiOrders(s, clan);
-  // 唐入り: 対馬・壱岐・海の向こうで隣り合う小さな隊をまとめる（面目・不仲の障りがなければ）
-  if (s.karairi?.active && !s.clans[clan].foreign) aiMerge(s, clan, (h) => isForeignHex(h) || STAGE.has(PROVINCES[HEXES[h].p]?.id ?? ''));
   const net = supplyNet(s, clan);
   for (const a of armies) {
     if (!s.armies[a.id] || s.over) continue;
