@@ -336,8 +336,8 @@ const rangeOut = RANGE_CELLS.map(([name, , solo]) => ({ name, ...(solo ? { solo:
 const cellRange = new Map();
 RANGE_CELLS.forEach(([, cells], ri) => { for (const [lat, lon] of cells) { const [x, y] = proj(lat, lon); cellRange.set(cellOf(x, y, RANGE_CELL_SIZE), ri); } });
 hexes.forEach((h) => { if (h.c !== undefined) return; const ri = cellRange.get(cellOf(h.x, h.y, RANGE_CELL_SIZE)); if (ri !== undefined) { h.x_ = ri; h.t = 'M'; } });
-// 富士山は1マスだけ（真ん中にいちばん近いマス）
-RANGE_CELLS.forEach(([, cells, solo], ri) => { if (!solo) return; const [x, y] = proj(...cells[0]); let best = -1, bd = Infinity; hexes.forEach((h, i) => { if (h.x_ !== ri) return; const d = (h.x - x) ** 2 + (h.y - y) ** 2; if (d < bd) { bd = d; best = i; } }); hexes.forEach((h, i) => { if (h.x_ === ri && i !== best) delete h.x_; }); });
+// 富士山は1マスだけ（山頂にいちばん近いマス）
+RANGE_CELLS.forEach(([, cells, solo], ri) => { if (!solo) return; hexes.forEach((h) => { if (h.x_ === ri) delete h.x_; }); const best = nearestHex(...cells[0], (h) => h.c === undefined); hexes[best].x_ = ri; hexes[best].t = 'M'; });
 const passOut = PASSES.map(([name, lat, lon]) => { const hi = nearestHex(lat, lon, () => true); delete hexes[hi].x_; return [hi, name]; });
 // すべての城へ道が通るか
 {
