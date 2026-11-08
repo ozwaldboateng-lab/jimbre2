@@ -441,7 +441,7 @@ export class MapView {
         ctx.fillStyle = 'rgba(52,86,110,0.92)'; ctx.fill(B.lakes);
         ctx.strokeStyle = 'rgba(30,24,16,0.6)'; ctx.lineWidth = 1 * px; ctx.stroke(B.lakes);
       }
-      ctx.strokeStyle = 'rgba(62,118,160,0.85)'; ctx.lineWidth = Math.max(2.2 * px, HEX_SIZE * 0.09); ctx.stroke(B.rivers);
+      if (!relief) { ctx.strokeStyle = 'rgba(62,118,160,0.85)'; ctx.lineWidth = Math.max(2.2 * px, HEX_SIZE * 0.09); ctx.stroke(B.rivers); } // 陰影の地図では、手で描いた川は描かない
       ctx.restore();
     }
 
