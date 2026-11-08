@@ -3,7 +3,11 @@ import { MINES, MINE_KIND_NAME } from '../data/economy';
 import { BASE_LAKES, BASE_LAND, BASE_RIVERS } from '../data/basemap';
 import { bk, meibun } from '../engine/bakufu';
 import { supplyNet } from '../engine/supply';
-import { HEXES, HEX_SIZE, PROVINCES, hexCenter, isBlocked, isSoloPeak } from '../engine/map';
+import { HEXES, HEX_SIZE as MAP_HEX, PROVINCES, hexCenter, isBlocked, isSoloPeak } from '../engine/map';
+// 描く単位: マス1つの大きさをバージョン1と同じ15にそろえて描く（倍率・印の大きさ・名を出す倍率はバージョン1のまま）。
+// 地図のkmに ZK を掛けたものが描く単位（マスが小さくなった分、日本は大きく描かれる）
+const ZK = 15 / MAP_HEX;
+const HEX_SIZE = 15;
 import { PASSES, RANGES } from '../data/ranges';
 import type { Reach, Target } from '../engine/move';
 import { allied, castleAt, castleKoku, hexOwner } from '../engine/state';
@@ -13,7 +17,8 @@ const SQ3 = Math.sqrt(3);
 const EDGE_DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
 const hexIndex = new Map(HEXES.map((h) => [`${h.q},${h.r}`, h.i]));
 const EDGE_NB: number[][] = HEXES.map((h) => EDGE_DIRS.map(([dq, dr]) => hexIndex.get(`${h.q + dq},${h.r + dr}`) ?? -1));
-const CENTERS = HEXES.map((h) => hexCenter(h.i));
+const CENTERS = HEXES.map((h) => hexCenter(h.i).map((v) => v * ZK) as [number, number]);
+export const centerOf = (i: number) => CENTERS[i];
 // 見られる範囲: 画面の真ん中が日本のヘックスの範囲から出ないように（端のマスも真ん中まで寄せられる）。
 // 下絵の大陸は、その外側8マスまでしか描かない
 const AREA = (() => {
@@ -58,9 +63,10 @@ export const EMBER_RAMP = ['#d6cbb0', '#e3a35a', '#cf3a1c'];
 export const SUP = { home: '#9cc48a', sea: '#8fb6d4', enclave: '#c99ad8', near: '#e8d48a', far: '#e0a060', none: '#6e655a', other: '#a39c90' };
 
 // 地図の下絵（線で描く本物の海岸線・湖・川）。Path2D はゲームの座標（km）で一度だけ作る
-const polyPath = (pts: number[], p = new Path2D()) => { p.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) p.lineTo(pts[i], pts[i + 1]); p.closePath(); return p; };
+const polyPath = (pts: number[], p = new Path2D()) => { p.moveTo(pts[0] * ZK, pts[1] * ZK); for (let i = 2; i < pts.length; i += 2) p.lineTo(pts[i] * ZK, pts[i + 1] * ZK); p.closePath(); return p; };
 // 川は粗い折れ線なので、中点を通る二次曲線でなめらかにする
-const riverPath = (pts: number[], p = new Path2D()) => {
+const riverPath = (pts0: number[], p = new Path2D()) => {
+  const pts = pts0.map((v) => v * ZK);
   p.moveTo(pts[0], pts[1]);
   for (let i = 2; i < pts.length - 2; i += 2) p.quadraticCurveTo(pts[i], pts[i + 1], (pts[i] + pts[i + 2]) / 2, (pts[i + 1] + pts[i + 3]) / 2);
   p.lineTo(pts[pts.length - 2], pts[pts.length - 1]);

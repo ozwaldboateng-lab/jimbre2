@@ -1,12 +1,17 @@
 // 仕様 v1.1 の数値。調整はここに集約する。
 import type { Terrain } from './types';
+import { HEX_SIZE } from './map';
+
+// マスの大きさの換算: バージョン1は1マス15km。距離（マスの数）で決めた数値は、同じkmになるようにこれで直す
+export const HK = 15 / HEX_SIZE;
+export const hx = (n: number) => Math.max(1, Math.round(n * HK));
 
 export const START_YEAR = 1560;
 export const START_MONTH = 6; // 桶狭間（1560年5月）後
 export const HARVEST_MONTH = 10;
 
 // 移動
-export const MOVE_POINTS = 4;
+export const MOVE_POINTS = hx(4); // 一月に進める距離はバージョン1と同じくらい（1マス10.6kmで6）
 export const MOVE_COST: Record<Terrain, number> = { P: 1, R: 2, F: 2, M: 3 };
 export const CASTLE_MOVE_COST = 1;
 export const LINK_MOVE_COST = 3; // 海峡・渡し
@@ -82,10 +87,10 @@ export const MORALE_RECOVER_CASTLE = 0.15;
 export const HQ_SHARE_MIN = 0.35; export const ROUTED_START_MARGIN = 0.12;
 export const MORALE_OUT_OF_SUPPLY = -0.03; // 補給切れ（小荷駄を食べている間）の士気の減り
 // 兵站
-export const SUPPLY_RANGE = 3; // 自領・同盟領の外へ補給の届く距離（ヘックス）
+export const SUPPLY_RANGE = hx(3); // 自領・同盟領の外へ補給の届く距離（ヘックス）
 export const hyoroRange = (int: number) => (int >= 90 ? 2 : int >= 75 ? 1 : 0); // 兵站奉行の知略で延びる距離
 export const hyoroLoss = (int: number) => Math.max(0.5, Math.min(1, 1 - (int - 50) / 100)); // 兵站奉行の知略で運送の減りが縮む（知略100で半分）
-export const SUPPLY_LOSS = 0.15; // 自領の外1ヘックスごとに運ぶ兵糧が増える割合
+export const SUPPLY_LOSS = 0.15 / HK; // 自領の外1ヘックスごとに運ぶ兵糧が増える割合（15kmごとに15%）
 export const SEA_LOSS = 0.1; // 海路で運ぶ分の減り
 export const CARRY_MONTHS = 1; // 小荷駄（自前で持つ兵糧、月数）
 export const STARVE_MORALE = 0.2; export const STARVE_DESERT = 0.1; // 兵糧が尽きた部隊: 毎月の士気の減りと逃げる兵の割合
@@ -95,7 +100,7 @@ export const MORALE_STARVING = -0.1;
 
 // 調略（戦略マップ）
 export const PLOT_COST = 3000; // 兵糧（石）
-export const PLOT_RANGE = 3; // 自城・自軍からのヘックス数
+export const PLOT_RANGE = hx(3); // 自城・自軍からのヘックス数
 export const PLOT_BASE = 0.15; // 成功率 = 0.15 + (知略 − 城主知略)/100 + (威信差)/200 (+国人衆0.15)
 export const PLOT_NEUTRAL = 0.15;
 export const PLOT_CAUGHT = 0.1; // 失敗時に大名の城で捕らえられる確率
@@ -326,7 +331,7 @@ export const SUCCESSION_CHIAN = 5; // 全城の治安の低下
 
 // ───────── 在野・仕官 ─────────
 export const RONIN_MOVE = 0.3; // 毎月、在野武将が別の城へ移る見込み
-export const RONIN_RANGE = 7; // 移る先の距離（ヘックス。2〜3国先まで）
+export const RONIN_RANGE = hx(7); // 移る先の距離（ヘックス。2〜3国先まで）
 export const RONIN_OFFER_BASE = 0.15; // 仕官を願い出る見込みの基本値
 export const RONIN_REFUSED_MONTHS = 12; // 断られた家にはしばらく願い出ない
 export const RONIN_OFFER_KEEP = 1; // 願い出は翌月の評定まで有効
@@ -367,7 +372,7 @@ export const FRONT_MAX = 6;
 export const FRONT_REINF = 5; // 軍団長の統率1ごとに、方面の部隊の毎月の補充+5人
 export const frontChian = (cha: number) => Math.max(0, (cha - 40) / 80); // 軍団長の魅力: 担当の城の治安（毎月）80→+0.5
 export const frontNoise = (int: number) => Math.max(0.02, (100 - int) / 400); // 軍団長の知略: 合戦の見込みの読み違い 40→±0.15、90→±0.025
-export const FRONT_REACH = 6; // 攻略で狙う城は担当の城からこのヘックス以内（目標の家を決めれば+4）
+export const FRONT_REACH = hx(6); // 攻略で狙う城は担当の城からこのヘックス以内（目標の家を決めれば+4）
 export const FRONT_MERIT = 10; // 方面が戦った月の軍団長の功績
 export const FRONT_POLICY_NAME = { attack: '攻略', defend: '防衛', build: '軍備増強' } as const;
 // 領（知行）
@@ -436,7 +441,7 @@ export const BOND_RECRUIT = 0.2; export const BOND_PLOT = 0.15; export const BON
 export const EXILE_PRESTIGE = 1; export const RETURN_CHANCE = 0.35; export const RETURN_ON = 80; export const RETURN_MERIT = 20;
 export const QUARREL_CHANCE = 0.012; export const QUARREL_LET = 3; // 喧嘩: 毎月1.2%。不問なら家臣全員の恩−3
 // 都の重さ（七の柱）
-export const KYO = 'kyo'; export const KYO_RANGE = 2; export const KYO_FOOD = 2; // 京とその周りの軍勢は兵糧を2倍食う
+export const KYO = 'kyo'; export const KYO_RANGE = hx(2); export const KYO_FOOD = 2; // 京とその周りの軍勢は兵糧を2倍食う
 export const ROZEKI_CHANCE = 0.15; export const ROZEKI_CHIAN = 4; // 足軽が半分未満で練度60未満なら狼藉
 export const USURP_PRESTIGE = 10; export const USURP_DIP = 0.15; export const USURP_TARGET = 1.5; // 僭称: 威信+10、外交−15%、AIに狙われやすい
 

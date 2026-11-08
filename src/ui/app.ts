@@ -1,7 +1,7 @@
 // 画面の組み立てと操作
 import { defenderSupports, estimate, supportArmies } from '../engine/combat';
 import { endTurn } from '../engine/game';
-import { HEXES, PROVINCES, NEIGHBORS, TERRAIN_NAME, hexCenter, hexDist, rangeName } from '../engine/map';
+import { HEXES, PROVINCES, NEIGHBORS, TERRAIN_NAME, hexDist, rangeName } from '../engine/map';
 import { PASSES } from '../data/ranges';
 import { attackTargets, pathTo, reachable, type Target } from '../engine/move';
 import { canPlot, capital, checkVictory, doPlot, naioActive, plotChance, disband, execute, moveArmy, recruit, recruitChance, recruitRonin, release, roninChance } from '../engine/ops';
@@ -26,7 +26,7 @@ import { fillNames, fireAnecdote } from '../engine/anecdote';
 import { temperOf } from '../engine/lines';
 import type { OpeningBeat } from '../data/openings';
 import { armySupply, carryOf, castleSupply, cutOff, hyoroBugyo, initStores, isPort as isCoast, storeMax, storeOf, supplyRange } from '../engine/supply';
-import { CHIAN_RAMP, EMBER_RAMP, FRONT_COLORS, HEX_ALPHA, MAP_MODES, MB, MapView, SUP, type MapMode } from './render';
+import { centerOf, CHIAN_RAMP, EMBER_RAMP, FRONT_COLORS, HEX_ALPHA, MAP_MODES, MB, MapView, SUP, type MapMode } from './render';
 import { cancelOrder, orderAttack, orderFor, ordersAt } from '../engine/orders';
 import { breakTreaty, clanPower, DIP, DIP_NAME, evaluate, neighbors, propose, setProposalHook, type DipKind } from '../engine/diplomacy';
 import { getBattleStyle, openBattle, setBattleStyle, UNIT_STYLE_NAME, type UnitStyle } from './battle';
@@ -234,7 +234,7 @@ export function boot(saved?: { state?: GameState }) {
   });
   window.claude?.hot?.snapshot?.(() => ({ state: s }));
   (window as unknown as { __sengoku: unknown }).__sengoku = {
-    get state() { return s; }, view, center: hexCenter,
+    get state() { return s; }, view, center: centerOf,
     renderSound: (what: string, sec: number) => renderPreview(what as Parameters<typeof renderPreview>[0], sec), // 試聴用の書き出し
     kill: (id: string) => { if (s) { killGeneral(s, s.generals[id], 'テスト'); refresh(); } }, // テスト用: 武将を討ち死にさせる
     rebel: (fid: number) => { if (s) { const f = frontById(s, fid); if (f) rebelFront(s, f); refresh(); } }, // テスト用: 領の謀反
@@ -1337,7 +1337,7 @@ const GLOSSARY: [string, string, string][] = [
   ['蔵入地', 'くらいりち', '家臣に与えず、当主が直接治める城（直轄）。年貢・商いはすべて当家に入る。'],
   ['練度', 'れんど', '部隊の慣れ。足軽は100まで、農兵は60まで上がる。'],
   ['士気', 'しき', '戦う気力。壊乱閾値を下回ると潰走する。'],
-  ['兵站', 'へいたん', '軍勢へ兵糧を届けること。自城から自領・同盟領をたどり、その外は3ヘックスほどまで届く（兵站奉行の知略で延びる）。遠いほど運ぶ兵糧が増え、敵の部隊に道を塞がれると切れる。'],
+  ['兵站', 'へいたん', '軍勢へ兵糧を届けること。自城から自領・同盟領をたどり、その外は4ヘックス（約40km）ほどまで届く（兵站奉行の知略で延びる）。遠いほど運ぶ兵糧が増え、敵の部隊に道を塞がれると切れる。'],
   ['小荷駄', 'こにだ', '部隊が持ち歩く兵糧（1か月分）。補給が切れるとこれを食べ、尽きると毎月士気が大きく下がり兵が逃げる。'],
   ['飛び地', 'とびち', '本国（当主の城のある領地のまとまり）と、敵の領地で隔てられた城。家の蔵から兵糧が届かず、収穫はその城の蔵に入る。本国と飛び地の両方に港があれば海路で運べる（1割減る）。'],
   ['城の蔵', 'しろのくら', '籠城の備え（城兵の6か月分）。ふだんは家の蔵から満たされ、囲まれると城兵が食べる。尽きると城兵が飢えて崩れる（兵糧攻め）。'],

@@ -212,7 +212,7 @@ export function targetCands(s: GameState, f: Front) {
   const from = f.castles.map((i) => s.castles[i].hex);
   if (!from.length) return { clans: [] as string[], castles: [] as Castle[] };
   const d = graphDistances(from);
-  const castles = s.castles.filter((c) => c.owner !== s.player && hostile(s, s.player, c.owner) && d[c.hex] <= 12).sort((x, y) => d[x.hex] - d[y.hex]).slice(0, 12);
+  const castles = s.castles.filter((c) => c.owner !== s.player && hostile(s, s.player, c.owner) && d[c.hex] <= R.hx(12)).sort((x, y) => d[x.hex] - d[y.hex]).slice(0, 12);
   const clans = [...new Set(castles.map((c) => c.owner).filter((x): x is string => !!x))];
   return { clans, castles };
 }
@@ -373,13 +373,13 @@ function frontGoal(s: GameState, a: Army, f: Front, castles: Castle[], homeDist:
   if (!home.length) return null;
   const nearest = home.reduce((b, c) => (dist[c.hex] < dist[b.hex] ? c : b));
   if (a.routed || a.troops < d.rotation * a.departTroops || a.morale < 0.75) return nearest.hex;
-  const threatened = home.map((c) => ({ c, t: enemyNear(s, a.clan, c.hex, 2) })).filter((x) => x.t > 0 && dist[x.c.hex] <= 6)
+  const threatened = home.map((c) => ({ c, t: enemyNear(s, a.clan, c.hex, R.hx(2)) })).filter((x) => x.t > 0 && dist[x.c.hex] <= R.hx(6))
     .sort((x, y) => y.t / (dist[y.c.hex] + 1) - x.t / (dist[x.c.hex] + 1));
   if (f.policy === 'build') return threatened.length && dist[threatened[0].c.hex] <= 3 ? threatened[0].c.hex : nearest.hex;
   if (f.policy === 'defend') return threatened.length ? threatened[0].c.hex : nearest.hex;
   // 攻略: 兵が減っていて周りが静かなら補充に戻る
   const capLeft = mobilizeCap(s, a.clan) - clanTroops(s, a.clan);
-  if (capLeft >= 1000 && a.troops < 0.6 * maxTroops(s, a) && enemyNear(s, a.clan, a.hex, 4) === 0 && s.clans[a.clan].food > 20000) return nearest.hex;
+  if (capLeft >= 1000 && a.troops < 0.6 * maxTroops(s, a) && enemyNear(s, a.clan, a.hex, R.hx(4)) === 0 && s.clans[a.clan].food > 20000) return nearest.hex;
   // 担当の城が城兵だけでは持たない敵に迫られていれば、遠征より守りを先に
 
   const [k, v] = (f.target ?? '').split(':');
@@ -392,11 +392,11 @@ function frontGoal(s: GameState, a: Army, f: Front, castles: Castle[], homeDist:
     if (k === 'clan' && c.owner !== want && c.owner !== null && homeDist[c.hex] >= wantFront) continue; // 目標の家と、その手前の城だけ
     const dd = dist[c.hex];
     // 担当の城から離れすぎない（目標の家を決めていれば少し遠くまで）
-    if (dd > 12 || homeDist[c.hex] > (k === 'clan' ? R.FRONT_REACH + 4 : R.FRONT_REACH)) continue;
-    const resist = c.garrison * castleDef(c) + enemyNear(s, a.clan, c.hex, 2) * 1.2 + 300;
+    if (dd > R.hx(12) || homeDist[c.hex] > (k === 'clan' ? R.FRONT_REACH + R.hx(4) : R.FRONT_REACH)) continue;
+    const resist = c.garrison * castleDef(c) + enemyNear(s, a.clan, c.hex, R.hx(2)) * 1.2 + 300;
     const power = a.troops * a.morale + localPower(s, a, c.hex) * 0.5;
     const focus = c.owner === want ? 2 : c.owner === null ? 1.2 : 1;
-    const sc = (focus * (castleKoku(c) + 3) * Math.min(2, power / resist)) / (1 + dd / 3);
+    const sc = (focus * (castleKoku(c) + 3) * Math.min(2, power / resist)) / (1 + dd / (3 * R.HK));
     if (sc > bs) { bs = sc; best = c.hex; }
   }
   return best ?? nearest.hex;
@@ -433,7 +433,7 @@ async function commandFront(s: GameState, f0: Front, fid: number | undefined, fr
   // 目標の家の城が担当の城から届く範囲になければ（間に別の家があるなど）、届くまでは目標を絞らずに進む
   const reach = graphDistances((castles.length ? castles : clanCastles(s, s.player)).map((c) => c.hex));
   const [tk, tv] = (f.target ?? '').split(':');
-  if (f.policy === 'attack' && tk === 'clan' && !s.castles.some((c) => c.owner === tv && reach[c.hex] <= R.FRONT_REACH + 4)) f = { ...f, target: null };
+  if (f.policy === 'attack' && tk === 'clan' && !s.castles.some((c) => c.owner === tv && reach[c.hex] <= R.FRONT_REACH + R.hx(4))) f = { ...f, target: null };
   // 直轄の委任（free）はAIの大名と同じく目標を絞らない
   const o: AttackOpts = { allow: free ? undefined : allowOf(s, f, castles, reach), noise: R.frontNoise(leader?.int ?? 50) };
   const d = R.DIFFICULTY[s.difficulty];
@@ -441,13 +441,13 @@ async function commandFront(s: GameState, f0: Front, fid: number | undefined, fr
   // 城兵だけでは持たない敵に迫られている担当の城（6ヘックス以内の部隊は、まずそこへ戻って迫る敵を叩く）
   const home = castles.length ? castles : clanCastles(s, s.player);
   const guard = (c: Castle) => c.garrison * castleDef(c) + clanArmies(s, s.player).filter((x) => hexDist(x.hex, c.hex) <= 1).reduce((v, x) => v + x.troops * x.morale, 0);
-  const danger = home.filter((c) => enemyNear(s, s.player, c.hex, 2) > guard(c) * 0.8);
+  const danger = home.filter((c) => enemyNear(s, s.player, c.hex, R.hx(2)) > guard(c) * 0.8);
   for (const a of armies) {
     if (!s.armies[a.id] || a.acted) continue;
     const dist = graphDistances([a.hex]);
-    const save = a.routed ? undefined : danger.filter((c) => dist[c.hex] <= 6).sort((x, y) => dist[x.hex] - dist[y.hex])[0];
+    const save = a.routed ? undefined : danger.filter((c) => dist[c.hex] <= R.hx(6)).sort((x, y) => dist[x.hex] - dist[y.hex])[0];
     if (save) {
-      const near = (t: Target) => t.kind === 'army' && hexDist(t.hex, save.hex) <= 2;
+      const near = (t: Target) => t.kind === 'army' && hexDist(t.hex, save.hex) <= R.hx(2);
       const so: AttackOpts = { allow: near, noise: o.noise };
       if (await tryAttack(s, a, so)) continue;
       if (save.hex !== a.hex) moveToward(s, a, save.hex);

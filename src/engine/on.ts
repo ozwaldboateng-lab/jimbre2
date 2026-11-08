@@ -114,7 +114,7 @@ function consequences(s: GameState, C: Clan) {
   }
 }
 function betrayTarget(s: GameState, c: Castle, clan: string): string | null {
-  const near = s.castles.filter((x) => x.owner && x.owner !== clan && hostile(s, clan, x.owner) && hexDist(x.hex, c.hex) <= 3).map((x) => x.owner!);
+  const near = s.castles.filter((x) => x.owner && x.owner !== clan && hostile(s, clan, x.owner) && hexDist(x.hex, c.hex) <= R.hx(3)).map((x) => x.owner!);
   if (!near.length) return null;
   const g = c.governor ? s.generals[c.governor] : null;
   if (g?.outer && near.includes(g.outer)) return g.outer; // 官をくれた家へ

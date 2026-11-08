@@ -13,7 +13,7 @@ import type { Army, Castle, GameState, General } from './types';
 export const JB = {
   CAMP_DRILL: 2, CAMP_DRILL_FLOOR: 30, // 陣払い中は練度が毎月2ずつ下がる（30まで）
   HURRY: 0.5, // 急ぎの陣触で、その月のうちに集まる兵の割合
-  NEWS: 4, NEWS_NINJA: 6, NEWS_NINJA_TRAIT: 10, // 敵の陣触が聞こえる距離（自分の城からのマス）。忍び頭がいれば広く、忍びの特性を持つ忍び頭ならさらに広い
+  NEWS: R.hx(4), NEWS_NINJA: R.hx(6), NEWS_NINJA_TRAIT: R.hx(10), // 敵の陣触が聞こえる距離（自分の城からのマス）。忍び頭がいれば広く、忍びの特性を持つ忍び頭ならさらに広い
 };
 
 export const campsOf = (s: GameState, clan: string) => Object.values(s.camps ?? {}).filter((a) => a.clan === clan);
@@ -211,7 +211,7 @@ export function campAll(s: GameState) {
 // ───────── 自動の陣触・陣払い（AIの家、領、軍事の委任） ─────────
 // 攻め: 狙う城の近く（JB.FRONT マス以内）にある名簿に陣触。守り: 敵の軍勢が迫った城の名簿に急ぎの陣触、聞こえた陣触が近ければ陣触
 // 平時: 敵が近くになく、狙う城からも遠く、しばらく戦のない軍団は陣払い（兵糧が浮く）
-export const AUTO = { FRONT: 6, THREAT: 3, NEWS_NEAR: 5, IDLE: 3, CALM: 4, ATTACK_PER_MONTH: 1, WAIT: 3, GRACE: 4 }; // WAIT: AIは攻勢に転じてからこの月数は様子を見る。GRACE: ゲームの始まりからこの月数はAIの攻めの陣触なし
+export const AUTO = { FRONT: R.hx(6), THREAT: R.hx(3), NEWS_NEAR: R.hx(5), IDLE: 3, CALM: 4, ATTACK_PER_MONTH: 1, WAIT: 3, GRACE: 4 }; // WAIT: AIは攻勢に転じてからこの月数は様子を見る。GRACE: ゲームの始まりからこの月数はAIの攻めの陣触なし
 export interface AutoOpts { policy: 'attack' | 'defend' | 'build'; camps: Army[]; field: Army[]; targetHexes: number[] }
 export function autoJinbure(s: GameState, clan: string, o: AutoOpts) {
   const C = s.clans[clan];

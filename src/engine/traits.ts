@@ -69,7 +69,7 @@ export function teaCeremony(s: GameState, host: General): General[] {
 export type NinjaAct = 'assassinate' | 'rumor' | 'arson' | 'spy';
 export const NINJA_COST: Record<NinjaAct, number> = { assassinate: 3000, rumor: 1000, arson: 1500, spy: 500 };
 export const NINJA_NAME: Record<NinjaAct, string> = { assassinate: '暗殺', rumor: '流言', arson: '放火', spy: '探り' };
-export const NINJA_RANGE = 8; // 自城・自軍からこのマス以内の城・武将だけ
+export const NINJA_RANGE = R.hx(8); // 自城・自軍からこのマス以内の城・武将だけ
 export const ninjaHead = (s: GameState, clan: string) => { const id = s.clans[clan]?.ninja; const g = id ? s.generals[id] : undefined; return g && g.clan === clan && g.status === 'free' && traitOf(g) === 'ninja' ? g : null; };
 export function setNinjaHead(s: GameState, clan: string, id: string | null) { s.clans[clan].ninja = id; }
 // 敵に忍び頭がいれば防がれる

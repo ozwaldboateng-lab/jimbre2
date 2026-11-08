@@ -3,12 +3,13 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { feature } from 'topojson-client';
-import { PROVINCES, CASTLES, RIDGES, RIVERS, PLAINS, STRAITS, CASTLE_PROVINCE, EXTRA_PROVINCES, EXTRA_CASTLES } from '../data/geo.mjs';
+import { PROVINCES, CASTLES, RIDGES, RIVERS, PLAINS, STRAITS, CASTLE_PROVINCE, EXTRA_PROVINCES, EXTRA_CASTLES, RANGE_CELL_SIZE, RANGE_CELLS, PASSES } from '../data/geo.mjs';
 
 const require = createRequire(import.meta.url);
 const topo = require('world-atlas/countries-10m.json');
 
-const S = 15; // ヘックス外接半径(km)
+const S = 10.6; // ヘックス外接半径(km)。バージョン2で15→10.6（マスの数が約2倍）
+const S0 = 15; // 地形の帯の幅（山・森・海からの距離）は、バージョン1の大きさ（km）のまま
 const LON0 = 129, LAT0 = 42, KX = Math.cos((35.5 * Math.PI) / 180) * 111.32, KY = 110.57;
 const proj = (lat, lon) => [(lon - LON0) * KX, (LAT0 - lat) * KY];
 const unproj = (x, y) => [LAT0 - y / KY, LON0 + x / KX];
@@ -175,8 +176,8 @@ hexes.forEach((h, i) => {
   let t = 'P';
   if (nRiver < S * 0.8) t = 'R';
   else if (inPlain) t = 'P';
-  else if (nRidge < S * 1.5 || (coast[i] >= 4 && z < 0.35)) t = 'M';
-  else if ((coast[i] >= 2 && z < 0.6) || (coast[i] >= 1 && z < 0.3) || nRidge < S * 2.6) t = 'F';
+  else if (nRidge < S0 * 1.5 || (coast[i] * S >= 4 * S0 && z < 0.35)) t = 'M';
+  else if ((coast[i] * S >= 2 * S0 && z < 0.6) || (coast[i] * S >= 1 * S0 && z < 0.3) || nRidge < S0 * 2.6) t = 'F';
   h.t = t;
 });
 
@@ -317,12 +318,32 @@ for (const [id, name, lat, lon, ow, prov] of EXTRA_CASTLES) {
   for (const ci of exCastles) castleOut[ci].koku = Math.round(exIdx.filter((i) => hexes[i].d === ci).reduce((s, i) => s + hexes[i].k, 0) * 10) / 10;
 }
 const allProv = [...PROVINCES.map((p) => ({ id: p[0], name: p[1] })), ...EXTRA_PROVINCES.map((p) => ({ id: p[0], name: p[1] }))];
+// ───────── 険山と峠 ─────────
+// 険山: バージョン1の大きさのマス（RANGE_CELL_SIZE）で指定したマスの中に真ん中があるマス。城のマスは除く。地形は山にする
+const cellOf = (x, y, size) => { const q = ((SQ3 / 3) * x - y / 3) / size, r = ((2 / 3) * y) / size; let rx = Math.round(q), rz = Math.round(r); const ry = Math.round(-q - r); const dx = Math.abs(rx - q), dy = Math.abs(ry + q + r), dz = Math.abs(rz - r); if (dx > dy && dx > dz) rx = -ry - rz; else if (dy <= dz) rz = -rx - ry; return key(rx, rz); };
+const rangeOut = RANGE_CELLS.map(([name, , solo]) => ({ name, ...(solo ? { solo: 1 } : {}) }));
+const cellRange = new Map();
+RANGE_CELLS.forEach(([, cells], ri) => { for (const [lat, lon] of cells) { const [x, y] = proj(lat, lon); cellRange.set(cellOf(x, y, RANGE_CELL_SIZE), ri); } });
+hexes.forEach((h) => { if (h.c !== undefined) return; const ri = cellRange.get(cellOf(h.x, h.y, RANGE_CELL_SIZE)); if (ri !== undefined) { h.x_ = ri; h.t = 'M'; } });
+// 富士山は1マスだけ（真ん中にいちばん近いマス）
+RANGE_CELLS.forEach(([, cells, solo], ri) => { if (!solo) return; const [x, y] = proj(...cells[0]); let best = -1, bd = Infinity; hexes.forEach((h, i) => { if (h.x_ !== ri) return; const d = (h.x - x) ** 2 + (h.y - y) ** 2; if (d < bd) { bd = d; best = i; } }); hexes.forEach((h, i) => { if (h.x_ === ri && i !== best) delete h.x_; }); });
+const passOut = PASSES.map(([name, lat, lon]) => { const hi = nearestHex(lat, lon, () => true); delete hexes[hi].x_; return [hi, name]; });
+// すべての城へ道が通るか
+{
+  const seen = new Set([castleOut[0].hex]); const q = [castleOut[0].hex];
+  while (q.length) { const i = q.pop(); for (const j of nbr(i)) if (!seen.has(j) && hexes[j].x_ === undefined) { seen.add(j); q.push(j); } }
+  const cut = castleOut.filter((c) => !seen.has(c.hex));
+  if (cut.length) console.warn('険山で道の切れた城:', cut.map((c) => c.name).join(' '));
+  console.log('険山', hexes.filter((h) => h.x_ !== undefined).length, 'マス', '峠', passOut.length);
+}
 console.log('japan hexes', nJapan, 'extra', extra.length, 'by region', JSON.stringify(extra.reduce((m, h) => ((m[h.isl] = (m[h.isl] || 0) + 1), m), {})), 'extra castles', exCastles.length, 'links', links.map((l) => l[2]).join(','));
 
 const out = {
   size: S,
   provinces: allProv,
-  hexes: hexes.map((h) => ({ q: h.q, r: h.r, t: h.t, p: h.p, k: h.k, d: h.d, ...(h.c !== undefined ? { c: h.c } : {}) })),
+  hexes: hexes.map((h) => ({ q: h.q, r: h.r, t: h.t, p: h.p, k: h.k, d: h.d, ...(h.c !== undefined ? { c: h.c } : {}), ...(h.x_ !== undefined ? { x: h.x_ } : {}) })),
+  ranges: rangeOut, // 険山の名（hexes の x がこの番号）
+  passes: passOut, // 峠の札 [マス, 名]
   castles: castleOut.map(({ id, name, owner, hex, koku }) => ({ id, name, owner, hex, koku })),
   links,
 };

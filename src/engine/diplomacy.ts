@@ -18,7 +18,7 @@ export const DIP = {
   ALLIANCE_MONTHS: 24, // 同盟の期間。婚姻は期限なし
   MARRIAGE_AFTER: 6, // 婚姻は同盟を結んで6か月後から
   SURRENDER_RATIO: 3, // 降伏勧告には相手の3倍以上の国力
-  NEIGHBOR_RANGE: 4, // 降伏勧告は城同士がこのヘックス以内
+  NEIGHBOR_RANGE: R.hx(4), // 降伏勧告は城同士がこのヘックス以内（15kmのマスで4）
   COOLDOWN: 3, // 断られたら3か月は同じ相手と交渉できない
   CLASH_MONTHS: 6, // 半年以内に戦った相手は同盟に応じにくい
   BREAK_ALLIANCE: 10,

@@ -108,7 +108,7 @@ export function aiInvest(s: GameState, C: Clan, income: number) {
   const cs = clanCastles(s, C.id);
   const pay = (f: () => boolean, cost: number) => { if (cost > spend) return false; const g0 = C.gold; if (!f()) return false; spend -= g0 - C.gold; return true; };
   // 敵に近い城の普請（石垣・櫓まで。天守は大きな城だけ）
-  const front = cs.filter((c) => s.castles.some((x) => x.owner && x.owner !== C.id && hostile(s, C.id, x.owner) && hexDist(x.hex, c.hex) <= 3)).sort((a, b) => castleKoku(b) - castleKoku(a));
+  const front = cs.filter((c) => s.castles.some((x) => x.owner && x.owner !== C.id && hostile(s, C.id, x.owner) && hexDist(x.hex, c.hex) <= R.hx(3))).sort((a, b) => castleKoku(b) - castleKoku(a));
   for (const c of front.slice(0, 3)) if (fortOf(c) < (castleKoku(c) >= 15 ? 3 : 2) && !fortBlock(s, C.id, c)) pay(() => startFort(s, C.id, c), fortCost(c));
   // 新田開発（同時に2つまで、石高の大きい城から）
   const busy = cs.filter((c) => c.shinden).length;

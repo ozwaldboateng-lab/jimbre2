@@ -92,7 +92,7 @@ function organize(s: GameState, clan: string) {
 
 export function localPower(s: GameState, a: Army, hex: number): number {
   let t = 0;
-  for (const o of Object.values(s.armies)) if (o.clan === a.clan && o.id !== a.id && hexDist(o.hex, hex) <= 3) t += o.troops * o.morale;
+  for (const o of Object.values(s.armies)) if (o.clan === a.clan && o.id !== a.id && hexDist(o.hex, hex) <= R.hx(3)) t += o.troops * o.morale;
   return t;
 }
 
@@ -104,7 +104,7 @@ export function decideStance(s: GameState, clan: string) {
   const d = graphDistances(clanCastles(s, clan).map((k) => k.hex));
   const neighbors = new Set<string>();
   let neutralNear = false;
-  for (const k of s.castles) if (hostile(s, clan, k.owner) && d[k.hex] <= 4) { if (k.owner) neighbors.add(k.owner); else neutralNear = true; }
+  for (const k of s.castles) if (hostile(s, clan, k.owner) && d[k.hex] <= R.hx(4)) { if (k.owner) neighbors.add(k.owner); else neutralNear = true; }
   let target: string | null = null, best = Infinity;
   for (const n of neighbors) {
     const p = power(n);
@@ -117,7 +117,7 @@ export function decideStance(s: GameState, clan: string) {
   let threat = 0;
   const counted = new Set<number>();
   for (const k of clanCastles(s, clan)) for (const a of Object.values(s.armies)) {
-    if (hostile(s, clan, a.clan) && !counted.has(a.id) && hexDist(a.hex, k.hex) <= 3) { counted.add(a.id); threat += a.troops * a.morale; }
+    if (hostile(s, clan, a.clan) && !counted.has(a.id) && hexDist(a.hex, k.hex) <= R.hx(3)) { counted.add(a.id); threat += a.troops * a.morale; }
   }
   const localOwn = clanArmies(s, clan).reduce((t, a) => t + a.troops * a.morale, 0);
   if (threat > localOwn * 1.5) c.stance = '守勢';
@@ -204,14 +204,14 @@ export function chooseGoal(s: GameState, a: Army, stance: string, net: SupplyNet
   }
   // 脅威を受けている自城の防衛
   const threatened = own
-    .map((c) => ({ c, t: enemyNear(s, a.clan, c.hex, 2) }))
-    .filter((x) => x.t > 0 && dist[x.c.hex] <= 6)
+    .map((c) => ({ c, t: enemyNear(s, a.clan, c.hex, R.hx(2)) }))
+    .filter((x) => x.t > 0 && dist[x.c.hex] <= R.hx(6))
     .sort((x, y) => y.t / (dist[y.c.hex] + 1) - x.t / (dist[x.c.hex] + 1));
   if (stance === '守勢' && threatened.length) return threatened[0].c.hex;
   // 兵が少なく周囲が平穏なら自城で補充
   // （動員上限に達していれば補充されないので戻らない）
   const capLeft = mobilizeCap(s, a.clan) - clanTroops(s, a.clan);
-  if (capLeft >= 1000 && a.troops < 0.6 * maxTroops(s, a) && enemyNear(s, a.clan, a.hex, 4) === 0 && s.clans[a.clan].food > 20000) {
+  if (capLeft >= 1000 && a.troops < 0.6 * maxTroops(s, a) && enemyNear(s, a.clan, a.hex, R.hx(4)) === 0 && s.clans[a.clan].food > 20000) {
     return own.reduce((b, c) => (dist[c.hex] < dist[b.hex] ? c : b)).hex;
   }
 
@@ -220,15 +220,15 @@ export function chooseGoal(s: GameState, a: Army, stance: string, net: SupplyNet
   for (const c of s.castles) {
     if (!hostile(s, a.clan, c.owner)) continue;
     const dd = dist[c.hex];
-    if (dd > (stance === '攻勢' ? 10 : 6)) continue;
+    if (dd > (stance === '攻勢' ? R.hx(10) : R.hx(6))) continue;
     // 補給の届かない城は狙わない（すぐ隣なら別）
     if (dd > 1 && !net.cost.has(c.hex) && !NEIGHBORS[c.hex].some((j) => net.cost.has(j))) continue;
-    const resist = c.garrison * castleDef(c) + enemyNear(s, a.clan, c.hex, 2) * 1.2 + 300;
+    const resist = c.garrison * castleDef(c) + enemyNear(s, a.clan, c.hex, R.hx(2)) * 1.2 + 300;
     const power = a.troops * a.morale + localPower(s, a, c.hex) * 0.5;
     if (stance === '均衡' && resist > power * 1.1) continue;
     const focus = c.owner === s.clans[a.clan].target ? 2 : c.owner === null ? 1.5 : 1;
     if (stance === '均衡' && focus === 1 && resist > power * 0.9) continue;
-    const sc = (focus * (castleKoku(c) + 3) * Math.min(2, power / resist)) / (1 + dd / 3);
+    const sc = (focus * (castleKoku(c) + 3) * Math.min(2, power / resist)) / (1 + dd / (3 * R.HK));
     if (sc > bs) { bs = sc; best = c.hex; }
   }
   if (best !== null) return best;
@@ -302,7 +302,7 @@ export async function runClanAI(s: GameState, clan: string) {
     const here = castleAt(s, a.hex);
     if (here && here.owner === clan && enemyNear(s, clan, a.hex, 1) > a.troops * a.morale * 0.5) continue;
     // 城確保: 城兵が半減している自城に敵が迫っていれば守備に残る
-    if (here && here.owner === clan && here.garrison < garrisonMax(here) * 0.5 && enemyNear(s, clan, a.hex, 3) > 0) continue;
+    if (here && here.owner === clan && here.garrison < garrisonMax(here) * 0.5 && enemyNear(s, clan, a.hex, R.hx(3)) > 0) continue;
     const goal = chooseGoal(s, a, stance, net);
     if (goal !== null && goal !== a.hex) moveToward(s, a, goal);
     if (s.armies[a.id] && !a.acted && !a.routed) await tryAttack(s, a);

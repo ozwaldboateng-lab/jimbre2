@@ -124,7 +124,7 @@ export function monthlyBushi(s: GameState) {
     // 追放した者の無断参戦: 当家が勝った月、戦った部隊の近くにいれば首を挙げて帰参を願う
     if (C.wonTurn === s.turn && !s.returnOffer) {
       const fought = clanArmies(s, C.id).filter((a) => a.fought === s.turn);
-      const r = Object.values(s.generals).find((g) => g.status === 'ronin' && g.exiledFrom === C.id && (g.exileTurn ?? 0) <= s.turn - 3 && fought.some((a) => hexDist(a.hex, s.castles[g.loc].hex) <= 4));
+      const r = Object.values(s.generals).find((g) => g.status === 'ronin' && g.exiledFrom === C.id && (g.exileTurn ?? 0) <= s.turn - 3 && fought.some((a) => hexDist(a.hex, s.castles[g.loc].hex) <= R.hx(4)));
       if (r && rand(s) < R.RETURN_CHANCE) {
         s.returnOffer = { gen: r.id, turn: s.turn }; addFame(r, 5);
         pushScene(s, r, 'returnHead');

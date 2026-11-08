@@ -89,7 +89,7 @@ export function aiIkki(s: GameState, clan: string) {
   const C = s.clans[clan];
   // 近い城ほど狙う（本願寺の城からの距離）
   const d = graphDistances(s.castles.filter((c) => c.owner === clan).map((c) => c.hex));
-  const cands = s.castles.filter((c) => !ikkiBlock(s, clan, c)).map((c) => ({ c, v: (c.baseKoku * (c.owner === C.target ? 2 : 1) * (c.kind === 'yakata' || c.kind === 'toride' ? 1.5 : 1) * (c.owner && s.clans[c.owner].mission === 'allow' ? R.IKKI_KIRI : 1)) / (1 + d[c.hex] / 6) }));
+  const cands = s.castles.filter((c) => !ikkiBlock(s, clan, c)).map((c) => ({ c, v: (c.baseKoku * (c.owner === C.target ? 2 : 1) * (c.kind === 'yakata' || c.kind === 'toride' ? 1.5 : 1) * (c.owner && s.clans[c.owner].mission === 'allow' ? R.IKKI_KIRI : 1)) / (1 + d[c.hex] / (6 * R.HK)) }));
   if (!cands.length) return;
   const best = cands.sort((x, y) => y.v - x.v)[0];
   raiseIkki(s, clan, best.c);
