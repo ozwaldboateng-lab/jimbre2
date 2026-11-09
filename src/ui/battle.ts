@@ -48,6 +48,30 @@ function groundPatterns(c: CanvasRenderingContext2D, ox: number, oy: number, S: 
   return out;
 }
 
+// 地面の下絵（別ファイル）: 草地を全面に敷き、二枚目の草地を大きなむらで重ねる。川は川筋を引いて水面の絵で塗る
+const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles/battle/grass2.webp'), water: loadImg('tiles/battle/water.webp') };
+const BG_TILE = 7; // 草地1枚の一辺（ヘックスの半径の何倍か）
+let grassMix: { key: string; canvas: HTMLCanvasElement } | null = null;
+function bgPattern(c: CanvasRenderingContext2D, im: HTMLImageElement, ox: number, oy: number, S: number, k = BG_TILE): CanvasPattern | null {
+  if (!ready(im)) return null;
+  const p = c.createPattern(im, 'repeat');
+  p?.setTransform(new DOMMatrix().translate(ox, oy).scale((S * k) / im.naturalWidth));
+  return p;
+}
+// 二枚目の草地のむら（盤面ごとに一度だけ作る。ゆるやかな雲のような濃淡）
+function grassMask(w: number, h: number, seed: number): HTMLCanvasElement {
+  const g = 6, cw = Math.ceil(w / (Math.max(w, h) / g)) + 2, ch = Math.ceil(h / (Math.max(w, h) / g)) + 2;
+  const small = document.createElement('canvas'); small.width = cw; small.height = ch;
+  const sc = small.getContext('2d')!; const img = sc.createImageData(cw, ch);
+  let x = seed >>> 0 || 1;
+  for (let k = 0; k < cw * ch; k++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; const v = (x >>> 0) / 4294967296; img.data[k * 4 + 3] = Math.round(Math.max(0, Math.min(1, (v - 0.35) * 2)) * 255); }
+  sc.putImageData(img, 0, 0);
+  const out = document.createElement('canvas'); out.width = w; out.height = h;
+  const oc = out.getContext('2d')!; oc.imageSmoothingEnabled = true; oc.imageSmoothingQuality = 'high'; oc.filter = `blur(${Math.round(Math.max(w, h) / 30)}px)`;
+  oc.drawImage(small, -w / (cw - 2), -h / (ch - 2), w + (2 * w) / (cw - 2), h + (2 * h) / (ch - 2));
+  return out;
+}
+
 // 隣のヘックス（UI用）と、六角形の輪の角かどうか（立方座標の成分のどれかが0）
 function tNeighborsUI(t: Tactical, i: number) { return tNeighbors(t, i); }
 function isCorner(t: Tactical, i: number, center: number) {
@@ -139,11 +163,33 @@ class BattleView {
     const S = this.size;
     const now = performance.now();
     let animating = false;
+    // 地面の下絵: 盤面の全面に草地
+    const g1 = bgPattern(c, BG.grass1, this.ox, this.oy, S);
+    const bgOn = !!g1;
+    if (g1) {
+      const [x0, y0] = this.center(0), [x1, y1] = this.center(t.tiles.length - 1);
+      const bx = x0 - S * SQ3, by = y0 - S * 1.2, bw = x1 - x0 + S * SQ3 * 2.2, bh = y1 - y0 + S * 2.4;
+      c.fillStyle = g1; c.fillRect(bx, by, bw, bh);
+      if (ready(BG.grass2) && bw >= 8 && bh >= 8) {
+        const key = `${t.hex}:${t.w}x${t.h}:${Math.round(bw)}x${Math.round(bh)}`;
+        if (grassMix?.key !== key) {
+          const m = grassMask(Math.round(bw), Math.round(bh), t.hex * 7919 + t.w);
+          const cv = document.createElement('canvas'); cv.width = m.width; cv.height = m.height;
+          const cc = cv.getContext('2d')!; cc.drawImage(m, 0, 0); cc.globalCompositeOperation = 'source-in';
+          const p2 = cc.createPattern(BG.grass2, 'repeat')!; p2.setTransform(new DOMMatrix().translate(this.ox - bx, this.oy - by).scale((S * BG_TILE) / BG.grass2.naturalWidth));
+          cc.fillStyle = p2; cc.fillRect(0, 0, cv.width, cv.height);
+          grassMix = { key, canvas: cv };
+        }
+        c.drawImage(grassMix.canvas, bx, by);
+      }
+      this.drawRiver(t, S, [bx, by, bw, bh]);
+    }
     // 地形（絵があれば絵、なければ色）
     const pats = groundPatterns(c, this.ox, this.oy, S);
     for (let i = 0; i < t.tiles.length; i++) {
       const [x, y] = this.center(i);
       const tt = t.tiles[i];
+      if (bgOn && (tt === 'P' || tt === 'R')) { c.strokeStyle = 'rgba(25,18,10,0.28)'; c.lineWidth = 1; this.hex(x, y, S); c.stroke(); continue; } // 平地は草地のまま、川は川筋で描いた
       const pat = pats[tt] ?? (tt === 'G' ? pats.C : undefined); // 城門の下は曲輪の地面
       c.fillStyle = pat ?? TILE[tt];
       this.hex(x, y, S + 0.4); c.fill();
@@ -294,6 +340,35 @@ class BattleView {
   }
 
   // 城の立体感: 城壁の外側の辺に壁の面と影、内側の辺に明るい縁。置物は向きを変えずに置く
+  // 川: 川のマスを上から順につないだ川筋（なめらかな曲線）に、河原と水面の絵を塗る。盤面の上下の端は外へ流れ出る
+  private drawRiver(t: Tactical, S: number, rect: [number, number, number, number]) {
+    const c = this.ctx;
+    const water = bgPattern(c, BG.water, this.ox, this.oy, S, 5);
+    const rs = t.tiles.flatMap((tt, i) => (tt === 'R' ? [i] : []));
+    if (!rs.length) return;
+    const path = new Path2D();
+    // 一列に一つずつ並ぶ川（今の盤面の作り方）は、上から下への一本の曲線にする。そうでなければ隣どうしを結ぶ
+    const rows = new Map<number, number[]>(); for (const i of rs) { const r = trow(t, i); rows.set(r, [...(rows.get(r) ?? []), i]); }
+    const chain = [...rows.values()].every((v) => v.length === 1); // 一列に一つずつなら、上から順に結ぶ（斜めにずれた列どうしも途切れずに見せる）
+    if (chain) {
+      const pts = [...rows.keys()].sort((x, y) => x - y).map((r) => this.center(rows.get(r)![0]));
+      if (trow(t, rs[0]) === 0 || [...rows.keys()].includes(0)) pts.unshift([pts[0][0], pts[0][1] - S * 2]);
+      if ([...rows.keys()].includes(t.h - 1)) pts.push([pts[pts.length - 1][0], pts[pts.length - 1][1] + S * 2]);
+      path.moveTo(pts[0][0], pts[0][1]);
+      for (let k = 1; k < pts.length - 1; k++) path.quadraticCurveTo(pts[k][0], pts[k][1], (pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2);
+      path.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+    } else {
+      for (const i of rs) { const [x, y] = this.center(i); for (const j of tNeighbors(t, i)) if (j > i && t.tiles[j] === 'R') { const [x2, y2] = this.center(j); path.moveTo(x, y); path.lineTo(x2, y2); } path.moveTo(x, y); path.lineTo(x + 0.01, y); }
+    }
+    c.save(); c.beginPath(); c.rect(...rect); c.clip();
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    c.filter = `blur(${Math.max(2, S * 0.22)}px)`; c.strokeStyle = 'rgba(88,74,44,0.6)'; c.lineWidth = S * 1.8; c.stroke(path); // 河原
+    c.filter = `blur(${Math.max(1, S * 0.05)}px)`; c.strokeStyle = 'rgba(70,62,40,0.55)'; c.lineWidth = S * 1.32; c.stroke(path); c.filter = 'none'; // 岸
+    c.strokeStyle = water ?? '#5f8c96'; c.lineWidth = S * 1.2; c.stroke(path); // 水面
+    c.filter = `blur(${Math.max(2, S * 0.2)}px)`; c.strokeStyle = 'rgba(18,36,42,0.16)'; c.lineWidth = S * 0.6; c.stroke(path); c.filter = 'none'; // 流れの深み（ぼかして筋に見せない）
+    c.restore();
+  }
+
   drawCastle(t: Tactical, S: number) {
     const c = this.ctx;
     const keep = t.tiles.indexOf('K');
