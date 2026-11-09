@@ -50,17 +50,7 @@ function groundPatterns(c: CanvasRenderingContext2D, ox: number, oy: number, S: 
 
 // 地面の下絵（別ファイル）: 草地を全面に敷き、二枚目の草地を大きなむらで重ねる。川は川筋を引いて水面の絵で塗る
 const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles/battle/grass2.webp'), water: loadImg('tiles/battle/water.webp') };
-// マスに置く地形の絵（背景透過・縦長の六角形に収まる）: 平地には田畑をまとまりで置く
-const SPRITE: Record<string, HTMLImageElement[]> = { ta: [1, 2, 3].map((k) => loadImg(`tiles/battle/ta${k}.webp`)) };
-const SPRITE_SCALE = 1.18; // 絵の一辺＝マスの半径×2×これ（tools/battle-sprites.py の PAD と同じ。絵の中の六角形がマスに重なり、ぼかしの縁が隣と重なる）
-// 盤面の上のなめらかな乱れ（0〜1）: 粗い格子の乱数を補間する。田畑を村のようなまとまりで置くのに使う
-function blobNoise(col: number, row: number, seed: number) {
-  const h = (a: number, b: number) => { let x = (a * 374761393 + b * 668265263 + seed * 2246822519) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
-  const gx = col / 3.2, gy = row / 2.6, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
-  const sm = (t: number) => t * t * (3 - 2 * t);
-  const a = h(x0, y0) * (1 - sm(fx)) + h(x0 + 1, y0) * sm(fx), b = h(x0, y0 + 1) * (1 - sm(fx)) + h(x0 + 1, y0 + 1) * sm(fx);
-  return a * (1 - sm(fy)) + b * sm(fy);
-}
+// マスに置く地形の絵（森・丘・土・湿地）は、届いたら tools/battle-sprites.py で六角形のぼかしをつけ、絵の一辺＝マスの半径×2×1.18 で置く（田畑は入れない）
 const BG_TILE = 7; // 草地1枚の一辺（ヘックスの半径の何倍か）
 let grassMix: { key: string; canvas: HTMLCanvasElement } | null = null;
 function bgPattern(c: CanvasRenderingContext2D, im: HTMLImageElement, ox: number, oy: number, S: number, k = BG_TILE): CanvasPattern | null {
@@ -194,14 +184,6 @@ class BattleView {
         c.drawImage(grassMix.canvas, bx, by);
       }
       this.drawRiver(t, S, [bx, by, bw, bh]);
-      // 田畑: 平地のうち、乱れの高いまとまりに置く（見た目だけ。効き目は平地のまま）
-      const ta = SPRITE.ta.filter(ready);
-      if (ta.length) for (let i = 0; i < t.tiles.length; i++) {
-        if (t.tiles[i] !== 'P' || blobNoise(tcol(t, i), trow(t, i), t.hex) < 0.58) continue;
-        const [x, y] = this.center(i); let hsh = Math.imul(i + 1, 2654435761) ^ Math.imul(t.hex + 7, 40503); hsh = Math.imul(hsh ^ (hsh >>> 15), 2246822519); hsh = (hsh ^ (hsh >>> 13)) >>> 0;
-        const im = ta[hsh % ta.length], sz = S * 2 * SPRITE_SCALE, fx = (hsh >>> 20) & 1, fy = (hsh >>> 21) & 1;
-        c.save(); c.translate(x, y); c.scale(fx ? -1 : 1, fy ? -1 : 1); c.drawImage(im, -sz / 2, -sz / 2, sz, sz); c.restore();
-      }
     }
     // 地形（絵があれば絵、なければ色）
     const pats = groundPatterns(c, this.ox, this.oy, S);
