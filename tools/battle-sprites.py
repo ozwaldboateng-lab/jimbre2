@@ -45,6 +45,12 @@ elif mode == 'clump':
     c = np.asarray(canvas).astype(np.float32)
     rgb = c[..., :3]
     a = np.asarray(Image.fromarray(c[..., 3].astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.5))).astype(np.float32) / 255
+    # まん丸にしない: 外形を角度ごとにふくらませ・へこませる（いびつな木立の塊）。中心は少しずらす
+    rng = np.random.default_rng(seed)
+    th = np.arctan2(yy, xx); r = np.hypot(xx, yy) / (R * 1.1)
+    lobe = sum(rng.uniform(0.04, 0.11) * np.sin(f * th + rng.uniform(0, 6.28)) for f in (2, 3, 5))
+    lobe += (noise(seed + 3, 24) - 0.5) * 0.1  # 梢の細かなでこぼこ
+    a *= smooth((0.97 + lobe - r) / 0.07)
 elif mode == 'sprite':
     a0 = np.asarray(im)[..., 3]; ys, xs = np.where(a0 > 24)
     crop = im.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
