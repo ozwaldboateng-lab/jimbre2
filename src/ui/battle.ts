@@ -250,7 +250,7 @@ class BattleView {
       const [x, y] = this.center(i), sz = S * 2 * SPRITE_SCALE;
       const u = (k: number) => (((sp.h >>> k) & 255) / 255) * 2 - 1; // -1〜1
       c.save(); c.translate(x, y);
-      if (tt === 'F') { c.translate(u(1) * S * 0.12, u(5) * S * 0.1); c.rotate(u(9) * 0.45); c.scale(1 + u(13) * 0.12, 1 + u(17) * 0.1); } // 森は向き・形・位置を少しずつ変えて、判で押したように見せない
+      if (tt === 'F') { c.translate(u(1) * S * 0.1, u(5) * S * 0.08); c.scale(1 + u(13) * 0.1, 1 + u(17) * 0.08); } // 森は位置と大きさを少しずつ変えて、判で押したように見せない（斜めから見た絵なので回さない）
       if (sp.flip) c.scale(-1, 1);
       c.drawImage(sp.im, -sz / 2, -sz / 2, sz, sz); c.restore();
       if (tt === 'F') spriteDone = true;

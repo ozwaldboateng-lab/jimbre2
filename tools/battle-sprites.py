@@ -2,7 +2,7 @@
 #   python3 tools/battle-sprites.py square <元の絵> <出力.webp>   … 正方形いっぱいに描いた絵: 中央の六角形を残し、縁の外へやわらかく消す
 #   python3 tools/battle-sprites.py hex    <元の絵> <出力.webp>   … 六角形に切り抜いてある絵（森）: 少し大きめに置き、縁を木立の形のようにむらのあるぼかしにする
 #   python3 tools/battle-sprites.py clump  <元の絵> <出力.webp>   … 背景透過の丸い塊（森）: 直径をマスの高さの約1.1倍にそろえ、真ん中に置く
-#   python3 tools/battle-sprites.py sprite <元の絵> <出力.webp>   … 背景透過の置物（丘）: 形はそのまま、幅をマスの幅の約1.2倍にそろえ、縁を少しやわらげる
+#   python3 tools/battle-sprites.py sprite <元の絵> <出力.webp> [幅]   … 背景透過の置物（丘・森）: 形はそのまま、幅をマスの幅の［幅］倍（既定1.2）にそろえ、縁を少しやわらげる
 # どれも、出力の中の六角形（頂点が上下）の半径は一辺の 1/(2×PAD)。ゲームでは絵の一辺をマスの半径×2×PAD で描く
 import sys
 import numpy as np
@@ -11,6 +11,7 @@ PAD = 1.18
 N = 512
 R = N / 2 / PAD
 mode, src, out = sys.argv[1], sys.argv[2], sys.argv[3]
+WIDTH = float(sys.argv[4]) if len(sys.argv) > 4 else 1.2  # sprite: マスの幅の何倍の幅にするか
 yy, xx = np.mgrid[0:N, 0:N].astype(np.float32) + 0.5 - N / 2
 def hexm(x, y, r):  # 1 で六角形の縁
     ax, ay = np.abs(x), np.abs(y)
@@ -54,7 +55,7 @@ elif mode == 'clump':
 elif mode == 'sprite':
     a0 = np.asarray(im)[..., 3]; ys, xs = np.where(a0 > 24)
     crop = im.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
-    k = (np.sqrt(3) * R * 1.2) / crop.width
+    k = min(np.sqrt(3) * R * WIDTH / crop.width, N * 0.98 / crop.width, N * 0.98 / crop.height)
     sp = crop.resize((round(crop.width * k), round(crop.height * k)), Image.LANCZOS)
     canvas = Image.new('RGBA', (N, N)); canvas.alpha_composite(sp, ((N - sp.width) // 2, round(N / 2 - sp.height * 0.55)))
     c = np.asarray(canvas).astype(np.float32)
