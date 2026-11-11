@@ -250,7 +250,6 @@ class BattleView {
       const [x, y] = this.center(i), sz = S * 2 * SPRITE_SCALE;
       const u = (k: number) => (((sp.h >>> k) & 255) / 255) * 2 - 1; // -1〜1
       c.save(); c.translate(x, y);
-      if (tt === 'S') c.rotate((sp.h % 6) * (Math.PI / 3)); // 湿地は真上から見た地面なので、60°ずつ回して繰り返しを隠す
       if (tt === 'F') { c.translate(u(1) * S * 0.1, u(5) * S * 0.08); c.scale(1 + u(13) * 0.1, 1 + u(17) * 0.08); } // 森は位置と大きさを少しずつ変えて、判で押したように見せない（斜めから見た絵なので回さない）
       c.drawImage(sp.im, -sz / 2, -sz / 2, sz, sz); c.restore();
       if (tt === 'F') spriteDone = true;
