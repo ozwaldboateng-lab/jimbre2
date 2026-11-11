@@ -54,7 +54,7 @@ const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles
 const WALL = { ishi: loadImg('tiles/battle/w_ishi.webp'), kabe: loadImg('tiles/battle/w_kabe.webp'), kawara: loadImg('tiles/battle/w_kawara.webp'), dorui: loadImg('tiles/battle/w_dorui.webp'), saku: loadImg('tiles/battle/w_saku.webp') };
 const wallPat = new Map<HTMLImageElement, CanvasPattern>();
 // 本丸の建物（正面を向いた絵。余白を切り詰めてある）: 屋敷・屋敷と小櫓・天守三〜五層。w は描く幅（マスの半径の何倍か）
-const BLDG = { yashiki: { im: loadImg('tiles/battle/b_yashiki.webp'), w: 3.3 }, yashiki2: { im: loadImg('tiles/battle/b_yashiki2.webp'), w: 3.4 }, tenshu3: { im: loadImg('tiles/battle/b_tenshu3.webp'), w: 2.8 }, tenshu4: { im: loadImg('tiles/battle/b_tenshu4.webp'), w: 2.8 }, tenshu5: { im: loadImg('tiles/battle/b_tenshu5.webp'), w: 2.85 } };
+const BLDG = { yashiki: { im: loadImg('tiles/battle/b_yashiki.webp'), w: 2.4 }, yashiki2: { im: loadImg('tiles/battle/b_yashiki2.webp'), w: 2.5 }, tenshu3: { im: loadImg('tiles/battle/b_tenshu3.webp'), w: 2.8 }, tenshu4: { im: loadImg('tiles/battle/b_tenshu4.webp'), w: 2.8 }, tenshu5: { im: loadImg('tiles/battle/b_tenshu5.webp'), w: 2.85 } };
 // マスに置く地形の絵（tools/battle-sprites.py で作る。絵の一辺＝マスの半径×2×SPRITE_SCALE）。田畑は入れない
 const SPRITE: Record<string, HTMLImageElement[]> = { F: [1, 2, 3].map((k) => loadImg(`tiles/battle/mori${k}.webp`)), H: [1, 2, 3].map((k) => loadImg(`tiles/battle/oka${k}.webp`)), S: [1, 2, 3].map((k) => loadImg(`tiles/battle/numa${k}.webp`)) };
 const SPRITE_SCALE = 1.18;
