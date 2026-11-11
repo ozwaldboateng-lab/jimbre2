@@ -64,6 +64,7 @@ const SPRITE_SCALE = 1.18;
 const spriteOf = (tt: string, i: number, seed: number) => { const l = (SPRITE[tt] ?? []).filter(ready); if (!l.length) return null; let h = Math.imul(i + 1, 2654435761) ^ Math.imul(seed + 7, 40503); h = Math.imul(h ^ (h >>> 15), 2246822519); h = (h ^ (h >>> 13)) >>> 0; return { im: l[h % l.length], h }; }; // 左右の反転はしない（光の向きが逆になる）
 const BG_TILE = 7; // 草地1枚の一辺（ヘックスの半径の何倍か）
 let grassMix: { key: string; canvas: HTMLCanvasElement } | null = null;
+let soilMix: { key: string; canvas: HTMLCanvasElement } | null = null;
 function bgPattern(c: CanvasRenderingContext2D, im: HTMLImageElement, ox: number, oy: number, S: number, k = BG_TILE): CanvasPattern | null {
   if (!ready(im)) return null;
   const p = c.createPattern(im, 'repeat');
@@ -205,6 +206,7 @@ class BattleView {
         c.drawImage(grassMix.canvas, bx, by);
       }
       this.drawRiver(t, S, [bx, by, bw, bh]);
+      if (t.kind === 'siege') this.drawSoilFade(t, S, bx, by, bw, bh);
     }
     // 地形（絵があれば絵、なければ色）
     const pats = groundPatterns(c, this.ox, this.oy, S);
@@ -265,6 +267,7 @@ class BattleView {
     let spriteDone = false;
     if (bgOn) for (const pass of ['S', 'FH']) for (let i = 0; i < t.tiles.length; i++) { // 湿地（地面）を先に、森・丘をその上に
       const tt = t.tiles[i]; if (!pass.includes(tt)) continue;
+      if (tt === 'H' && this.nearCastle(t, i)) continue; // 城の周りの丘は絵を置かず、土と草の斜面として塗ってある
       const sp = spriteOf(tt, i, t.hex); if (!sp) continue;
       const [x, y] = this.center(i), sz = S * 2 * SPRITE_SCALE;
       const u = (k: number) => (((sp.h >>> k) & 255) / 255) * 2 - 1; // -1〜1
@@ -406,6 +409,47 @@ class BattleView {
     c.strokeStyle = water ?? '#5f8c96'; c.lineWidth = S * 1.2; c.stroke(path); // 水面
     c.filter = `blur(${Math.max(2, S * 0.2)}px)`; c.strokeStyle = 'rgba(18,36,42,0.16)'; c.lineWidth = S * 0.6; c.stroke(path); c.filter = 'none'; // 流れの深み（ぼかして筋に見せない）
     c.restore();
+  }
+
+  // 城の外への近さ（外の壁の輪から何マス外か）。城の周りの丘（山城・平山城の斜面）はこの範囲
+  private castleRing(t: Tactical) { const keep = t.tiles.indexOf('K'); return { keep, ring: Math.max(0, ...t.tiles.map((x, i) => (x === 'W' || x === 'G' ? tDist(t, i, keep) : 0))) }; }
+  nearCastle(t: Tactical, i: number) { if (t.kind !== 'siege') return false; const { keep, ring } = this.castleRing(t); return keep >= 0 && tDist(t, i, keep) <= ring + 3; }
+  // 城の土の地面を、外の壁から外へ1〜3マスかけて、むらのある形で草地へ溶かす。城の周りの丘は、土と草の斜面に右下の陰をつけて高まりに見せる
+  private drawSoilFade(t: Tactical, S: number, bx: number, by: number, bw: number, bh: number) {
+    const c = this.ctx;
+    const key = `${t.hex}:${t.w}x${t.h}:${t.tiles.join('')}:${Math.round(bw)}x${Math.round(bh)}:${S.toFixed(2)}`;
+    if (soilMix?.key !== key) {
+      const W = Math.max(8, Math.round(bw)), H = Math.max(8, Math.round(bh));
+      const { keep, ring } = this.castleRing(t);
+      const hash = (i: number) => { let x = Math.imul(i + 11, 2654435761) ^ Math.imul(t.hex + 3, 97); x = Math.imul(x ^ (x >>> 15), 2246822519); return ((x ^ (x >>> 13)) >>> 0) / 4294967296; };
+      const m = document.createElement('canvas'); m.width = W; m.height = H; const mx = m.getContext('2d')!;
+      for (let i = 0; i < t.tiles.length; i++) {
+        const e = tDist(t, i, keep) - ring;
+        let v = e <= 0 ? 1 : e === 1 ? 0.8 : e === 2 ? 0.5 : e === 3 ? 0.22 : 0;
+        if (e >= 1) v *= 0.7 + 0.6 * hash(i);
+        if (v <= 0) continue;
+        const [x, y] = this.center(i);
+        mx.fillStyle = `rgba(0,0,0,${Math.min(1, v)})`; mx.beginPath(); mx.arc(x - bx + (hash(i + 7) - 0.5) * S * 0.5, y - by + (hash(i + 13) - 0.5) * S * 0.5, S * (1.0 + hash(i + 3) * 0.35), 0, 7); mx.fill();
+      }
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d')!;
+      x.filter = `blur(${Math.max(3, S * 0.45)}px)`; x.drawImage(m, 0, 0); x.filter = 'none';
+      x.globalCompositeOperation = 'source-in';
+      const p = x.createPattern(BG.soil, 'repeat')!; p.setTransform(new DOMMatrix().translate(this.ox - bx, this.oy - by).scale((S * BG_TILE) / BG.soil.naturalWidth));
+      x.fillStyle = p; x.fillRect(0, 0, W, H);
+      // 斜面の陰: 城の周りの丘のマスに、右下へ向かって暗くなる陰（光は左上から）
+      x.globalCompositeOperation = 'source-over';
+      const sh = document.createElement('canvas'); sh.width = W; sh.height = H; const sx = sh.getContext('2d')!;
+      for (let i = 0; i < t.tiles.length; i++) {
+        if (t.tiles[i] !== 'H' || !this.nearCastle(t, i)) continue;
+        const [cx0, cy0] = this.center(i), cx = cx0 - bx, cy = cy0 - by;
+        const g = sx.createLinearGradient(cx - S * 0.7, cy - S * 0.7, cx + S * 0.8, cy + S * 0.8);
+        g.addColorStop(0, 'rgba(255,240,210,0.10)'); g.addColorStop(0.5, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(10,6,2,0.32)');
+        sx.fillStyle = g; sx.beginPath(); sx.arc(cx, cy, S * 1.05, 0, 7); sx.fill();
+      }
+      x.filter = `blur(${Math.max(2, S * 0.3)}px)`; x.drawImage(sh, 0, 0); x.filter = 'none';
+      soilMix = { key, canvas: cv };
+    }
+    if (ready(BG.soil)) c.drawImage(soilMix.canvas, bx, by);
   }
 
   // 城壁の中心線（半分の線分）: 壁のマスから、同じ輪の壁・門の隣へ、辺の真ん中まで。門のマスには引かない
