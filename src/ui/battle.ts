@@ -435,6 +435,26 @@ class BattleView {
         path.moveTo(g.ax + sx * 0.5 + th * 0.6, g.ay + th / 2 + sy * 0.5); path.arc(g.ax + sx * 0.5, g.ay + th / 2 + sy * 0.5, th * 0.6, 0, 7);
       }
       x.fill(path, 'nonzero');
+      // 段: 下と右下の壁の外側に、少し空けて段差の陰（壁は一段高い所に立っているように）。光は左上から
+      const keep = t.tiles.indexOf('K'); const [kx, ky] = keep >= 0 ? this.center(keep) : [0, 0];
+      const d1 = th * 0.5 + S * 0.32, d2 = d1 + S * 0.42;
+      const step = new Path2D(), lip = new Path2D();
+      for (const g of segs) {
+        const dx = g.bx - g.ax, dy = g.by - g.ay, len = Math.hypot(dx, dy); if (len < 1) continue;
+        let nx = -dy / len, ny = dx / len;
+        if (nx * ((g.ax + g.bx) / 2 - kx) + ny * ((g.ay + g.by) / 2 - ky) < 0) { nx = -nx; ny = -ny; } // 外向き
+        if (ny < 0.3 || nx < -0.2) continue; // 下（真下）と右下に向いた壁だけ
+        const e = len * 0.08; // 隣の線分と少し重ねて途切れないように
+        const ax = g.ax - dx / len * e, ay = g.ay - dy / len * e, bx = g.bx + dx / len * e, by = g.by + dy / len * e;
+        step.moveTo(ax + nx * d1, ay + ny * d1); step.lineTo(bx + nx * d1, by + ny * d1); step.lineTo(bx + nx * d2, by + ny * d2); step.lineTo(ax + nx * d2, ay + ny * d2); step.closePath();
+        lip.moveTo(ax + nx * d1, ay + ny * d1); lip.lineTo(bx + nx * d1, by + ny * d1);
+      }
+      { // 重なった所で向きが打ち消し合わないよう、ひとつの型に塗ってから重ねる
+        const m = document.createElement('canvas'); m.width = cv.width; m.height = cv.height;
+        const mx = m.getContext('2d')!; mx.scale(this.dpr, this.dpr); mx.translate(-x0, -y0); mx.fillStyle = '#0a0602'; mx.fill(step, 'nonzero'); mx.fill(step, 'evenodd');
+        x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.filter = `blur(${Math.max(1.5, S * 0.07) * this.dpr}px)`; x.globalAlpha = 0.42; x.drawImage(m, 0, 0); x.restore();
+      }
+      x.filter = 'none'; x.strokeStyle = 'rgba(255,240,210,0.22)'; x.lineWidth = Math.max(1, S * 0.05); x.stroke(lip);
       wallShadow = { key, cv, x: x0, y: y0 };
     }
     if (wallShadow && segs.length) this.ctx.drawImage(wallShadow.cv, wallShadow.x, wallShadow.y, wallShadow.cv.width / this.dpr, wallShadow.cv.height / this.dpr);
