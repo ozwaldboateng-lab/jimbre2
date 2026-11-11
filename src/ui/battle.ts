@@ -487,6 +487,33 @@ class BattleView {
       wallShadow = { key, cv, x: x0, y: y0 };
     }
     if (wallShadow && segs.length) this.ctx.drawImage(wallShadow.cv, wallShadow.x, wallShadow.y, wallShadow.cv.width / this.dpr, wallShadow.cv.height / this.dpr);
+    this.drawTerrace(t, S);
+  }
+  // 山城・平山城の台: 城の周りの斜面のいちばん外の縁に、低い石垣（土塁の城は土の法面）を回す。
+  // 縁は本丸を中心にした六角形で、手前（下・左下・右下）を向いた辺だけ面が見える。面は縁から下へ垂らす（城が一段高い台に乗って見える）
+  private drawTerrace(t: Tactical, S: number) {
+    const cs = t.castle !== null ? this.s?.castles[t.castle] : undefined;
+    if (!cs || (cs.kind !== 'yama' && cs.kind !== 'hirayama')) return;
+    const c = this.ctx, { keep, ring } = this.castleRing(t); if (keep < 0) return;
+    const [kx, ky] = this.center(keep);
+    const D = ring + (cs.kind === 'yama' ? 2 : 1), r = (D + 0.5) * S * SQ3, hs = S * (cs.kind === 'yama' ? 0.62 : 0.45);
+    const earth = (cs.fort ?? 0) < 1, im = earth ? WALL.dorui : WALL.ishi;
+    const vx = (k: number) => [kx + r * Math.cos((k * Math.PI) / 3), ky + r * Math.sin((k * Math.PI) / 3)];
+    const [x0, y0] = this.center(0), [x1, y1] = this.center(t.tiles.length - 1);
+    c.save(); c.beginPath(); c.rect(x0 - S * SQ3, y0 - S * 1.2, x1 - x0 + S * SQ3 * 2.2, y1 - y0 + S * 2.4); c.clip();
+    for (const k of [0, 1, 2]) { // 右→右下、右下→左下（下の辺）、左下→左
+      const [ax, ay] = vx(k), [bx, by] = vx(k + 1);
+      const L = Math.hypot(bx - ax, by - ay), ux = (bx - ax) / L, uy = (by - ay) / L;
+      // 面の下に落ちる陰
+      c.save(); c.filter = `blur(${Math.max(2, S * 0.15)}px)`; c.fillStyle = 'rgba(10,6,2,0.35)';
+      c.beginPath(); c.moveTo(ax, ay + hs); c.lineTo(bx, by + hs); c.lineTo(bx + S * 0.25, by + hs + S * 0.3); c.lineTo(ax + S * 0.25, ay + hs + S * 0.3); c.closePath(); c.fill(); c.restore();
+      c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.lineTo(bx, by + hs); c.lineTo(ax, ay + hs); c.closePath();
+      if (ready(im)) { let p = wallPat.get(im); if (!p) { p = c.createPattern(im, 'repeat')!; wallPat.set(im, p); } const kk = hs / im.naturalHeight; p.setTransform(new DOMMatrix([ux * kk, uy * kk, 0, kk, ax, ay])); c.fillStyle = p; } else c.fillStyle = earth ? '#7a6040' : '#7b746a';
+      c.fill();
+      if (k !== 1) { c.fillStyle = k === 0 ? 'rgba(0,0,0,0.18)' : 'rgba(255,240,210,0.06)'; c.fill(); } // 斜めの面は光の向きで明るさを変える
+      c.strokeStyle = 'rgba(240,225,195,0.35)'; c.lineWidth = Math.max(1, S * 0.04); c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke(); // 台の縁
+    }
+    c.restore();
   }
   // 段ごとの城（その段の部隊より先に描く）: 城壁（高さのある石垣・白壁・瓦）・櫓・本丸の館
   drawCastleRow(t: Tactical, S: number, row: number, segs: ReturnType<BattleView['wallSegs']>) {
