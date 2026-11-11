@@ -493,13 +493,13 @@ class BattleView {
   // 縁は本丸を中心にした六角形で、手前（下・左下・右下）を向いた辺だけ面が見える。面は縁から下へ垂らす（城が一段高い台に乗って見える）
   private drawTerrace(t: Tactical, S: number) {
     const cs = t.castle !== null ? this.s?.castles[t.castle] : undefined;
-    if (!cs || (cs.kind !== 'yama' && cs.kind !== 'hirayama')) return;
+    if (!cs || cs.kind !== 'yama') return;
     const c = this.ctx, { keep, ring } = this.castleRing(t); if (keep < 0) return;
     const [kx, ky] = this.center(keep);
     const earth = (cs.fort ?? 0) < 1, im = earth ? WALL.dorui : WALL.ishi;
     const { th } = this.wallDims(S);
-    // 外縁（盤面に収まるよう、外の壁から1マス半）と、山城は曲輪の輪ごとの段（壁のすぐ外に低い石垣を垂らす）。外から順に描く
-    const edges: [number, number][] = [[(ring + 1.5) * S * SQ3, S * (cs.kind === 'yama' ? 0.6 : 0.45)]];
+    // 山城の曲輪の輪ごとの段（壁のすぐ外に低い石垣を垂らす）。外から順に描く
+    const edges: [number, number][] = []; // 外縁の台はやめた（曲輪ごとの段だけ）
     if (cs.kind === 'yama') for (let d = ring; d >= 2; d -= 2) edges.push([d * S * SQ3 + th * 1.2, S * 0.36]);
     const [x0, y0] = this.center(0), [x1, y1] = this.center(t.tiles.length - 1);
     c.save(); c.beginPath(); c.rect(x0 - S * SQ3, y0 - S * 1.2, x1 - x0 + S * SQ3 * 2.2, y1 - y0 + S * 2.4); c.clip();
