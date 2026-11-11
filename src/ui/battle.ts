@@ -50,6 +50,9 @@ function groundPatterns(c: CanvasRenderingContext2D, ox: number, oy: number, S: 
 
 // 地面の下絵（別ファイル）: 草地を全面に敷き、二枚目の草地を大きなむらで重ねる。川は川筋を引いて水面の絵で塗る
 const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles/battle/grass2.webp'), water: loadImg('tiles/battle/water.webp'), soil: loadImg('tiles/battle/soil.webp') };
+// 城壁の帯（左右に継ぎ目なく続く）: 石垣・白壁・瓦屋根、土塁の城は土塁・板塀と柵
+const WALL = { ishi: loadImg('tiles/battle/w_ishi.webp'), kabe: loadImg('tiles/battle/w_kabe.webp'), kawara: loadImg('tiles/battle/w_kawara.webp'), dorui: loadImg('tiles/battle/w_dorui.webp'), saku: loadImg('tiles/battle/w_saku.webp') };
+const wallPat = new Map<HTMLImageElement, CanvasPattern>();
 // マスに置く地形の絵（tools/battle-sprites.py で作る。絵の一辺＝マスの半径×2×SPRITE_SCALE）。田畑は入れない
 const SPRITE: Record<string, HTMLImageElement[]> = { F: [1, 2, 3].map((k) => loadImg(`tiles/battle/mori${k}.webp`)), H: [1, 2, 3].map((k) => loadImg(`tiles/battle/oka${k}.webp`)), S: [1, 2, 3].map((k) => loadImg(`tiles/battle/numa${k}.webp`)) };
 const SPRITE_SCALE = 1.18;
@@ -439,29 +442,34 @@ class BattleView {
   // 段ごとの城（その段の部隊より先に描く）: 城壁（高さのある石垣・白壁・瓦）・櫓・本丸の館
   drawCastleRow(t: Tactical, S: number, row: number, segs: ReturnType<BattleView['wallSegs']>) {
     const c = this.ctx; const { h, th } = this.wallDims(S);
-    const stone = (() => { const im = GROUND.W; if (!ready(im)) return '#7b746a'; const p = c.createPattern(im, 'repeat'); p?.setTransform(new DOMMatrix().translate(this.ox, this.oy).scale((S * 1.1) / im.naturalWidth)); return p ?? '#7b746a'; })();
+    const fort = t.castle !== null ? this.s?.castles[t.castle]?.fort ?? 0 : 0;
+    const earth = fort < 1; // 普請が土塁の段なら、土塁と板塀・柵
     const mine = segs.filter((g) => g.row === row);
-    const stoneH = h * 0.55;
+    const lowH = h * (earth ? 0.5 : 0.55), roofH = earth ? 0 : th * 0.85;
+    // 帯の絵を、壁の向きに沿って横に、画面の縦にまっすぐ貼る
+    const band = (im: HTMLImageElement, ax: number, ay: number, ux: number, uy: number, y0: number, y1: number, len: number, fallback: string) => {
+      c.beginPath(); c.moveTo(ax, ay - y0); c.lineTo(ax + ux * len, ay + uy * len - y0); c.lineTo(ax + ux * len, ay + uy * len - y1); c.lineTo(ax, ay - y1); c.closePath();
+      if (!ready(im)) { c.fillStyle = fallback; c.fill(); return; }
+      let p = wallPat.get(im); if (!p) { p = c.createPattern(im, 'repeat')!; wallPat.set(im, p); }
+      const k = (y1 - y0) / im.naturalHeight;
+      p.setTransform(new DOMMatrix([ux * k, uy * k, 0, k, ax, ay - y1]));
+      c.fillStyle = p; c.fill();
+    };
     for (const g of mine) {
-      const dx = g.bx - g.ax, dy = g.by - g.ay, len = Math.hypot(dx, dy) || 1;
-      let nx = -dy / len, ny = dx / len; if (ny < 0 || (ny === 0 && nx < 0)) { nx = -nx; ny = -ny; } // 手前（画面の下）向きの法線
-      const ax = g.ax + nx * th / 2, ay = g.ay + ny * th / 2, bx = g.bx + nx * th / 2, by = g.by + ny * th / 2;
-      const face = (y0: number, y1: number) => { c.beginPath(); c.moveTo(ax, ay - y0); c.lineTo(bx, by - y0); c.lineTo(bx, by - y1); c.lineTo(ax, ay - y1); c.closePath(); };
-      // 石垣（下）・白壁（上）
-      face(0, stoneH); c.fillStyle = stone; c.fill(); c.fillStyle = 'rgba(30,22,12,0.18)'; c.fill();
-      face(stoneH, h); c.fillStyle = '#e6dcc4'; c.fill();
-      // 狭間
-      c.fillStyle = 'rgba(40,30,20,0.75)';
-      const n = Math.max(1, Math.round(len / (S * 0.45)));
-      for (let k = 0; k < n; k++) { const f = (k + 0.5) / n, px = ax + (bx - ax) * f, py = ay + (by - ay) * f - stoneH - (h - stoneH) * 0.5; c.fillRect(px - S * 0.04, py - S * 0.05, S * 0.08, S * 0.1); }
-      // 斜めの面は少し暗く（光は左上から）
-      if (Math.abs(dy) > 1) { face(0, h); c.fillStyle = dx * dy > 0 ? 'rgba(0,0,0,0.12)' : 'rgba(255,240,210,0.06)'; c.fill(); }
+      const dx = g.bx - g.ax, dy = g.by - g.ay, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+      let nx = -uy, ny = ux; if (ny < 0 || (ny === 0 && nx < 0)) { nx = -nx; ny = -ny; } // 手前（画面の下）向きの法線
+      const ax = g.ax + nx * th / 2, ay = g.ay + ny * th / 2;
+      band(earth ? WALL.dorui : WALL.ishi, ax, ay, ux, uy, 0, lowH, len, '#7b746a');
+      band(earth ? WALL.saku : WALL.kabe, ax, ay, ux, uy, lowH, h, len, '#e6dcc4');
+      // 斜めの面は向きで明るさを変える（光は左上から）
+      if (Math.abs(dy) > 1) { c.beginPath(); c.moveTo(ax, ay); c.lineTo(ax + dx, ay + dy); c.lineTo(ax + dx, ay + dy - h); c.lineTo(ax, ay - h); c.closePath(); c.fillStyle = dx * dy > 0 ? 'rgba(0,0,0,0.16)' : 'rgba(255,240,210,0.05)'; c.fill(); }
     }
-    // 瓦屋根（上面）: 面をすべて描いてから
+    // 屋根（瓦）または柵の上の横木: 面をすべて描いてから
     for (const g of mine) {
-      c.lineCap = 'round';
-      c.strokeStyle = '#3b3e47'; c.lineWidth = th * 0.75; c.beginPath(); c.moveTo(g.ax, g.ay - h + th * 0.1); c.lineTo(g.bx, g.by - h + th * 0.1); c.stroke();
-      c.strokeStyle = 'rgba(200,208,220,0.3)'; c.lineWidth = Math.max(1, th * 0.1); c.beginPath(); c.moveTo(g.ax, g.ay - h - th * 0.12); c.lineTo(g.bx, g.by - h - th * 0.12); c.stroke();
+      const dx = g.bx - g.ax, dy = g.by - g.ay, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+      if (earth) continue; // 土塁の城は板塀・柵の絵に横木まで描いてある
+      let nx = -uy, ny = ux; if (ny < 0 || (ny === 0 && nx < 0)) { nx = -nx; ny = -ny; }
+      band(WALL.kawara, g.ax + nx * th * 0.5, g.ay + ny * th * 0.5, ux, uy, h - roofH * 0.1, h + roofH * 0.8, len, '#3b3e47'); // 瓦屋根（壁の上にかぶせる）
     }
     // 櫓: 一番外の城壁の角
     const keep = t.tiles.indexOf('K');
