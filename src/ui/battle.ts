@@ -53,6 +53,9 @@ const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles
 // 城壁の帯（左右に継ぎ目なく続く）: 石垣・白壁・瓦屋根、土塁の城は土塁・板塀と柵
 const WALL = { ishi: loadImg('tiles/battle/w_ishi.webp'), kabe: loadImg('tiles/battle/w_kabe.webp'), kawara: loadImg('tiles/battle/w_kawara.webp'), dorui: loadImg('tiles/battle/w_dorui.webp'), saku: loadImg('tiles/battle/w_saku.webp') };
 const wallPat = new Map<HTMLImageElement, CanvasPattern>();
+// 城門の帯（門ひとつ分。閉・破）と隅櫓（正面を向いた置物）。石垣の城と土塁の城で使い分ける
+const GATE = { mon: loadImg('tiles/battle/g_mon.webp'), monX: loadImg('tiles/battle/g_mon_x.webp'), kido: loadImg('tiles/battle/g_kido.webp'), kidoX: loadImg('tiles/battle/g_kido_x.webp') };
+const TURRET = { sumi: loadImg('tiles/battle/y_sumi.webp'), monomi: loadImg('tiles/battle/y_monomi.webp') };
 // 本丸の建物（正面を向いた絵。余白を切り詰めてある）: 屋敷・屋敷と小櫓・天守三〜五層。w は描く幅（マスの半径の何倍か）
 const BLDG = { yashiki: { im: loadImg('tiles/battle/b_yashiki.webp'), w: 2.4 }, yashiki2: { im: loadImg('tiles/battle/b_yashiki2.webp'), w: 2.5 }, tenshu3: { im: loadImg('tiles/battle/b_tenshu3.webp'), w: 2.8 }, tenshu4: { im: loadImg('tiles/battle/b_tenshu4.webp'), w: 2.8 }, tenshu5: { im: loadImg('tiles/battle/b_tenshu5.webp'), w: 2.85 } };
 // マスに置く地形の絵（tools/battle-sprites.py で作る。絵の一辺＝マスの半径×2×SPRITE_SCALE）。田畑は入れない
@@ -477,9 +480,15 @@ class BattleView {
     const keep = t.tiles.indexOf('K');
     const ring = Math.max(...t.tiles.map((x, i) => (x === 'W' || x === 'G' ? tDist(t, i, keep) : 0)));
     const prop = (im: HTMLImageElement, i: number, sz: number, up: number) => { const [x, y] = this.center(i); c.save(); c.globalAlpha = 0.3; c.drawImage(shadowOf(im), x - sz / 2 + S * 0.3, y - sz * up + S * 0.18, sz, sz); c.restore(); c.drawImage(im, x - sz / 2, y - sz * up, sz, sz); };
-    if (ready(PROP.yagura)) for (let i = 0; i < t.tiles.length; i++) {
+    const fortT = t.castle !== null ? this.s?.castles[t.castle]?.fort ?? 0 : 0;
+    const tur = fortT < 1 ? TURRET.monomi : TURRET.sumi;
+    for (let i = 0; i < t.tiles.length; i++) {
       if (trow(t, i) !== row || t.tiles[i] !== 'W' || tDist(t, i, keep) !== ring || !isCorner(t, i, keep)) continue;
-      prop(PROP.yagura, i, S * 1.8, 0.78);
+      if (ready(tur)) { // 壁の角に立つ櫓（足元を壁の足元にそろえる）
+        const [x, y] = this.center(i), w = S * (fortT < 1 ? 1.0 : 1.35), hh = w * tur.naturalHeight / tur.naturalWidth, base = y + S * 0.3;
+        c.save(); c.globalAlpha = 0.3; c.drawImage(shadowOf(tur), x - w / 2 + S * 0.3, base - hh + S * 0.18, w, hh); c.restore();
+        c.drawImage(tur, x - w / 2, base - hh, w, hh);
+      } else if (ready(PROP.yagura)) prop(PROP.yagura, i, S * 1.8, 0.78);
     }
     if (keep >= 0 && trow(t, keep) === row) {
       // 本丸の建物は城の種類と普請の段で: 館・砦か土塁の段は屋敷、石垣・櫓の段は屋敷と小櫓、天守の段は天守（山城は三層、大きな城は五層）
@@ -494,6 +503,17 @@ class BattleView {
     }
   }
 
+  // 城門: 門は輪の角や斜めの辺にあり、壁に沿わせると横からしか見えないので、正面を向いた門構えとしてマスに立てる
+  // （両側の壁の端を覆う幅。足元は壁の足元にそろえる）。石垣の城は上に瓦屋根
+  private drawGateBand(t: Tactical, g: number, S: number, im: HTMLImageElement, roof: boolean) {
+    const c = this.ctx; const { h, th } = this.wallDims(S);
+    const [x, y] = this.center(g);
+    const w = S * 1.75, gh = h * 1.2, base = y + th / 2;
+    c.save(); c.globalAlpha = 0.3; c.fillStyle = '#000'; c.filter = `blur(${Math.max(2, S * 0.08)}px)`; c.fillRect(x - w / 2 + S * 0.25, base - S * 0.05, w, S * 0.3); c.restore(); // 足元の影
+    c.drawImage(im, x - w / 2, base - gh, w, gh);
+    if (roof && ready(WALL.kawara)) { const rh = th * 0.95, k = WALL.kawara; c.drawImage(k, 0, 0, k.naturalWidth * (w / (S * 4)), k.naturalHeight, x - w / 2 - S * 0.06, base - gh - rh * 0.8, w + S * 0.12, rh); }
+  }
+
   // 城門（閉じた門・壊れた門）と耐久。部隊より手前に描く（門の陰の部隊は小さな旗だけ見える）
   drawGates(t: Tactical, S: number, pulse: number, row?: number) {
     const c = this.ctx, s = this.s!;
@@ -501,10 +521,15 @@ class BattleView {
       if (row !== undefined && trow(t, g) !== row) continue;
       const [x, y] = this.center(g);
       const hp = (t.gates[g] ?? 0) / Math.max(1, t.gateMax);
-      const im = hp > 0 ? PROP.gate : PROP.gateBroken ?? PROP.gate;
-      if (!ready(im)) continue;
-      const sz = S * 2.6; // 門は大きめに（隣の壁にかかってよい）
-      c.drawImage(im, x - sz / 2, y - sz * 0.58, sz, sz);
+      const fortG = t.castle !== null ? s.castles[t.castle]?.fort ?? 0 : 0, earth = fortG < 1;
+      const band = earth ? (hp > 0 ? GATE.kido : GATE.kidoX) : (hp > 0 ? GATE.mon : GATE.monX);
+      if (ready(band)) this.drawGateBand(t, g, S, band, !earth);
+      else {
+        const im = hp > 0 ? PROP.gate : PROP.gateBroken ?? PROP.gate;
+        if (!ready(im)) continue;
+        const sz = S * 2.6; // 門は大きめに（隣の壁にかかってよい）
+        c.drawImage(im, x - sz / 2, y - sz * 0.58, sz, sz);
+      }
       if (hp > 0) {
         c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(x - S * 0.5, y + S * 0.52, S, 4);
         c.fillStyle = '#e0a040'; c.fillRect(x - S * 0.5, y + S * 0.52, S * hp, 4);
