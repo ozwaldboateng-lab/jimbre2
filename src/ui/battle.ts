@@ -515,14 +515,12 @@ class BattleView {
     const gh = h * 1.15, rh = th * 0.95;
     const k = WALL.kawara;
     if (Math.abs(p1[0] - p0[0]) < S * 0.1) {
-      // 南北に走る門: 屋根を縦に、手前（南）の端に門の切り口
-      const xx = (p0[0] + p1[0]) / 2, w = th * 1.5;
-      c.save(); c.globalAlpha = 0.3; c.fillStyle = '#000'; c.filter = `blur(${Math.max(2, S * 0.08)}px)`; c.fillRect(xx - w / 2 + S * 0.2, p0[1] - gh * 0.3, w, p1[1] - p0[1] + gh * 0.3); c.restore();
-      c.fillStyle = '#6b5a45'; c.fillRect(xx - th / 2, p1[1] - gh, th, gh); // 南の端の面（門の側面）
-      c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(xx - th / 2, p1[1] - gh * 0.55, th, gh * 0.55);
-      const top = roof ? k : im; // 木戸は屋根がないので、木の門の上の横木（絵の上の端）を縦に
-      if (ready(top)) { c.save(); c.translate(xx, p0[1] - gh); c.rotate(Math.PI / 2); if (roof) c.drawImage(k, 0, 0, k.naturalWidth * ((p1[1] - p0[1]) / (S * 4)), k.naturalHeight, -th * 0.2, -w / 2, p1[1] - p0[1] + th * 0.4, w); else c.drawImage(im, 0, 0, im.naturalWidth, im.naturalHeight * 0.18, -th * 0.2, -th * 0.6, p1[1] - p0[1] + th * 0.4, th * 1.2); c.restore(); }
-      else { c.fillStyle = '#3b3e47'; c.fillRect(xx - w / 2, p0[1] - gh, w, p1[1] - p0[1]); }
+      // 南北に走る（真横を向く）門: 上からは見えないので、壁の上端どうしを結ぶ線だけ
+      const xx = (p0[0] + p1[0]) / 2;
+      c.save(); c.lineCap = 'round';
+      c.strokeStyle = roof ? '#3b3e47' : '#5a4630'; c.lineWidth = Math.max(1.5, th * 0.35);
+      c.beginPath(); c.moveTo(xx, p0[1] - h); c.lineTo(xx, p1[1] - h); c.stroke();
+      c.restore();
       return;
     }
     // 壁と一直線の門: 門の絵を帯として貼り、屋根をかぶせる
