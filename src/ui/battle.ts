@@ -466,7 +466,7 @@ class BattleView {
   }
   private wallDims(S: number) { return { h: S * 0.78, th: S * 0.3 }; }
   // 地面に落ちる城壁・櫓・本丸の影（部隊より下）
-  // 水堀（普請が「櫓と堀」の段から）: 外の壁のすぐ外を六角形に回る水の帯。外の輪の門の前は土橋で渡る。見た目だけ
+  // 堀（普請が「櫓と堀」の段から）: 外の壁のすぐ外を六角形に回る帯（山城は土の空堀、ほかは水堀）。外の輪の門の前は土橋で渡る。見た目だけ
   private drawMoat(t: Tactical, S: number) {
     const cs = t.castle !== null ? this.s?.castles[t.castle] : undefined;
     if (!cs || (cs.fort ?? 0) < 2 || cs.kind === 'yakata' || cs.kind === 'toride') return;
@@ -478,16 +478,19 @@ class BattleView {
     const band = hexPath(r1); hexPath(r0, band);
     const [x0, y0] = this.center(0), [x1, y1] = this.center(t.tiles.length - 1);
     c.save(); c.beginPath(); c.rect(x0 - S * SQ3, y0 - S * 1.2, x1 - x0 + S * SQ3 * 2.2, y1 - y0 + S * 2.4); c.clip();
-    // 堀の底の暗がりと水面
-    c.fillStyle = 'rgba(20,30,28,0.85)'; c.fill(band, 'evenodd');
-    const water = bgPattern(c, BG.water, this.ox, this.oy, S, 5);
-    c.save(); c.clip(band, 'evenodd'); c.fillStyle = water ?? '#4f7c86'; c.globalAlpha = 0.9; c.fillRect(kx - r1, ky - r1, r1 * 2, r1 * 2); c.globalAlpha = 1;
+    // 山城は空堀（土の溝）、ほかは水堀。堀の底の暗がりと、水面または土の底
+    const dry = cs.kind === 'yama';
+    c.fillStyle = dry ? 'rgba(40,26,14,0.85)' : 'rgba(20,30,28,0.85)'; c.fill(band, 'evenodd');
+    const floor = dry ? bgPattern(c, BG.soil, this.ox, this.oy, S) : bgPattern(c, BG.water, this.ox, this.oy, S, 5);
+    c.save(); c.clip(band, 'evenodd'); c.fillStyle = floor ?? (dry ? '#6a4c30' : '#4f7c86'); c.globalAlpha = dry ? 0.8 : 0.9; c.fillRect(kx - r1, ky - r1, r1 * 2, r1 * 2); c.globalAlpha = 1;
+    if (dry) { c.fillStyle = 'rgba(25,15,6,0.35)'; c.fillRect(kx - r1, ky - r1, r1 * 2, r1 * 2); } // 空堀の底は周りより暗く（深い溝）
     // 岸の陰（内側の岸の下と、外側の岸の上に）
     c.filter = `blur(${Math.max(2, S * 0.12)}px)`; c.lineWidth = S * 0.22; c.strokeStyle = 'rgba(10,15,15,0.55)'; c.stroke(hexPath(r0)); c.strokeStyle = 'rgba(10,15,15,0.35)'; c.stroke(hexPath(r1)); c.filter = 'none';
     c.restore();
     // 岸の石積み（細い縁）
     const ishi = ready(WALL.ishi) ? (() => { let p = wallPat.get(WALL.ishi); if (!p) { p = c.createPattern(WALL.ishi, 'repeat')!; wallPat.set(WALL.ishi, p); } p.setTransform(new DOMMatrix().translate(this.ox, this.oy).scale((S * 0.35) / WALL.ishi.naturalHeight)); return p; })() : '#7b746a';
-    c.lineWidth = Math.max(1.5, S * 0.1); c.strokeStyle = ishi; c.stroke(hexPath(r0)); c.stroke(hexPath(r1));
+    if (!dry) { c.lineWidth = Math.max(1.5, S * 0.1); c.strokeStyle = ishi; c.stroke(hexPath(r0)); c.stroke(hexPath(r1)); }
+    else { c.lineWidth = Math.max(1, S * 0.06); c.strokeStyle = 'rgba(230,205,160,0.35)'; c.stroke(hexPath(r0)); c.stroke(hexPath(r1)); } // 空堀は土の縁に明るい線
     // 土橋: 外の輪の門の前
     const soil = bgPattern(c, BG.soil, this.ox, this.oy, S);
     for (const g of Object.keys(t.gates).map(Number)) {
