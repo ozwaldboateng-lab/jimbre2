@@ -53,7 +53,7 @@ const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles
 // マスに置く地形の絵（tools/battle-sprites.py で作る。絵の一辺＝マスの半径×2×SPRITE_SCALE）。田畑は入れない
 const SPRITE: Record<string, HTMLImageElement[]> = { F: [1, 2, 3].map((k) => loadImg(`tiles/battle/mori${k}.webp`)), H: [1, 2, 3].map((k) => loadImg(`tiles/battle/oka${k}.webp`)) };
 const SPRITE_SCALE = 1.18;
-const spriteOf = (tt: string, i: number, seed: number) => { const l = (SPRITE[tt] ?? []).filter(ready); if (!l.length) return null; let h = Math.imul(i + 1, 2654435761) ^ Math.imul(seed + 7, 40503); h = Math.imul(h ^ (h >>> 15), 2246822519); h = (h ^ (h >>> 13)) >>> 0; return { im: l[h % l.length], flip: (h >>> 20) & 1, h }; };
+const spriteOf = (tt: string, i: number, seed: number) => { const l = (SPRITE[tt] ?? []).filter(ready); if (!l.length) return null; let h = Math.imul(i + 1, 2654435761) ^ Math.imul(seed + 7, 40503); h = Math.imul(h ^ (h >>> 15), 2246822519); h = (h ^ (h >>> 13)) >>> 0; return { im: l[h % l.length], h }; }; // 左右の反転はしない（光の向きが逆になる）
 const BG_TILE = 7; // 草地1枚の一辺（ヘックスの半径の何倍か）
 let grassMix: { key: string; canvas: HTMLCanvasElement } | null = null;
 function bgPattern(c: CanvasRenderingContext2D, im: HTMLImageElement, ox: number, oy: number, S: number, k = BG_TILE): CanvasPattern | null {
@@ -242,7 +242,7 @@ class BattleView {
         c.beginPath(); c.moveTo(x - S * 0.3, y - S * 0.55); c.lineTo(x + S * 0.3, y - S * 0.55); c.lineTo(x, y - S * 0.8); c.closePath(); c.fill();
       }
     }
-    // 森・丘の絵（上の段から順に置き、下の段が手前に重なる。左右はマスごとに反転）
+    // 森・丘の絵（上の段から順に置き、下の段が手前に重なる。光の向きがそろうよう反転はしない）
     let spriteDone = false;
     if (bgOn) for (let i = 0; i < t.tiles.length; i++) {
       const tt = t.tiles[i]; if (tt !== 'F' && tt !== 'H') continue;
@@ -251,7 +251,6 @@ class BattleView {
       const u = (k: number) => (((sp.h >>> k) & 255) / 255) * 2 - 1; // -1〜1
       c.save(); c.translate(x, y);
       if (tt === 'F') { c.translate(u(1) * S * 0.1, u(5) * S * 0.08); c.scale(1 + u(13) * 0.1, 1 + u(17) * 0.08); } // 森は位置と大きさを少しずつ変えて、判で押したように見せない（斜めから見た絵なので回さない）
-      if (sp.flip) c.scale(-1, 1);
       c.drawImage(sp.im, -sz / 2, -sz / 2, sz, sz); c.restore();
       if (tt === 'F') spriteDone = true;
     }
