@@ -49,7 +49,7 @@ function groundPatterns(c: CanvasRenderingContext2D, ox: number, oy: number, S: 
 }
 
 // 地面の下絵（別ファイル）: 草地を全面に敷き、二枚目の草地を大きなむらで重ねる。川は川筋を引いて水面の絵で塗る
-const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles/battle/grass2.webp'), water: loadImg('tiles/battle/water.webp') };
+const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles/battle/grass2.webp'), water: loadImg('tiles/battle/water.webp'), soil: loadImg('tiles/battle/soil.webp') };
 // マスに置く地形の絵（tools/battle-sprites.py で作る。絵の一辺＝マスの半径×2×SPRITE_SCALE）。田畑は入れない
 const SPRITE: Record<string, HTMLImageElement[]> = { F: [1, 2, 3].map((k) => loadImg(`tiles/battle/mori${k}.webp`)), H: [1, 2, 3].map((k) => loadImg(`tiles/battle/oka${k}.webp`)), S: [1, 2, 3].map((k) => loadImg(`tiles/battle/numa${k}.webp`)) };
 const SPRITE_SCALE = 1.18;
@@ -190,6 +190,7 @@ class BattleView {
     }
     // 地形（絵があれば絵、なければ色）
     const pats = groundPatterns(c, this.ox, this.oy, S);
+    { const soil = bgPattern(c, BG.soil, this.ox, this.oy, S); if (soil) { pats.C = soil; pats.K = soil; } } // 城の中（曲輪・本丸・城門の下）は踏み固めた土を一続きに敷く
     for (let i = 0; i < t.tiles.length; i++) {
       const [x, y] = this.center(i);
       const tt = t.tiles[i];
