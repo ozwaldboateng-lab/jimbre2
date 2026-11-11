@@ -50,7 +50,10 @@ function groundPatterns(c: CanvasRenderingContext2D, ox: number, oy: number, S: 
 
 // 地面の下絵（別ファイル）: 草地を全面に敷き、二枚目の草地を大きなむらで重ねる。川は川筋を引いて水面の絵で塗る
 const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles/battle/grass2.webp'), water: loadImg('tiles/battle/water.webp') };
-// マスに置く地形の絵（森・丘・土・湿地）は、届いたら tools/battle-sprites.py で六角形のぼかしをつけ、絵の一辺＝マスの半径×2×1.18 で置く（田畑は入れない）
+// マスに置く地形の絵（tools/battle-sprites.py で作る。絵の一辺＝マスの半径×2×SPRITE_SCALE）。田畑は入れない
+const SPRITE: Record<string, HTMLImageElement[]> = { F: [1, 2, 3].map((k) => loadImg(`tiles/battle/mori${k}.webp`)), H: [1, 2, 3].map((k) => loadImg(`tiles/battle/oka${k}.webp`)) };
+const SPRITE_SCALE = 1.18;
+const spriteOf = (tt: string, i: number, seed: number) => { const l = (SPRITE[tt] ?? []).filter(ready); if (!l.length) return null; let h = Math.imul(i + 1, 2654435761) ^ Math.imul(seed + 7, 40503); h = Math.imul(h ^ (h >>> 15), 2246822519); h = (h ^ (h >>> 13)) >>> 0; return { im: l[h % l.length], flip: (h >>> 20) & 1 }; };
 const BG_TILE = 7; // 草地1枚の一辺（ヘックスの半径の何倍か）
 let grassMix: { key: string; canvas: HTMLCanvasElement } | null = null;
 function bgPattern(c: CanvasRenderingContext2D, im: HTMLImageElement, ox: number, oy: number, S: number, k = BG_TILE): CanvasPattern | null {
@@ -190,7 +193,7 @@ class BattleView {
     for (let i = 0; i < t.tiles.length; i++) {
       const [x, y] = this.center(i);
       const tt = t.tiles[i];
-      if (bgOn && (tt === 'P' || tt === 'R')) { c.strokeStyle = 'rgba(25,18,10,0.28)'; c.lineWidth = 1; this.hex(x, y, S); c.stroke(); continue; } // 平地は草地のまま、川は川筋で描いた
+      if (bgOn && (tt === 'P' || tt === 'R' || ((tt === 'F' || tt === 'H') && spriteOf(tt, i, t.hex)))) { c.strokeStyle = 'rgba(25,18,10,0.28)'; c.lineWidth = 1; this.hex(x, y, S); c.stroke(); continue; } // 平地は草地のまま、川は川筋で、森・丘は絵を後で置く
       const pat = pats[tt] ?? (tt === 'G' ? pats.C : undefined); // 城門の下は曲輪の地面
       c.fillStyle = pat ?? TILE[tt];
       this.hex(x, y, S + 0.4); c.fill();
@@ -239,9 +242,18 @@ class BattleView {
         c.beginPath(); c.moveTo(x - S * 0.3, y - S * 0.55); c.lineTo(x + S * 0.3, y - S * 0.55); c.lineTo(x, y - S * 0.8); c.closePath(); c.fill();
       }
     }
+    // 森・丘の絵（上の段から順に置き、下の段が手前に重なる。左右はマスごとに反転）
+    let spriteDone = false;
+    if (bgOn) for (let i = 0; i < t.tiles.length; i++) {
+      const tt = t.tiles[i]; if (tt !== 'F' && tt !== 'H') continue;
+      const sp = spriteOf(tt, i, t.hex); if (!sp) continue;
+      const [x, y] = this.center(i), sz = S * 2 * SPRITE_SCALE;
+      c.save(); c.translate(x, y); if (sp.flip) c.scale(-1, 1); c.drawImage(sp.im, -sz / 2, -sz / 2, sz, sz); c.restore();
+      if (tt === 'F') spriteDone = true;
+    }
     // 木立（隣のヘックスに少しはみ出してよい）
     const trees = TREES.filter((im) => im.complete && im.naturalWidth);
-    if (trees.length) for (let i = 0; i < t.tiles.length; i++) {
+    if (trees.length && !spriteDone) for (let i = 0; i < t.tiles.length; i++) {
       if (t.tiles[i] !== 'F') continue;
       const [x, y] = this.center(i);
       const h = (i * 2654435761) >>> 0;
