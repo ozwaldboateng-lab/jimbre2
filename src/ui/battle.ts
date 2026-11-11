@@ -203,7 +203,7 @@ class BattleView {
           cc.fillStyle = p2; cc.fillRect(0, 0, cv.width, cv.height);
           grassMix = { key, canvas: cv };
         }
-        c.drawImage(grassMix.canvas, bx, by);
+        if (grassMix.canvas.width > 0 && grassMix.canvas.height > 0) c.drawImage(grassMix.canvas, bx, by);
       }
       this.drawRiver(t, S, [bx, by, bw, bh]);
       if (t.kind === 'siege') this.drawSoilFade(t, S, bx, by, bw, bh);
@@ -449,7 +449,7 @@ class BattleView {
       x.filter = `blur(${Math.max(2, S * 0.3)}px)`; x.drawImage(sh, 0, 0); x.filter = 'none';
       soilMix = { key, canvas: cv };
     }
-    if (ready(BG.soil)) c.drawImage(soilMix.canvas, bx, by);
+    if (ready(BG.soil) && soilMix.canvas.width > 0 && soilMix.canvas.height > 0) c.drawImage(soilMix.canvas, bx, by);
   }
 
   // 城壁の中心線（半分の線分）: 壁のマスから、同じ輪の壁・門の隣へ、辺の真ん中まで。門のマスには引かない
@@ -509,7 +509,7 @@ class BattleView {
     const sx = h * 0.55, sy = h * 0.28;
     const segs = this.wallSegs(t);
     const key = `${t.hex}:${t.w}x${t.h}:${t.tiles.join('')}:${this.ox.toFixed(1)},${this.oy.toFixed(1)},${S.toFixed(2)},${this.dpr}`;
-    if (wallShadow?.key !== key && segs.length) {
+    if (wallShadow?.key !== key && segs.length && S > 0.5) {
       const xs = segs.flatMap((g) => [g.ax, g.bx]), ys = segs.flatMap((g) => [g.ay, g.by]), m = S * 2;
       const x0 = Math.min(...xs) - m, y0 = Math.min(...ys) - m, w = Math.max(...xs) - x0 + m * 2, hh = Math.max(...ys) - y0 + m * 2;
       const cv = document.createElement('canvas'); cv.width = Math.ceil(w * this.dpr); cv.height = Math.ceil(hh * this.dpr);
@@ -524,7 +524,7 @@ class BattleView {
       x.fill(path, 'nonzero');
       wallShadow = { key, cv, x: x0, y: y0 };
     }
-    if (wallShadow && segs.length) this.ctx.drawImage(wallShadow.cv, wallShadow.x, wallShadow.y, wallShadow.cv.width / this.dpr, wallShadow.cv.height / this.dpr);
+    if (wallShadow && segs.length && wallShadow.cv.width > 0 && wallShadow.cv.height > 0) this.ctx.drawImage(wallShadow.cv, wallShadow.x, wallShadow.y, wallShadow.cv.width / this.dpr, wallShadow.cv.height / this.dpr);
     this.drawTerrace(t, S);
   }
   // 山城・平山城の台: 城の周りの斜面のいちばん外の縁に、低い石垣（土塁の城は土の法面）を回す。

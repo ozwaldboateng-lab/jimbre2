@@ -261,8 +261,9 @@ export function createTactical(s: GameState, a: Army, target: Target, playerSide
   const big = rings >= 3;
   const w = kind === 'siege' ? (big ? 19 : 17) : 15, h = kind === 'siege' ? (big ? 15 : 13) : 11;
   const defClan = target.kind === 'army' ? target.army.clan : s.castles[target.castle].owner;
+  // 攻城戦の盤面には川を流さない（城の中を川が横切って不自然になるため）
   const t: Tactical = {
-    kind, w, h, tiles: genField(s, w, h, HEXES[defHex].t), gates: {}, fire: {}, gateMax: castle ? Math.round((800 + castleKoku(castle) * 60) * R.CASTLE_KIND[castle.kind ?? 'hira'].gate * (1 + (castle.fort ?? 0) * R.FORT_GATE) * (govTrait(s, castle) === 'chikujo' ? CHIKUJO_GATE : 1)) : 0,
+    kind, w, h, tiles: genField(s, w, h, kind === 'siege' && HEXES[defHex].t === 'R' ? 'P' : HEXES[defHex].t), gates: {}, fire: {}, gateMax: castle ? Math.round((800 + castleKoku(castle) * 60) * R.CASTLE_KIND[castle.kind ?? 'hira'].gate * (1 + (castle.fort ?? 0) * R.FORT_GATE) * (govTrait(s, castle) === 'chikujo' ? CHIKUJO_GATE : 1)) : 0,
     units: [], turn: 1, maxTurn: kind === 'siege' ? TR.SIEGE_TURNS + (big ? 5 : 0) : TR.FIELD_TURNS, phase: 'A',
     attackerClan: a.clan, defenderClan: defClan, primaryA: a.id, primaryD: target.kind === 'army' ? target.army.id : null,
     castle: castle?.i ?? null, hex: defHex, fieldCastle: field ? castleAt(s, defHex)?.i : undefined, armiesA: [], armiesD: [], log: [], deaths: [], captures: [], start: {},
