@@ -4,7 +4,7 @@ setTacticalSound((kind, charge) => sfx(kind === 'shoot' ? 'gun' : kind === 'atta
 // 合戦画面: 戦術ヘックスで部隊を操作する
 import { applyTactical } from '../engine/combat';
 import type { Target } from '../engine/move';
-import { addLog, clanName } from '../engine/state';
+import { addLog, castleKoku, clanName } from '../engine/state';
 import {
   T_NAME, T_ROUT, TR, actionTile, canBow, fireChance, sneakChance, chargeMult, isAmbush, routAt, createTactical, doAction, endPhase, fleeRouted, moveUnit, preview, retreatSide, ruseChance,
   siegeDay, SIEGE_DAYS, turnLabel, tcol, trow, tNeighbors, unitActions, unitAt, unitReach, canOrder, hqOf, inCommand, takeCommand, tDist, tdef, canSee, visibleTiles, doScout, scoutRange, ambushAllowance, ambushTiles, setAmbush, doVolley, volleyHelpers, volleyPreview, volleyMax, type TAction, type TUnit, type Tactical,
@@ -53,6 +53,8 @@ const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles
 // 城壁の帯（左右に継ぎ目なく続く）: 石垣・白壁・瓦屋根、土塁の城は土塁・板塀と柵
 const WALL = { ishi: loadImg('tiles/battle/w_ishi.webp'), kabe: loadImg('tiles/battle/w_kabe.webp'), kawara: loadImg('tiles/battle/w_kawara.webp'), dorui: loadImg('tiles/battle/w_dorui.webp'), saku: loadImg('tiles/battle/w_saku.webp') };
 const wallPat = new Map<HTMLImageElement, CanvasPattern>();
+// 本丸の建物（正面を向いた絵。余白を切り詰めてある）: 屋敷・屋敷と小櫓・天守三〜五層。w は描く幅（マスの半径の何倍か）
+const BLDG = { yashiki: { im: loadImg('tiles/battle/b_yashiki.webp'), w: 3.3 }, yashiki2: { im: loadImg('tiles/battle/b_yashiki2.webp'), w: 3.4 }, tenshu3: { im: loadImg('tiles/battle/b_tenshu3.webp'), w: 2.8 }, tenshu4: { im: loadImg('tiles/battle/b_tenshu4.webp'), w: 2.8 }, tenshu5: { im: loadImg('tiles/battle/b_tenshu5.webp'), w: 2.85 } };
 // マスに置く地形の絵（tools/battle-sprites.py で作る。絵の一辺＝マスの半径×2×SPRITE_SCALE）。田畑は入れない
 const SPRITE: Record<string, HTMLImageElement[]> = { F: [1, 2, 3].map((k) => loadImg(`tiles/battle/mori${k}.webp`)), H: [1, 2, 3].map((k) => loadImg(`tiles/battle/oka${k}.webp`)), S: [1, 2, 3].map((k) => loadImg(`tiles/battle/numa${k}.webp`)) };
 const SPRITE_SCALE = 1.18;
@@ -479,7 +481,17 @@ class BattleView {
       if (trow(t, i) !== row || t.tiles[i] !== 'W' || tDist(t, i, keep) !== ring || !isCorner(t, i, keep)) continue;
       prop(PROP.yagura, i, S * 1.8, 0.78);
     }
-    if (keep >= 0 && trow(t, keep) === row && ready(PROP.keep)) prop(PROP.keep, keep, S * 2.2, 0.66);
+    if (keep >= 0 && trow(t, keep) === row) {
+      // 本丸の建物は城の種類と普請の段で: 館・砦か土塁の段は屋敷、石垣・櫓の段は屋敷と小櫓、天守の段は天守（山城は三層、大きな城は五層）
+      const cs = t.castle !== null ? this.s?.castles[t.castle] : undefined;
+      const kind = cs?.kind ?? 'hira', lv = cs?.fort ?? 0;
+      const b = kind === 'yakata' || kind === 'toride' || lv < 1 ? BLDG.yashiki : lv < 3 ? BLDG.yashiki2 : kind === 'yama' ? BLDG.tenshu3 : castleKoku(cs!) >= 20 ? BLDG.tenshu5 : BLDG.tenshu4;
+      if (ready(b.im)) {
+        const [x, y] = this.center(keep), w = S * b.w, hh = w * b.im.naturalHeight / b.im.naturalWidth, base = y + S * 0.55; // 建物の足元をマスの下寄りに
+        c.save(); c.globalAlpha = 0.32; c.drawImage(shadowOf(b.im), x - w / 2 + S * 0.35, base - hh + S * 0.2, w, hh); c.restore();
+        c.drawImage(b.im, x - w / 2, base - hh, w, hh);
+      } else if (ready(PROP.keep)) prop(PROP.keep, keep, S * 2.2, 0.66);
+    }
   }
 
   // 城門（閉じた門・壊れた門）と耐久。部隊より手前に描く（門の陰の部隊は小さな旗だけ見える）
