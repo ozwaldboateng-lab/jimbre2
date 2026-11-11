@@ -76,6 +76,16 @@ function grassMask(w: number, h: number, seed: number): HTMLCanvasElement {
   return out;
 }
 
+// 影の絵（黒くぼかした写し）を一度だけ作って使い回す（毎コマ blur をかけると重い）
+const shadowCache = new Map<HTMLImageElement, HTMLCanvasElement>();
+function shadowOf(im: HTMLImageElement): HTMLCanvasElement {
+  let cv = shadowCache.get(im); if (cv) return cv;
+  cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+  const x = cv.getContext('2d')!; x.filter = `brightness(0) blur(${Math.round(im.naturalWidth / 40)}px)`; x.drawImage(im, 0, 0);
+  shadowCache.set(im, cv); return cv;
+}
+let wallShadow: { key: string; cv: HTMLCanvasElement; x: number; y: number } | null = null;
+
 // 隣のヘックス（UI用）と、六角形の輪の角かどうか（立方座標の成分のどれかが0）
 function tNeighborsUI(t: Tactical, i: number) { return tNeighbors(t, i); }
 function isCorner(t: Tactical, i: number, center: number) {
@@ -190,7 +200,7 @@ class BattleView {
     }
     // 地形（絵があれば絵、なければ色）
     const pats = groundPatterns(c, this.ox, this.oy, S);
-    { const soil = bgPattern(c, BG.soil, this.ox, this.oy, S); if (soil) { pats.C = soil; pats.K = soil; } } // 城の中（曲輪・本丸・城門の下）は踏み固めた土を一続きに敷く
+    { const soil = bgPattern(c, BG.soil, this.ox, this.oy, S); if (soil) { pats.C = soil; pats.K = soil; pats.W = soil; } } // 城の中（曲輪・本丸・城門の下）は踏み固めた土を一続きに敷く
     for (let i = 0; i < t.tiles.length; i++) {
       const [x, y] = this.center(i);
       const tt = t.tiles[i];
@@ -252,6 +262,7 @@ class BattleView {
       const u = (k: number) => (((sp.h >>> k) & 255) / 255) * 2 - 1; // -1〜1
       c.save(); c.translate(x, y);
       if (tt === 'F') { c.translate(u(1) * S * 0.1, u(5) * S * 0.08); c.scale(1 + u(13) * 0.1, 1 + u(17) * 0.08); } // 森は位置と大きさを少しずつ変えて、判で押したように見せない（斜めから見た絵なので回さない）
+      if (tt !== 'S') { c.save(); c.globalAlpha = 0.32; c.drawImage(shadowOf(sp.im), -sz / 2 + S * 0.22, -sz / 2 + S * 0.14, sz, sz); c.restore(); } // 影（光は左上から）
       c.drawImage(sp.im, -sz / 2, -sz / 2, sz, sz); c.restore();
       if (tt === 'F') spriteDone = true;
     }
@@ -314,9 +325,11 @@ class BattleView {
     if (this.focus !== null) { const [x, y] = this.center(this.focus); c.strokeStyle = '#fff3c4'; c.lineWidth = 2.5; this.hex(x, y, S * 0.95); c.stroke(); }
     // 部隊
     const gatesFirst = this.unitStyle !== 'box'; // 旗の印は門の上に立てる。四角の印は門の陰に置き、旗だけ門の上に出す
-    if (t.kind === 'siege' && gatesFirst) this.drawGates(t, S, pulse);
-    for (const u of [...t.units].sort((a, b) => a.tile - b.tile)) { // 上の段から描く（旗が下の段に隠れないよう）
-      if (u.out) continue;
+    const siege = t.kind === 'siege', segs = siege ? this.wallSegs(t) : [];
+    const units = [...t.units].filter((u) => !u.out).sort((a, b) => a.tile - b.tile);
+    for (let row = 0, ui = 0; row < t.h; row++) { // 段ごとに: その段の城（壁・櫓・本丸・門）→ その段の部隊。上の段から描く
+      if (siege) { this.drawCastleRow(t, S, row, segs); if (gatesFirst) this.drawGates(t, S, pulse, row); }
+      for (; ui < units.length && trow(t, units[ui].tile) === row; ui++) { const u = units[ui];
       let [x, y] = this.center(u.tile);
       if (this.anim && this.anim.unit === u.id) {
         const f = Math.min(1, (now - this.anim.t0) / this.anim.dur);
@@ -326,8 +339,9 @@ class BattleView {
       }
       if (t.playerSide && u.side !== t.playerSide && !canSee(t, t.playerSide, u)) continue; // 伏せた敵・視界の外の敵は描かない
       this.drawUnit(u, x, y);
+      }
+      if (siege && !gatesFirst) this.drawGates(t, S, pulse, row);
     }
-    if (t.kind === 'siege' && !gatesFirst) this.drawGates(t, S, pulse);
     // 最後に見た敵の位置（見えなくなった敵）
     if (t.fog && t.playerSide && t.seen) {
       for (const [id, g] of Object.entries(t.seen[t.playerSide])) {
@@ -386,56 +400,85 @@ class BattleView {
     c.restore();
   }
 
-  drawCastle(t: Tactical, S: number) {
-    const c = this.ctx;
-    const keep = t.tiles.indexOf('K');
-    const vert = (x: number, y: number, k: number, r: number) => { const a = ((60 * k - 30) * Math.PI) / 180; return [x + r * Math.cos(a), y + r * Math.sin(a)]; };
+  // 城壁の中心線（半分の線分）: 壁のマスから、同じ輪の壁・門の隣へ、辺の真ん中まで。門のマスには引かない
+  private wallSegs(t: Tactical): { i: number; row: number; ax: number; ay: number; bx: number; by: number }[] {
+    const keep = t.tiles.indexOf('K'); const out: { i: number; row: number; ax: number; ay: number; bx: number; by: number }[] = [];
     for (let i = 0; i < t.tiles.length; i++) {
       if (t.tiles[i] !== 'W') continue;
-      const [x, y] = this.center(i);
-      for (const j of tNeighborsUI(t, i)) {
-        // 外側（本丸から遠い側）で壁でない隣: 曲輪が重なる城では内側の壁にも面ができる
-        const outer = t.tiles[j] !== 'W' && t.tiles[j] !== 'G' && tDist(t, j, keep) > tDist(t, i, keep);
-        const inner = (t.tiles[j] === 'C' || t.tiles[j] === 'K') && tDist(t, j, keep) < tDist(t, i, keep);
-        if (!outer && !inner) continue;
-        const [nx, ny] = this.center(j);
-        const ang = (Math.atan2(ny - y, nx - x) * 180) / Math.PI;
-        const k0 = Math.round((ang + 30 - 30) / 60); // 隣の方向の両側の頂点
-        const a = vert(x, y, k0, S), b = vert(x, y, k0 + 1, S);
-        if (outer) {
-          // 壁の面: 辺から内側へ暗い帯、外側へ短い影
-          const ia = vert(x, y, k0, S * 0.7), ib = vert(x, y, k0 + 1, S * 0.7);
-          c.fillStyle = 'rgba(28,20,12,0.55)';
-          c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.lineTo(ib[0], ib[1]); c.lineTo(ia[0], ia[1]); c.closePath(); c.fill();
-          const oa = [a[0] + (nx - x) * 0.12, a[1] + (ny - y) * 0.12], ob = [b[0] + (nx - x) * 0.12, b[1] + (ny - y) * 0.12];
-          c.fillStyle = 'rgba(10,8,5,0.28)';
-          c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.lineTo(ob[0], ob[1]); c.lineTo(oa[0], oa[1]); c.closePath(); c.fill();
-        } else {
-          c.strokeStyle = 'rgba(240,228,200,0.45)'; c.lineWidth = 1.4;
-          c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
-        }
+      const [x, y] = this.center(i), d = tDist(t, i, keep);
+      const nb = tNeighborsUI(t, i).filter((j) => (t.tiles[j] === 'W' || t.tiles[j] === 'G') && tDist(t, j, keep) === d);
+      for (const j of nb) { const [nx, ny] = this.center(j); out.push({ i, row: trow(t, i), ax: x, ay: y, bx: (x + nx) / 2, by: (y + ny) / 2 }); }
+      if (!nb.length) out.push({ i, row: trow(t, i), ax: x - 0.01, ay: y, bx: x + 0.01, by: y });
+    }
+    return out;
+  }
+  private wallDims(S: number) { return { h: S * 0.78, th: S * 0.3 }; }
+  // 地面に落ちる城壁・櫓・本丸の影（部隊より下）
+  drawCastle(t: Tactical, S: number) {
+    const { h, th } = this.wallDims(S);
+    const sx = h * 0.55, sy = h * 0.28;
+    const segs = this.wallSegs(t);
+    const key = `${t.hex}:${t.w}x${t.h}:${t.tiles.join('')}:${this.ox.toFixed(1)},${this.oy.toFixed(1)},${S.toFixed(2)},${this.dpr}`;
+    if (wallShadow?.key !== key && segs.length) {
+      const xs = segs.flatMap((g) => [g.ax, g.bx]), ys = segs.flatMap((g) => [g.ay, g.by]), m = S * 2;
+      const x0 = Math.min(...xs) - m, y0 = Math.min(...ys) - m, w = Math.max(...xs) - x0 + m * 2, hh = Math.max(...ys) - y0 + m * 2;
+      const cv = document.createElement('canvas'); cv.width = Math.ceil(w * this.dpr); cv.height = Math.ceil(hh * this.dpr);
+      const x = cv.getContext('2d')!; x.scale(this.dpr, this.dpr); x.translate(-x0, -y0);
+      x.filter = `blur(${Math.max(2, S * 0.1)}px)`; x.fillStyle = 'rgba(12,8,4,0.38)';
+      const path = new Path2D();
+      for (const g of segs) {
+        const ny = th / 2;
+        path.moveTo(g.ax, g.ay + ny); path.lineTo(g.bx, g.by + ny); path.lineTo(g.bx + sx, g.by + ny + sy); path.lineTo(g.ax + sx, g.ay + ny + sy); path.closePath();
+        path.moveTo(g.ax + sx * 0.5 + th * 0.6, g.ay + th / 2 + sy * 0.5); path.arc(g.ax + sx * 0.5, g.ay + th / 2 + sy * 0.5, th * 0.6, 0, 7);
       }
+      x.fill(path, 'nonzero');
+      wallShadow = { key, cv, x: x0, y: y0 };
     }
-    // 櫓: 一番外の城壁の角（城門でない所）
+    if (wallShadow && segs.length) this.ctx.drawImage(wallShadow.cv, wallShadow.x, wallShadow.y, wallShadow.cv.width / this.dpr, wallShadow.cv.height / this.dpr);
+  }
+  // 段ごとの城（その段の部隊より先に描く）: 城壁（高さのある石垣・白壁・瓦）・櫓・本丸の館
+  drawCastleRow(t: Tactical, S: number, row: number, segs: ReturnType<BattleView['wallSegs']>) {
+    const c = this.ctx; const { h, th } = this.wallDims(S);
+    const stone = (() => { const im = GROUND.W; if (!ready(im)) return '#7b746a'; const p = c.createPattern(im, 'repeat'); p?.setTransform(new DOMMatrix().translate(this.ox, this.oy).scale((S * 1.1) / im.naturalWidth)); return p ?? '#7b746a'; })();
+    const mine = segs.filter((g) => g.row === row);
+    const stoneH = h * 0.55;
+    for (const g of mine) {
+      const dx = g.bx - g.ax, dy = g.by - g.ay, len = Math.hypot(dx, dy) || 1;
+      let nx = -dy / len, ny = dx / len; if (ny < 0 || (ny === 0 && nx < 0)) { nx = -nx; ny = -ny; } // 手前（画面の下）向きの法線
+      const ax = g.ax + nx * th / 2, ay = g.ay + ny * th / 2, bx = g.bx + nx * th / 2, by = g.by + ny * th / 2;
+      const face = (y0: number, y1: number) => { c.beginPath(); c.moveTo(ax, ay - y0); c.lineTo(bx, by - y0); c.lineTo(bx, by - y1); c.lineTo(ax, ay - y1); c.closePath(); };
+      // 石垣（下）・白壁（上）
+      face(0, stoneH); c.fillStyle = stone; c.fill(); c.fillStyle = 'rgba(30,22,12,0.18)'; c.fill();
+      face(stoneH, h); c.fillStyle = '#e6dcc4'; c.fill();
+      // 狭間
+      c.fillStyle = 'rgba(40,30,20,0.75)';
+      const n = Math.max(1, Math.round(len / (S * 0.45)));
+      for (let k = 0; k < n; k++) { const f = (k + 0.5) / n, px = ax + (bx - ax) * f, py = ay + (by - ay) * f - stoneH - (h - stoneH) * 0.5; c.fillRect(px - S * 0.04, py - S * 0.05, S * 0.08, S * 0.1); }
+      // 斜めの面は少し暗く（光は左上から）
+      if (Math.abs(dy) > 1) { face(0, h); c.fillStyle = dx * dy > 0 ? 'rgba(0,0,0,0.12)' : 'rgba(255,240,210,0.06)'; c.fill(); }
+    }
+    // 瓦屋根（上面）: 面をすべて描いてから
+    for (const g of mine) {
+      c.lineCap = 'round';
+      c.strokeStyle = '#3b3e47'; c.lineWidth = th * 0.75; c.beginPath(); c.moveTo(g.ax, g.ay - h + th * 0.1); c.lineTo(g.bx, g.by - h + th * 0.1); c.stroke();
+      c.strokeStyle = 'rgba(200,208,220,0.3)'; c.lineWidth = Math.max(1, th * 0.1); c.beginPath(); c.moveTo(g.ax, g.ay - h - th * 0.12); c.lineTo(g.bx, g.by - h - th * 0.12); c.stroke();
+    }
+    // 櫓: 一番外の城壁の角
+    const keep = t.tiles.indexOf('K');
     const ring = Math.max(...t.tiles.map((x, i) => (x === 'W' || x === 'G' ? tDist(t, i, keep) : 0)));
+    const prop = (im: HTMLImageElement, i: number, sz: number, up: number) => { const [x, y] = this.center(i); c.save(); c.globalAlpha = 0.3; c.drawImage(shadowOf(im), x - sz / 2 + S * 0.3, y - sz * up + S * 0.18, sz, sz); c.restore(); c.drawImage(im, x - sz / 2, y - sz * up, sz, sz); };
     if (ready(PROP.yagura)) for (let i = 0; i < t.tiles.length; i++) {
-      if (t.tiles[i] !== 'W' || tDist(t, i, keep) !== ring || !isCorner(t, i, keep)) continue;
-      const [x, y] = this.center(i);
-      const sz = S * 1.7;
-      c.drawImage(PROP.yagura, x - sz / 2, y - sz * 0.62, sz, sz);
+      if (trow(t, i) !== row || t.tiles[i] !== 'W' || tDist(t, i, keep) !== ring || !isCorner(t, i, keep)) continue;
+      prop(PROP.yagura, i, S * 1.8, 0.78);
     }
-    // 本丸の館
-    if (keep >= 0 && ready(PROP.keep)) {
-      const [x, y] = this.center(keep);
-      const sz = S * 2.1;
-      c.drawImage(PROP.keep, x - sz / 2, y - sz * 0.6, sz, sz);
-    }
+    if (keep >= 0 && trow(t, keep) === row && ready(PROP.keep)) prop(PROP.keep, keep, S * 2.2, 0.66);
   }
 
   // 城門（閉じた門・壊れた門）と耐久。部隊より手前に描く（門の陰の部隊は小さな旗だけ見える）
-  drawGates(t: Tactical, S: number, pulse: number) {
+  drawGates(t: Tactical, S: number, pulse: number, row?: number) {
     const c = this.ctx, s = this.s!;
     for (const g of Object.keys(t.gates).map(Number)) {
+      if (row !== undefined && trow(t, g) !== row) continue;
       const [x, y] = this.center(g);
       const hp = (t.gates[g] ?? 0) / Math.max(1, t.gateMax);
       const im = hp > 0 ? PROP.gate : PROP.gateBroken ?? PROP.gate;
