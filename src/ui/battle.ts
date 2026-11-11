@@ -496,11 +496,15 @@ class BattleView {
     if (!cs || (cs.kind !== 'yama' && cs.kind !== 'hirayama')) return;
     const c = this.ctx, { keep, ring } = this.castleRing(t); if (keep < 0) return;
     const [kx, ky] = this.center(keep);
-    const D = ring + (cs.kind === 'yama' ? 2 : 1), r = (D + 0.5) * S * SQ3, hs = S * (cs.kind === 'yama' ? 0.62 : 0.45);
     const earth = (cs.fort ?? 0) < 1, im = earth ? WALL.dorui : WALL.ishi;
-    const vx = (k: number) => [kx + r * Math.cos((k * Math.PI) / 3), ky + r * Math.sin((k * Math.PI) / 3)];
+    const { th } = this.wallDims(S);
+    // 外縁（盤面に収まるよう、外の壁から1マス半）と、山城は曲輪の輪ごとの段（壁のすぐ外に低い石垣を垂らす）。外から順に描く
+    const edges: [number, number][] = [[(ring + 1.5) * S * SQ3, S * (cs.kind === 'yama' ? 0.6 : 0.45)]];
+    if (cs.kind === 'yama') for (let d = ring; d >= 2; d -= 2) edges.push([d * S * SQ3 + th * 1.2, S * 0.36]);
     const [x0, y0] = this.center(0), [x1, y1] = this.center(t.tiles.length - 1);
     c.save(); c.beginPath(); c.rect(x0 - S * SQ3, y0 - S * 1.2, x1 - x0 + S * SQ3 * 2.2, y1 - y0 + S * 2.4); c.clip();
+    for (const [r, hs] of edges) {
+    const vx = (k: number) => [kx + r * Math.cos((k * Math.PI) / 3), ky + r * Math.sin((k * Math.PI) / 3)];
     for (const k of [0, 1, 2]) { // 右→右下、右下→左下（下の辺）、左下→左
       const [ax, ay] = vx(k), [bx, by] = vx(k + 1);
       const L = Math.hypot(bx - ax, by - ay), ux = (bx - ax) / L, uy = (by - ay) / L;
@@ -512,6 +516,7 @@ class BattleView {
       c.fill();
       if (k !== 1) { c.fillStyle = k === 0 ? 'rgba(0,0,0,0.18)' : 'rgba(255,240,210,0.06)'; c.fill(); } // 斜めの面は光の向きで明るさを変える
       c.strokeStyle = 'rgba(240,225,195,0.35)'; c.lineWidth = Math.max(1, S * 0.04); c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke(); // 台の縁
+    }
     }
     c.restore();
   }
