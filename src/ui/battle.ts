@@ -466,7 +466,42 @@ class BattleView {
   }
   private wallDims(S: number) { return { h: S * 0.78, th: S * 0.3 }; }
   // 地面に落ちる城壁・櫓・本丸の影（部隊より下）
+  // 水堀（普請が「櫓と堀」の段から）: 外の壁のすぐ外を六角形に回る水の帯。外の輪の門の前は土橋で渡る。見た目だけ
+  private drawMoat(t: Tactical, S: number) {
+    const cs = t.castle !== null ? this.s?.castles[t.castle] : undefined;
+    if (!cs || (cs.fort ?? 0) < 2 || cs.kind === 'yakata' || cs.kind === 'toride') return;
+    const c = this.ctx, { keep, ring } = this.castleRing(t); if (keep < 0 || !ring) return;
+    const { th } = this.wallDims(S);
+    const [kx, ky] = this.center(keep);
+    const r0 = ring * S * SQ3 + th * 1.4, r1 = r0 + S * 0.95;
+    const hexPath = (r: number, p = new Path2D()) => { for (let k = 0; k <= 6; k++) { const a = (k * Math.PI) / 3, x = kx + r * Math.cos(a), y = ky + r * Math.sin(a); if (k) p.lineTo(x, y); else p.moveTo(x, y); } p.closePath(); return p; };
+    const band = hexPath(r1); hexPath(r0, band);
+    const [x0, y0] = this.center(0), [x1, y1] = this.center(t.tiles.length - 1);
+    c.save(); c.beginPath(); c.rect(x0 - S * SQ3, y0 - S * 1.2, x1 - x0 + S * SQ3 * 2.2, y1 - y0 + S * 2.4); c.clip();
+    // 堀の底の暗がりと水面
+    c.fillStyle = 'rgba(20,30,28,0.85)'; c.fill(band, 'evenodd');
+    const water = bgPattern(c, BG.water, this.ox, this.oy, S, 5);
+    c.save(); c.clip(band, 'evenodd'); c.fillStyle = water ?? '#4f7c86'; c.globalAlpha = 0.9; c.fillRect(kx - r1, ky - r1, r1 * 2, r1 * 2); c.globalAlpha = 1;
+    // 岸の陰（内側の岸の下と、外側の岸の上に）
+    c.filter = `blur(${Math.max(2, S * 0.12)}px)`; c.lineWidth = S * 0.22; c.strokeStyle = 'rgba(10,15,15,0.55)'; c.stroke(hexPath(r0)); c.strokeStyle = 'rgba(10,15,15,0.35)'; c.stroke(hexPath(r1)); c.filter = 'none';
+    c.restore();
+    // 岸の石積み（細い縁）
+    const ishi = ready(WALL.ishi) ? (() => { let p = wallPat.get(WALL.ishi); if (!p) { p = c.createPattern(WALL.ishi, 'repeat')!; wallPat.set(WALL.ishi, p); } p.setTransform(new DOMMatrix().translate(this.ox, this.oy).scale((S * 0.35) / WALL.ishi.naturalHeight)); return p; })() : '#7b746a';
+    c.lineWidth = Math.max(1.5, S * 0.1); c.strokeStyle = ishi; c.stroke(hexPath(r0)); c.stroke(hexPath(r1));
+    // 土橋: 外の輪の門の前
+    const soil = bgPattern(c, BG.soil, this.ox, this.oy, S);
+    for (const g of Object.keys(t.gates).map(Number)) {
+      if (tDist(t, g, keep) !== ring) continue;
+      const [gx, gy] = this.center(g), dx = gx - kx, dy = gy - ky, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d, w = S * 0.45;
+      const reach = (r1 - ring * S * SQ3) * (isCorner(t, g, keep) ? 1 : Math.sqrt(3) / 2) + S * 0.18; // 門から堀の外の岸まで（角は頂点の向き、辺は辺に垂直）
+      const a = [gx + ux * th, gy + uy * th], b = [gx + ux * reach, gy + uy * reach];
+      c.beginPath(); c.moveTo(a[0] - uy * w, a[1] + ux * w); c.lineTo(b[0] - uy * w, b[1] + ux * w); c.lineTo(b[0] + uy * w, b[1] - ux * w); c.lineTo(a[0] + uy * w, a[1] - ux * w); c.closePath();
+      c.fillStyle = soil ?? '#7a5a3c'; c.fill(); c.strokeStyle = 'rgba(30,20,10,0.45)'; c.lineWidth = Math.max(1, S * 0.05); c.stroke();
+    }
+    c.restore();
+  }
   drawCastle(t: Tactical, S: number) {
+    this.drawMoat(t, S);
     const { h, th } = this.wallDims(S);
     const sx = h * 0.55, sy = h * 0.28;
     const segs = this.wallSegs(t);
