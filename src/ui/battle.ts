@@ -51,7 +51,7 @@ function groundPatterns(c: CanvasRenderingContext2D, ox: number, oy: number, S: 
 // 地面の下絵（別ファイル）: 草地を全面に敷き、二枚目の草地を大きなむらで重ねる。川は川筋を引いて水面の絵で塗る
 const BG = { grass1: loadImg('tiles/battle/grass1.webp'), grass2: loadImg('tiles/battle/grass2.webp'), water: loadImg('tiles/battle/water.webp') };
 // マスに置く地形の絵（tools/battle-sprites.py で作る。絵の一辺＝マスの半径×2×SPRITE_SCALE）。田畑は入れない
-const SPRITE: Record<string, HTMLImageElement[]> = { F: [1, 2, 3].map((k) => loadImg(`tiles/battle/mori${k}.webp`)), H: [1, 2, 3].map((k) => loadImg(`tiles/battle/oka${k}.webp`)) };
+const SPRITE: Record<string, HTMLImageElement[]> = { F: [1, 2, 3].map((k) => loadImg(`tiles/battle/mori${k}.webp`)), H: [1, 2, 3].map((k) => loadImg(`tiles/battle/oka${k}.webp`)), S: [1, 2, 3].map((k) => loadImg(`tiles/battle/numa${k}.webp`)) };
 const SPRITE_SCALE = 1.18;
 const spriteOf = (tt: string, i: number, seed: number) => { const l = (SPRITE[tt] ?? []).filter(ready); if (!l.length) return null; let h = Math.imul(i + 1, 2654435761) ^ Math.imul(seed + 7, 40503); h = Math.imul(h ^ (h >>> 15), 2246822519); h = (h ^ (h >>> 13)) >>> 0; return { im: l[h % l.length], h }; }; // 左右の反転はしない（光の向きが逆になる）
 const BG_TILE = 7; // 草地1枚の一辺（ヘックスの半径の何倍か）
@@ -193,7 +193,7 @@ class BattleView {
     for (let i = 0; i < t.tiles.length; i++) {
       const [x, y] = this.center(i);
       const tt = t.tiles[i];
-      if (bgOn && (tt === 'P' || tt === 'R' || ((tt === 'F' || tt === 'H') && spriteOf(tt, i, t.hex)))) { c.strokeStyle = 'rgba(25,18,10,0.28)'; c.lineWidth = 1; this.hex(x, y, S); c.stroke(); continue; } // 平地は草地のまま、川は川筋で、森・丘は絵を後で置く
+      if (bgOn && (tt === 'P' || tt === 'R' || ((tt === 'F' || tt === 'H' || tt === 'S') && spriteOf(tt, i, t.hex)))) { c.strokeStyle = 'rgba(25,18,10,0.28)'; c.lineWidth = 1; this.hex(x, y, S); c.stroke(); continue; } // 平地は草地のまま、川は川筋で、森・丘は絵を後で置く
       const pat = pats[tt] ?? (tt === 'G' ? pats.C : undefined); // 城門の下は曲輪の地面
       c.fillStyle = pat ?? TILE[tt];
       this.hex(x, y, S + 0.4); c.fill();
@@ -244,12 +244,13 @@ class BattleView {
     }
     // 森・丘の絵（上の段から順に置き、下の段が手前に重なる。光の向きがそろうよう反転はしない）
     let spriteDone = false;
-    if (bgOn) for (let i = 0; i < t.tiles.length; i++) {
-      const tt = t.tiles[i]; if (tt !== 'F' && tt !== 'H') continue;
+    if (bgOn) for (const pass of ['S', 'FH']) for (let i = 0; i < t.tiles.length; i++) { // 湿地（地面）を先に、森・丘をその上に
+      const tt = t.tiles[i]; if (!pass.includes(tt)) continue;
       const sp = spriteOf(tt, i, t.hex); if (!sp) continue;
       const [x, y] = this.center(i), sz = S * 2 * SPRITE_SCALE;
       const u = (k: number) => (((sp.h >>> k) & 255) / 255) * 2 - 1; // -1〜1
       c.save(); c.translate(x, y);
+      if (tt === 'S') c.rotate((sp.h % 6) * (Math.PI / 3)); // 湿地は真上から見た地面なので、60°ずつ回して繰り返しを隠す
       if (tt === 'F') { c.translate(u(1) * S * 0.1, u(5) * S * 0.08); c.scale(1 + u(13) * 0.1, 1 + u(17) * 0.08); } // 森は位置と大きさを少しずつ変えて、判で押したように見せない（斜めから見た絵なので回さない）
       c.drawImage(sp.im, -sz / 2, -sz / 2, sz, sz); c.restore();
       if (tt === 'F') spriteDone = true;

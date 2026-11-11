@@ -25,7 +25,11 @@ im = Image.open(src).convert('RGBA')
 seed = sum(map(ord, src)) % 10000
 if mode == 'square':
     rgb = np.asarray(im.convert('RGB').resize((N, N), Image.LANCZOS))
-    a = smooth((1.14 - hexm(xx, yy, R)) / 0.28)
+    # 縁を大きなむらにして六角形に見せない: 六角形と円の中間の距離に、ゆるやかなむらを足し、内側からゆっくり消す
+    r = 0.5 * hexm(xx, yy, R) + 0.5 * np.hypot(xx, yy) / R
+    jag = (noise(seed, 6) - 0.5) * 0.5 + (noise(seed + 1, 16) - 0.5) * 0.22 + (noise(seed + 2, 48) - 0.5) * 0.1
+    a = smooth((1.12 - (r + jag)) / 0.55)
+    a *= smooth((N / 2 - np.maximum(np.abs(xx), np.abs(yy))) / (N * 0.08))  # 絵の四辺で必ず消す（まっすぐな切り口を出さない）
 elif mode == 'hex':
     a0 = np.asarray(im)[..., 3]; ys, xs = np.where(a0 > 128)
     cx, cy, rh = (xs.min() + xs.max()) / 2, (ys.min() + ys.max()) / 2, (ys.max() - ys.min()) / 2
