@@ -495,8 +495,11 @@ class BattleView {
     const soil = bgPattern(c, BG.soil, this.ox, this.oy, S);
     for (const g of Object.keys(t.gates).map(Number)) {
       if (tDist(t, g, keep) !== ring) continue;
-      const [gx, gy] = this.center(g), dx = gx - kx, dy = gy - ky, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d, w = S * 0.45;
-      const reach = (r1 - ring * S * SQ3) * (isCorner(t, g, keep) ? 1 : Math.sqrt(3) / 2) + S * 0.18; // 門から堀の外の岸まで（角は頂点の向き、辺は辺に垂直）
+      const [gx, gy] = this.center(g), corner = isCorner(t, g, keep), w = S * 0.45;
+      // 橋の向きは六角形にそろえる: 角の門は頂点の向き（60°ごと）、辺の門は辺に垂直（30°＋60°ごと）
+      const a0 = Math.atan2(gy - ky, gx - kx), st = Math.PI / 3, off = corner ? 0 : Math.PI / 6;
+      const ang = Math.round((a0 - off) / st) * st + off, ux = Math.cos(ang), uy = Math.sin(ang);
+      const reach = (r1 - ring * S * SQ3) * (corner ? 1 : Math.sqrt(3) / 2) + S * 0.18; // 門から堀の外の岸まで（角は頂点の向き、辺は辺に垂直）
       const a = [gx + ux * th, gy + uy * th], b = [gx + ux * reach, gy + uy * reach];
       c.beginPath(); c.moveTo(a[0] - uy * w, a[1] + ux * w); c.lineTo(b[0] - uy * w, b[1] + ux * w); c.lineTo(b[0] + uy * w, b[1] - ux * w); c.lineTo(a[0] + uy * w, a[1] - ux * w); c.closePath();
       c.fillStyle = soil ?? '#7a5a3c'; c.fill(); c.strokeStyle = 'rgba(30,20,10,0.45)'; c.lineWidth = Math.max(1, S * 0.05); c.stroke();
