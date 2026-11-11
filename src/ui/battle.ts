@@ -503,15 +503,36 @@ class BattleView {
     }
   }
 
-  // 城門: 門は輪の角や斜めの辺にあり、壁に沿わせると横からしか見えないので、正面を向いた門構えとしてマスに立てる
-  // （両側の壁の端を覆う幅。足元は壁の足元にそろえる）。石垣の城は上に瓦屋根
+  // 城門: 両側の壁の端（辺の真ん中）を結ぶ。壁と一直線なら、門の絵を壁と同じく帯として貼る。
+  // 輪の左右のとがった角の門は南北に走る（真横を向く）ので、上からは屋根だけが縦に見える
   private drawGateBand(t: Tactical, g: number, S: number, im: HTMLImageElement, roof: boolean) {
     const c = this.ctx; const { h, th } = this.wallDims(S);
+    const keep = t.tiles.indexOf('K'), d = tDist(t, g, keep);
     const [x, y] = this.center(g);
-    const w = S * 1.75, gh = h * 1.2, base = y + th / 2;
-    c.save(); c.globalAlpha = 0.3; c.fillStyle = '#000'; c.filter = `blur(${Math.max(2, S * 0.08)}px)`; c.fillRect(x - w / 2 + S * 0.25, base - S * 0.05, w, S * 0.3); c.restore(); // 足元の影
-    c.drawImage(im, x - w / 2, base - gh, w, gh);
-    if (roof && ready(WALL.kawara)) { const rh = th * 0.95, k = WALL.kawara; c.drawImage(k, 0, 0, k.naturalWidth * (w / (S * 4)), k.naturalHeight, x - w / 2 - S * 0.06, base - gh - rh * 0.8, w + S * 0.12, rh); }
+    const ends = tNeighborsUI(t, g).filter((j) => (t.tiles[j] === 'W' || t.tiles[j] === 'G') && tDist(t, j, keep) === d).map((j) => { const [nx, ny] = this.center(j); return [(x + nx) / 2, (y + ny) / 2] as [number, number]; }).sort((p, q) => p[1] - q[1] || p[0] - q[0]);
+    if (ends.length < 2) return;
+    const [p0, p1] = [ends[0], ends[ends.length - 1]];
+    const gh = h * 1.15, rh = th * 0.95;
+    const k = WALL.kawara;
+    if (Math.abs(p1[0] - p0[0]) < S * 0.1) {
+      // 南北に走る門: 屋根を縦に、手前（南）の端に門の切り口
+      const xx = (p0[0] + p1[0]) / 2, w = th * 1.5;
+      c.save(); c.globalAlpha = 0.3; c.fillStyle = '#000'; c.filter = `blur(${Math.max(2, S * 0.08)}px)`; c.fillRect(xx - w / 2 + S * 0.2, p0[1] - gh * 0.3, w, p1[1] - p0[1] + gh * 0.3); c.restore();
+      c.fillStyle = '#6b5a45'; c.fillRect(xx - th / 2, p1[1] - gh, th, gh); // 南の端の面（門の側面）
+      c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(xx - th / 2, p1[1] - gh * 0.55, th, gh * 0.55);
+      const top = roof ? k : im; // 木戸は屋根がないので、木の門の上の横木（絵の上の端）を縦に
+      if (ready(top)) { c.save(); c.translate(xx, p0[1] - gh); c.rotate(Math.PI / 2); if (roof) c.drawImage(k, 0, 0, k.naturalWidth * ((p1[1] - p0[1]) / (S * 4)), k.naturalHeight, -th * 0.2, -w / 2, p1[1] - p0[1] + th * 0.4, w); else c.drawImage(im, 0, 0, im.naturalWidth, im.naturalHeight * 0.18, -th * 0.2, -th * 0.6, p1[1] - p0[1] + th * 0.4, th * 1.2); c.restore(); }
+      else { c.fillStyle = '#3b3e47'; c.fillRect(xx - w / 2, p0[1] - gh, w, p1[1] - p0[1]); }
+      return;
+    }
+    // 壁と一直線の門: 門の絵を帯として貼り、屋根をかぶせる
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+    let nx = -uy, ny = ux; if (ny < 0 || (ny === 0 && nx < 0)) { nx = -nx; ny = -ny; }
+    const [ax, ay] = ux >= 0 ? p0 : p1, sx = ux >= 0 ? ux : -ux, sy = ux >= 0 ? uy : -uy; // 左から右へ貼る
+    const ox = ax + nx * th / 2, oy = ay + ny * th / 2;
+    c.save(); c.transform(sx, sy, 0, 1, ox, oy - gh); c.drawImage(im, 0, 0, len, gh); c.restore();
+    if (Math.abs(sy) > 0.01) { c.beginPath(); c.moveTo(ox, oy); c.lineTo(ox + sx * len, oy + sy * len); c.lineTo(ox + sx * len, oy + sy * len - gh); c.lineTo(ox, oy - gh); c.closePath(); c.fillStyle = sx * sy > 0 ? 'rgba(0,0,0,0.16)' : 'rgba(255,240,210,0.05)'; c.fill(); }
+    if (roof && ready(k)) { c.save(); c.transform(sx, sy, 0, 1, ax + nx * th * 0.5, ay + ny * th * 0.5 - gh - rh * 0.8); c.drawImage(k, 0, 0, k.naturalWidth * (len / (S * 4)), k.naturalHeight, 0, 0, len, rh); c.restore(); }
   }
 
   // 城門（閉じた門・壊れた門）と耐久。部隊より手前に描く（門の陰の部隊は小さな旗だけ見える）
