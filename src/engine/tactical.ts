@@ -254,7 +254,7 @@ export function createTactical(s: GameState, a: Army, target: Target, playerSide
   const field = target.kind === 'army' && target.stance === 'field'; // 守り手が城の外で迎え撃つ（野戦の盤面）
   const castle = field ? undefined : castleAt(s, defHex);
   const save = castle ? s.sieges?.[castle.i] : undefined;
-  if (castle && save && save.clan === a.clan) return resumeSiege(s, save, a, joined, playerSide);
+  if (castle && save && save.clan === a.clan) return resumeSiege(s, save, a, joined, playerSide, target.kind === 'army' ? target.army : null);
   const kind: Tactical['kind'] = castle ? 'siege' : 'field';
   // 山城（曲輪三重）は地図を広げ、刻も長くとる。館・砦は短い
   const rings = castle ? R.CASTLE_KIND[castle.kind ?? 'hira'].rings : 0;
@@ -337,7 +337,7 @@ export function createTactical(s: GameState, a: Army, target: Target, playerSide
 }
 
 // 包囲の続き: 先月の盤面（門の傷・部隊の位置）から始める。兵と士気は今の軍団・城兵に合わせる
-function resumeSiege(s: GameState, save: NonNullable<GameState['sieges']>[number], a: Army, joined: Army[], playerSide: Side | null): Tactical {
+function resumeSiege(s: GameState, save: NonNullable<GameState['sieges']>[number], a: Army, joined: Army[], playerSide: Side | null, inCastle: Army | null = null): Tactical {
   const t: Tactical = JSON.parse(JSON.stringify(save.tac));
   const castle = s.castles[t.castle!];
   const defClan = castle.owner;
@@ -345,7 +345,7 @@ function resumeSiege(s: GameState, save: NonNullable<GameState['sieges']>[number
   const allies = supportArmies(s, a, t.hex, defClan).filter((o) => o.clan !== a.clan && !ordered.includes(o));
   const supA = [...ordered, ...allies].slice(0, 4);
   const supD = defenderSupports(s, defClan, t.hex, a.clan, null).slice(0, 3);
-  const nowA = [a, ...supA], nowD = supD;
+  const nowA = [a, ...supA], nowD = [...(inCastle && inCastle.clan === defClan ? [inCastle] : []), ...supD.filter((x) => x.id !== inCastle?.id)]; // 城に入った後詰めも城の中で戦う
   const live = new Set([...nowA, ...nowD].map((x) => x.id));
   // 抜けた軍団・討たれた者の隊は盤から外す
   t.units = t.units.filter((u) => !u.out && u.troops > 0 && (u.army === null ? u.role === 'garrison' : live.has(u.army) && (!u.general || s.generals[u.general]?.status === 'army')));
