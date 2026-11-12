@@ -65,6 +65,7 @@ const spriteOf = (tt: string, i: number, seed: number) => { const l = (SPRITE[tt
 const BG_TILE = 7; // 草地1枚の一辺（ヘックスの半径の何倍か）
 let grassMix: { key: string; canvas: HTMLCanvasElement } | null = null;
 let soilMix: { key: string; canvas: HTMLCanvasElement } | null = null;
+let reliefMix: { key: string; canvas: HTMLCanvasElement } | null = null;
 function bgPattern(c: CanvasRenderingContext2D, im: HTMLImageElement, ox: number, oy: number, S: number, k = BG_TILE): CanvasPattern | null {
   if (!ready(im)) return null;
   const p = c.createPattern(im, 'repeat');
@@ -207,6 +208,7 @@ class BattleView {
       }
       this.drawRiver(t, S, [bx, by, bw, bh]);
       if (t.kind === 'siege') this.drawSoilFade(t, S, bx, by, bw, bh);
+      if (t.kind === 'siege') this.drawRelief(t, S, bx, by, bw, bh);
     }
     // 地形（絵があれば絵、なければ色）
     const pats = groundPatterns(c, this.ox, this.oy, S);
@@ -415,6 +417,59 @@ class BattleView {
   private castleRing(t: Tactical) { const keep = t.tiles.indexOf('K'); return { keep, ring: Math.max(0, ...t.tiles.map((x, i) => (x === 'W' || x === 'G' ? tDist(t, i, keep) : 0))) }; }
   nearCastle(t: Tactical, i: number) { if (t.kind !== 'siege') return false; const { keep, ring } = this.castleRing(t); return keep >= 0 && tDist(t, i, keep) <= ring + 3; }
   // 城の土の地面を、外の壁から外へ1〜3マスかけて、むらのある形で草地へ溶かす。城の周りの丘は、土と草の斜面に右下の陰をつけて高まりに見せる
+  // 山城（平山城は弱め）の起伏: 城の曲輪を山頂の平場とし、外へ下る山の斜面と東（右）へ続く尾根を、陰影（光は左上から）で草地と土に重ねる。見た目だけ
+  private drawRelief(t: Tactical, S: number, bx: number, by: number, bw: number, bh: number) {
+    const cs = t.castle !== null ? this.s?.castles[t.castle] : undefined;
+    if (!cs || (cs.kind !== 'yama' && cs.kind !== 'hirayama')) return;
+    const amp = cs.kind === 'yama' ? 1 : 0.45; // 平山城は小高い丘ほどの弱い起伏
+    const { keep, ring } = this.castleRing(t); if (keep < 0) return;
+    const key = `${amp}:${t.hex}:${t.w}x${t.h}:${keep}:${ring}:${Math.round(bw)}x${Math.round(bh)}:${S.toFixed(2)}`;
+    if (reliefMix?.key !== key) {
+      const st = Math.max(2, S * 0.2); // 計算の細かさ（px）
+      const gw = Math.ceil(bw / st) + 2, gh = Math.ceil(bh / st) + 2;
+      const [kx0, ky0] = this.center(keep), kx = kx0 - bx, ky = ky0 - by;
+      const U = S * SQ3; // 1マスの幅
+      const R0 = (ring + 0.9) * U; // 山頂の平場（曲輪）の半径
+      const seed = t.hex * 131 + 7;
+      const hsh = (x: number, y: number) => { let v = Math.imul(x * 374761393 + y * 668265263 + seed, 1274126177); v ^= v >>> 13; v = Math.imul(v, 1103515245); return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
+      const vnoise = (x: number, y: number) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi; const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+        const a = hsh(xi, yi), b2 = hsh(xi + 1, yi), c2 = hsh(xi, yi + 1), d = hsh(xi + 1, yi + 1); return a + (b2 - a) * sx + (c2 - a) * sy + (a - b2 - c2 + d) * sx * sy; };
+      const C30 = Math.cos(Math.PI / 6);
+      const hgt = new Float32Array(gw * gh);
+      for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+        const px = i * st, py = j * st, dx = px - kx, dy = py - ky;
+        // 城壁と同じ向きの六角形の距離（頂点が左右）
+        const a1 = Math.abs(dx * C30 + dy * 0.5), a2 = Math.abs(dy), a3 = Math.abs(-dx * C30 + dy * 0.5);
+        const hr = Math.pow(a1 ** 6 + a2 ** 6 + a3 ** 6, 1 / 6) / C30; // 角を丸めた六角形（角から斜面に折り目が出ないように）
+        const n = vnoise(px / (U * 2.6), py / (U * 2.6)) * 0.75 + vnoise(px / (U * 1.1) + 17, py / (U * 1.1) + 5) * 0.25;
+        // 東（右）へは尾根がそのまま続いて高いまま、西（攻め手の側）と南北へは下る
+        const rr = Math.hypot(dx, dy) || 1, ce = Math.max(0, dx / rr);
+        const span = U * (4.5 + 14 * ce * ce) * (0.85 + 0.3 * n);
+        const u = Math.max(0, hr - R0) / span;
+        let h = S * 5 * amp * Math.exp(-u * 1.6);
+        if (hr > R0) h += S * 0.6 * amp * (n - 0.5) * Math.min(1, u * 2.5); // 斜面のひだ（平場には入れない）
+        hgt[j * gw + i] = h;
+      }
+      const m = document.createElement('canvas'); m.width = gw; m.height = gh; const mx = m.getContext('2d')!;
+      const img = mx.createImageData(gw, gh);
+      const L = [-0.62, -0.5, 0.6], ll = Math.hypot(L[0], L[1], L[2]), flat = L[2] / ll;
+      for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+        const k = j * gw + i;
+        const hx = (hgt[j * gw + Math.min(gw - 1, i + 1)] - hgt[j * gw + Math.max(0, i - 1)]) / (2 * st);
+        const hy = (hgt[Math.min(gh - 1, j + 1) * gw + i] - hgt[Math.max(0, j - 1) * gw + i]) / (2 * st);
+        const nl = Math.hypot(hx, hy, 1);
+        const sh = (-hx * L[0] - hy * L[1] + L[2]) / (nl * ll) - flat;
+        const o = k * 4;
+        if (sh >= 0) { img.data[o] = 255; img.data[o + 1] = 242; img.data[o + 2] = 214; img.data[o + 3] = Math.min(200, sh * 300); }
+        else { img.data[o] = 22; img.data[o + 1] = 14; img.data[o + 2] = 6; img.data[o + 3] = Math.min(130, -sh * 560); }
+      }
+      mx.putImageData(img, 0, 0);
+      const cv = document.createElement('canvas'); cv.width = Math.max(8, Math.round(bw)); cv.height = Math.max(8, Math.round(bh)); const x = cv.getContext('2d')!;
+      x.imageSmoothingQuality = 'high'; x.drawImage(m, 0, 0, gw * st, gh * st);
+      reliefMix = { key, canvas: cv };
+    }
+    if (reliefMix.canvas.width > 0 && reliefMix.canvas.height > 0) this.ctx.drawImage(reliefMix.canvas, bx, by);
+  }
   private drawSoilFade(t: Tactical, S: number, bx: number, by: number, bw: number, bh: number) {
     const c = this.ctx;
     const key = `${t.hex}:${t.w}x${t.h}:${t.tiles.join('')}:${Math.round(bw)}x${Math.round(bh)}:${S.toFixed(2)}`;
