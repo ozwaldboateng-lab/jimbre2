@@ -11,7 +11,7 @@ import { taxDef } from './invest';
 import type { Target } from './move';
 import { armCannon } from './nanban';
 import * as R from './rules';
-import { addLog, castleAt, castleDef, castleKoku, clanArmies, clanAshi, clanCastles, clanName, clanTroops, farmTroops, hostile, maxTroops, mobilizeCap, troopMult } from './state';
+import { addLog, castleAt, castleDef, seenGarrison, castleKoku, clanArmies, clanAshi, clanCastles, clanName, clanTroops, farmTroops, hostile, maxTroops, mobilizeCap, troopMult } from './state';
 import type { Army, Castle, Front, FrontPolicy, GameState, General } from './types';
 
 // ───────── 参照 ─────────
@@ -393,7 +393,7 @@ function frontGoal(s: GameState, a: Army, f: Front, castles: Castle[], homeDist:
     const dd = dist[c.hex];
     // 担当の城から離れすぎない（目標の家を決めていれば少し遠くまで）
     if (dd > R.hx(12) || homeDist[c.hex] > (k === 'clan' ? R.FRONT_REACH + R.hx(4) : R.FRONT_REACH)) continue;
-    const resist = c.garrison * castleDef(c) + enemyNear(s, a.clan, c.hex, R.hx(2)) * 1.2 + 300;
+    const resist = seenGarrison(s, a.clan, c) * castleDef(c) + enemyNear(s, a.clan, c.hex, R.hx(2)) * 1.2 + 300; // 知らない城の城兵は見積もり
     const power = a.troops * a.morale + localPower(s, a, c.hex) * 0.5;
     const focus = c.owner === want ? 2 : c.owner === null ? 1.2 : 1;
     const sc = (focus * (castleKoku(c) + 3) * Math.min(2, power / resist)) / (1 + dd / (3 * R.HK));

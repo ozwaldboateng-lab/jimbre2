@@ -9,7 +9,7 @@ import { carryOf, isSupplied, supplyNet, type SupplyNet } from './supply';
 import { attackTargets, reachable, type Target } from './move';
 import { canPlot, capital, doPlot, moveArmy, plotChance, recruitRonin } from './ops';
 import * as R from './rules';
-import { castleAt, hostile, rand, castleKoku, clanArmies, mobilizeCap, clanCastles, clanTroops, garrisonMax, maxTroops, occupancy, troopMult, castleDef , farmTroops } from './state';
+import { castleAt, hostile, rand, seenGarrison, castleKoku, clanArmies, mobilizeCap, clanCastles, clanTroops, garrisonMax, maxTroops, occupancy, troopMult, castleDef , farmTroops } from './state';
 import type { Army, GameState, General } from './types';
 import { aiFillBugyo, aiFillTsukai } from './ranks';
 import { aiEconomy } from './money';
@@ -223,7 +223,7 @@ export function chooseGoal(s: GameState, a: Army, stance: string, net: SupplyNet
     if (dd > (stance === '攻勢' ? R.hx(10) : R.hx(6))) continue;
     // 補給の届かない城は狙わない（すぐ隣なら別）
     if (dd > 1 && !net.cost.has(c.hex) && !NEIGHBORS[c.hex].some((j) => net.cost.has(j))) continue;
-    const resist = c.garrison * castleDef(c) + enemyNear(s, a.clan, c.hex, R.hx(2)) * 1.2 + 300;
+    const resist = seenGarrison(s, a.clan, c) * castleDef(c) + enemyNear(s, a.clan, c.hex, R.hx(2)) * 1.2 + 300; // 知らない城の城兵は見積もり
     const power = a.troops * a.morale + localPower(s, a, c.hex) * 0.5;
     if (stance === '均衡' && resist > power * 1.1) continue;
     const focus = c.owner === s.clans[a.clan].target ? 2 : c.owner === null ? 1.5 : 1;

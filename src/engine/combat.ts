@@ -187,7 +187,7 @@ export function battle(s: GameState, a: Army, t: Target, charge: boolean, joined
   if (!dBroke) D.morale += attackerWon ? 0 : R.MORALE_WIN;
 
   // 交戦で敵武将の能力を公開（城を攻めた・守った城の中身も分かる）
-  if (t.kind === 'castle' && (a.clan === s.player || defClan === s.player)) learnCastle(s, t.castle);
+  if (t.kind === 'castle') { learnCastle(s, t.castle, a.clan); if (defClan) learnCastle(s, t.castle, defClan); }
   if (a.clan === s.player && t.kind === 'army') for (const id of membersOf(t.army)) if (!s.revealed.includes(id)) s.revealed.push(id);
   if (defClan === s.player) for (const x of attackers) for (const id of membersOf(x)) if (!s.revealed.includes(id)) s.revealed.push(id);
   if (supports.length) events.push(`援軍${supports.length}隊`);

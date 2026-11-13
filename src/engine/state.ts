@@ -1,5 +1,5 @@
 // 状態の参照・小さな操作
-import { HEXES } from './map';
+import { HEXES, NEIGHBORS } from './map';
 import * as R from './rules';
 import type { Army, Castle, GameState, General, LogEntry } from './types';
 
@@ -105,7 +105,20 @@ export const maxTroops = (s: GameState, a: Army) => Math.round((personalCap(s, s
 
 
 // 他家の城の中身を、しばらく知っている（探り・城攻め・内応）
-export function learnCastle(s: GameState, ci: number) { (s.intel ??= {})[ci] = Math.max(s.intel[ci] ?? 0, s.turn + R.INTEL_MONTHS); }
+export function learnCastle(s: GameState, ci: number, clan: string = s.player) {
+  const m = clan === s.player ? (s.intel ??= {}) : ((s.intelAI ??= {})[clan] ??= {});
+  m[ci] = Math.max(m[ci] ?? 0, s.turn + R.INTEL_MONTHS);
+}
+// その家が城の中身（城兵・蔵・治安など）を知っているか: 自分の城・同盟の城、自軍か自城が同じマスか隣にいる、探り・城攻め・内応から間もない（プレイヤーもAIも同じ）
+export function knowsCastle(s: GameState, clan: string, c: Castle) {
+  if (c.owner === clan || allied(s, clan, c.owner)) return true;
+  const until = clan === s.player ? s.intel?.[c.i] : s.intelAI?.[clan]?.[c.i];
+  if ((until ?? -1) >= s.turn) return true;
+  const near = (h: number) => h === c.hex || NEIGHBORS[c.hex].includes(h);
+  return armyList(s).some((a) => a.clan === clan && near(a.hex)) || s.castles.some((x) => x.owner === clan && near(x.hex));
+}
+// 知らない城の城兵は、満ちているものと見積もる（9割）
+export const seenGarrison = (s: GameState, clan: string, c: Castle) => (knowsCastle(s, clan, c) ? c.garrison : Math.round(garrisonMax(c) * 0.9));
 export function addLog(s: GameState, text: string, kind: LogEntry['kind'], mine: boolean) {
   s.log.push({ turn: s.turn, text, kind, mine });
   if (s.log.length > 400) s.log.splice(0, s.log.length - 400);

@@ -16,6 +16,7 @@ import {
   hostile, armyCombat, armyStats, ashiOf, clanAshi, drillOf, castleAt, castleKoku, clanArmies, clanCapacity, clanCastles, clanKoku, clanName, clanTroops, clanUpkeep,
   castleDef, dateLabel, garrisonMax, treatyOf, hexOwner, initialMorale, maxTroops, occupancy, troopMult,
   mobilizeCap, fieldTroops,
+  knowsCastle,
 } from '../engine/state';
 import type { Army, BattleReport, BigEvent, Castle, Front, GameState, General, Item } from '../engine/types';
 import { openingOn, openTitleScreen, setOpeningOn, titleOpen } from './title';
@@ -577,12 +578,7 @@ function freeGenerals(): General[] {
 const capOf = (g: General) => Math.round(((3000 + g.lea * 100) * troopMult(s!, g)) / 100) * 100;
 
 // 他家の城の中身（城兵・蔵・治安など）が分かるか: 当家・同盟の城、自軍か自城が隣にいる、探り・城攻め・内応から間もない
-function castleKnown(st: GameState, c: Castle) {
-  if (c.owner === st.player || (c.owner && treatyOf(st, st.player, c.owner))) return true;
-  if ((st.intel?.[c.i] ?? -1) >= st.turn) return true;
-  const near = (h: number) => h === c.hex || NEIGHBORS[c.hex].includes(h);
-  return clanArmies(st, st.player).some((a) => near(a.hex)) || clanCastles(st, st.player).some((x) => near(x.hex));
-}
+const castleKnown = (st: GameState, c: Castle) => knowsCastle(st, st.player, c);
 // 城の画面: 見るための札（自分の城も他家の城も同じ形。出さない・当てはまらない項目は「—」、分からない項目は「不明」）
 function castleCard(c: Castle) {
   const st = s!, me = st.clans[st.player], mine = c.owner === st.player;
