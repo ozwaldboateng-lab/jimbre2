@@ -16,7 +16,7 @@ if (process.argv[4]) await p.evaluate((v) => { window.__seedTry = +v; }, process
 for (const act of ['rumor', 'arson', 'assassinate', 'spy']) {
   // 忍び頭（百地丹波）を据え直し、月に一度の決まりと金を戻す
   await p.evaluate(() => { const s = window.__sengoku.state, g = s.generals.momochi_tanba, k = s.castles.find((c) => c.id === 'kiyosu'); g.clan = 'oda'; g.status = 'free'; g.army = null; g.captor = null; g.loc = k.i; s.clans.oda.ninja = g.id; s.clans.oda.ninjaTurn = -9; s.clans.oda.gold = 50000; if (window.__seedTry !== undefined) s.seed = window.__seedTry; });
-  await p.keyboard.press('3'); await p.click('[data-act="stab"][data-id="tokusei"]'); await p.waitForTimeout(150);
+  await p.keyboard.press('4'); await p.click('[data-act="stab"][data-id="shinobi"]'); await p.waitForTimeout(150);
   await p.selectOption('#sel-ninja-act', act).catch(() => {}); await p.waitForTimeout(150);
   const opt = await p.$eval('#sel-ninja-target option:nth-child(2)', (o) => o.value).catch(() => null);
   if (!opt) { res[act] = 'no target'; await p.click('#modal-close'); continue; }

@@ -668,3 +668,13 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 .sheet:has(.jin-cols) { width: min(1480px, 100%); }
 .jin-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 28px; align-items: start; }
 @media (max-width: 1100px) { .jin-cols { grid-template-columns: 1fr; } }
+/* 2列（PC）: 奉行と使番、恩賞と下賜・茶会 */
+.sheet:has(.two-cols) { width: min(1480px, 100%); }
+.two-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 0 28px; align-items: start; }
+@media (max-width: 1100px) { .two-cols { grid-template-columns: 1fr; } }
+/* 家臣団: PCでは一行を詰める（顔絵を小さく、上下の余白を減らす） */
+@media (min-width: 1200px) {
+  .sheet:has(.vas-tbl) { width: min(1200px, 100%); }
+  .vas-tbl td { padding-top: 1px; padding-bottom: 1px; }
+  #modal .vas-tbl .face-sm { width: 22px !important; height: 28px !important; margin-right: 4px; }
+}

@@ -42,7 +42,7 @@ const armed = await p.evaluate(() => Object.values(window.__sengoku.state.armies
 await p.keyboard.press('4'); await p.click('[data-act="stab"][data-id="mission"]'); await p.waitForTimeout(100);
 await p.screenshot({ path: `${out}/203-mission${sfx}.png` });
 const mtext = await p.evaluate(() => document.querySelector('#modal').textContent.slice(0, 120));
-await p.keyboard.press('3'); await p.click('[data-act="stab"][data-id="gift"]'); await p.waitForTimeout(100);
+await p.keyboard.press('3'); await p.click('[data-act="stab"][data-id="rewards"]'); await p.waitForTimeout(100);
 const gift = await p.evaluate(() => document.querySelector('#modal').textContent.includes('地球儀'));
 const sw = await p.evaluate(() => document.documentElement.scrollWidth);
 await closeAll();

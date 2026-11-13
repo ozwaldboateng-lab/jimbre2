@@ -35,7 +35,7 @@ await p.screenshot({ path: `${out}/81-trade-gun.png` });
 await p.click('[data-act="stab"][data-id="item"]'); await p.waitForTimeout(100);
 const buy = await p.$('[data-act="item-buy"]:not([disabled])');
 if (buy) { await buy.click(); await p.waitForTimeout(100); }
-await p.click('[data-act="mtab"][data-id="jinji"]'); await p.click('[data-act="stab"][data-id="gift"]'); await p.waitForTimeout(100);
+await p.click('[data-act="mtab"][data-id="jinji"]'); await p.click('[data-act="stab"][data-id="rewards"]'); await p.waitForTimeout(100);
 // 最初の名物を柴田勝家に持たせる
 const sel = await p.$('select[data-equip]');
 const eq = await p.evaluate(() => { const s = document.querySelector('select[data-equip]'); const o = [...s.options].find((x) => x.textContent.startsWith('柴田')); return o ? o.value : null; });

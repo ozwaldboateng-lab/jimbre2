@@ -14,7 +14,7 @@ for (let k = 0; k < 4; k++) if (await p.$('#modal:not([hidden])')) await p.click
 // 細川藤孝（茶人）を当家に、名物の茶器を持たせて
 await p.evaluate(() => { const s = window.__sengoku.state, g = s.generals.hosokawa_fujitaka; g.clan = 'oda'; g.status = 'free'; g.loc = s.castles.find((c) => c.id === 'kiyosu').i; s.clans.oda.gold = 20000; const teas = Object.values(s.items).filter((i) => i.kind === 'tea').sort((a, b) => b.grade - a.grade); const give = (it, x) => { if (!it) return; if (it.holder && s.generals[it.holder]) s.generals[it.holder].tea = undefined; it.clan = 'oda'; it.holder = x.id; x.tea = it.id; }; give(teas[0], g); give(teas[1], s.generals.shibata_katsuie); window.__teaG = [teas[0]?.grade, teas[1]?.grade]; });
 const view0 = await p.evaluate(() => { const v = window.__sengoku.view; return [Math.round(v.scale * 100), Math.round(v.ox), Math.round(v.oy)]; });
-await p.keyboard.press('3'); await p.click('[data-act="stab"][data-id="tokusei"]'); await p.waitForTimeout(150);
+await p.keyboard.press('3'); await p.click('[data-act="stab"][data-id="rewards"]'); await p.waitForTimeout(150);
 await p.selectOption('#sel-tea-host', 'hosokawa_fujitaka').catch(() => {}); await p.waitForTimeout(100);
 await p.click('[data-act="tea-do"]'); await p.waitForTimeout(500);
 const beats = [];
