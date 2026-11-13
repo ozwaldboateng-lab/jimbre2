@@ -649,3 +649,11 @@ body.in-scene #map { filter: saturate(0.75) brightness(0.72) sepia(0.15); pointe
 .sheet:has(.naisei-tbl) { width: min(1480px, 100%); }
 .naisei-tbl td, .naisei-tbl th { white-space: nowrap; }
 .naisei-tbl td .mini { margin-left: 4px; }
+/* 内政 › 予算と動員: 左に決めること、右に結果 */
+.sheet:has(.yosan-grid) { width: min(1180px, 100%); }
+.yosan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 28px; align-items: start; }
+.yosan-grid .sect-h { font-size: 15px; margin: 12px 0 4px; }
+table.ledger { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.ledger td { padding: 2px 4px; border-bottom: 1px solid var(--hair); }
+table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 0; font-weight: 600; }
+@media (max-width: 860px) { .yosan-grid { grid-template-columns: 1fr; } }

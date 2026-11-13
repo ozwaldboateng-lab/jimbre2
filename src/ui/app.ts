@@ -15,6 +15,7 @@ import { FACE_ON, mergeArmies, mergeBlock, mergeLeaders, mergePreview, RIVAL_ON,
 import {
   hostile, armyCombat, armyStats, ashiOf, clanAshi, drillOf, castleAt, castleKoku, clanArmies, clanCapacity, clanCastles, clanKoku, clanName, clanTroops, clanUpkeep,
   castleDef, dateLabel, garrisonMax, treatyOf, hexOwner, initialMorale, maxTroops, occupancy, troopMult,
+  mobilizeCap, fieldTroops,
 } from '../engine/state';
 import type { Army, BattleReport, BigEvent, Castle, Front, GameState, General, Item } from '../engine/types';
 import { openingOn, openTitleScreen, setOpeningOn, titleOpen } from './title';
@@ -169,6 +170,7 @@ export function boot(saved?: { state?: GameState }) {
       if (el.dataset.budget === 'mobilize') me.mobilize = v; else me.budget[el.dataset.budget as 'chisui' | 'hodo'] = v;
       refresh(); openMenu();
     }
+    if (el.id === 'sel-focus' && s) { s.clans[s.player].focus = el.value === '' ? null : +el.value; refresh(); openMenu(); return; }
     if (el.dataset.jinCastle !== undefined && s) { jinCastle = +el.value; openMenu(); }
     if (el.dataset.jinmain && el.value && s) {
       const a = armyOrCamp(s, +el.dataset.jinmain)!, g = s.generals[el.value];
@@ -732,7 +734,7 @@ function overviewPanel() {
   ${todo.length ? `<div class="todo-box"><h3>今月の要件</h3><ul class="list">${todo.map((x) => `<li><button data-act="todo"><span class="grow">${esc(x.label)}</span><span class="num">${x.n}</span></button></li>`).join('')}</ul></div>` : ''}
   <dl class="kv"><dt>動員</dt><dd>${fmt(clanTroops(st, st.player))} / ${fmt(clanCapacity(st, st.player))}人</dd>
   <dt>兵糧</dt><dd>${fmt(me.food)}石（月 −${fmt(clanUpkeep(st, st.player))}）</dd>
-  <dt>収穫</dt><dd>十月　見込 ${fmt(clanKoku(st, st.player) * R.HARVEST_RATE)}石</dd></dl>
+  <dt>収穫</dt><dd>十月　見込 ${fmt(harvestForecast(st).koku)}石</dd></dl>
   <h3 style="margin-top:12px">軍団　未行動 ${ready}</h3>
   <ul class="list">${armies.map((a) => `<li><button data-act="goto" data-id="${a.id}"><span class="swatch" style="background:${a.acted ? '#5c5046' : me.color}"></span><span class="grow">${esc(st.generals[a.main].name)}${a.routed ? '（壊乱）' : ''}${orderFor(st, a.id) ? '　⚔出陣' : ''}</span><span class="num">${fmt(a.troops)}</span><span class="num">${a.morale.toFixed(2)}</span></button></li>`).join('') || '<li class="hint">軍団がない。城から編成する。</li>'}</ul>
   <p class="hint">部隊を選び、明るいヘックスへ移動。赤枠の敵や城をクリックで出陣を命じる。合戦は「評定終了」（E）のときに、同じ目標へ命じた軍団すべてで始まる。</p>`;
@@ -1242,12 +1244,11 @@ const MENUS: { key: MenuKey; name: string; tabs: [string, string][] }[] = [
 ];
 // 束ねたタブ: [見出し, 旧タブ]（見出しが空なら見出しなし）
 const COMPOSITE: Record<string, [string, string][]> = {
-  yosan: [['', 'budget'], ['動員目標', 'mobilize']],
   butai: [['', 'armies'], ['足軽と練度', 'ashi'], ['鉄砲・大筒の配備', 'guns']],
   jinzai: [['在野', 'ronin'], ['捕虜', 'captive'], ['判明した敵将', 'known']],
 };
 // 旧タブの名で開かれたら、束ねたタブへ
-const ALIAS: Record<string, string> = { ...Object.fromEntries(Object.entries(COMPOSITE).flatMap(([k, v]) => v.map(([, old]) => [old, k]))), clans: 'gaike', dip: 'gaike', ichiba: 'rice', castles: 'shiro' };
+const ALIAS: Record<string, string> = { ...Object.fromEntries(Object.entries(COMPOSITE).flatMap(([k, v]) => v.map(([, old]) => [old, k]))), clans: 'gaike', dip: 'gaike', ichiba: 'rice', castles: 'shiro', budget: 'yosan', mobilize: 'yosan' };
 // 束ねたタブの中の小見出し（一度に一つだけ見せる）。見出しが空のものはこの名で
 const SUB_NAME: Record<string, string> = { castles: '城一覧', budget: '予算', armies: '部隊一覧' };
 const lastSub: Record<string, string> = {};
@@ -1347,6 +1348,13 @@ const GLOSSARY: [string, string, string][] = [
 const GLOSSARY_HTML = `<dl class="kv glossary">${GLOSSARY.map(([w, y, d]) => `<dt>${w}<small>${y}</small></dt><dd>${d}</dd>`).join('')}</dl>`;
 const dNote = (st: GameState, k: DelegateKey) => (delegateOf(st)[k] ? '<p class="hint warn" style="margin-top:0">委任中: 毎月の評定終了時にAIが決める（手で変えても翌月に上書きされる）。</p>' : '');
 const nearOwn = (st: GameState, a: Army) => castleAt(st, a.hex)?.owner === st.player || NEIGHBORS[a.hex].some((j) => castleAt(st, j)?.owner === st.player);
+// 十月の収穫の見込み（治水の倍率・年貢の率・農繁期の出陣の減りまで入れる。月末の処理と同じ式）
+function harvestForecast(st: GameState) {
+  const me = st.clans[st.player], cap = clanCapacity(st, st.player);
+  const loss = Math.min(R.FARM_LOSS_MAX, (R.FARM_LOSS * ((me.farmAway ?? 0) / R.FARM_MONTHS.length)) / Math.max(1, cap));
+  const koku = Math.round(clanCastles(st, st.player).reduce((t, c) => t + castleKoku(c) * R.harvestMult(c.chisui) * R.HARVEST_RATE, 0) * TAX[taxOf(st, st.player)].income * (1 - loss));
+  return { koku, loss };
+}
 const selPct = (key: string, v: number, steps: number[]) => `<select data-budget="${key}">${steps.map((x) => `<option value="${x}" ${x === v ? 'selected' : ''}>${x}%</option>`).join('')}</select>`;
 const effOf = (it: Item) => { const b = R.itemBonus(it.kind, it.grade); return it.kind === 'tea' ? `魅力+${b.cha} 知略+${b.int}` : it.kind === 'sword' ? `武勇+${b.bra} 統率+${b.lea}` : `全能力+${b.bra}`; };
 const bugyoLine = (k: string, x: ReturnType<typeof bugyoCoef>) => `${k} 係数${x.coef.toFixed(2)}（自然増${R.DEV_NATURAL}＋奉行${x.base.toFixed(2)}${x.cover < 1 ? `×目の届く割合${Math.round(x.cover * 100)}%` : ''}）→ 城主のいる城は月+${(R.BUGYO_RATE * x.coef * 100).toFixed(2)}%`;
@@ -1539,21 +1547,60 @@ function openGeneral(id: string, back: boolean) {
 
 const TABS: Record<string, (st: GameState) => string> = {
   // ── 内政 ──
-  budget: (st) => {
-    const me = st.clans[st.player], inc = clanIncome(st, st.player), lb = me.lastBudget;
-    return `${dNote(st, 'budget')}<dl class="kv">
-      <dt>治水</dt><dd>${selPct('chisui', me.budget.chisui, R.BUDGET_STEPS)}　月およそ${fmt((inc * me.budget.chisui) / 100)}貫${lb ? `（先月${fmt(lb.chisui)}貫）` : ''}</dd>
-      <dt>施し</dt><dd>${selPct('hodo', me.budget.hodo, R.BUDGET_STEPS)}　月およそ${fmt((inc * me.budget.hodo) / 100)}貫${lb ? `（先月${fmt(lb.hodo)}貫）` : ''}</dd>
-      <dt>重点の城</dt><dd>${me.focus !== null && me.focus !== undefined ? esc(st.castles[me.focus].name) : 'なし（「内政」の領内で指定）'}</dd></dl>
-      <h3 style="margin-top:12px">年貢の率</h3>
-      <div class="subtabs">${(['low', 'mid', 'high'] as Tax[]).map((t) => `<button aria-selected="${taxOf(st, st.player) === t}" data-act="tax" data-id="${t}">${TAX[t].name}</button>`).join('')}</div>
-      <p class="hint" style="margin-top:0">${(['low', 'mid', 'high'] as Tax[]).map((t) => `<b>${TAX[t].name}</b>（${TAX[t].note}）: 年貢・商いの収入×${TAX[t].income}${TAX[t].chian ? `・治安 毎月${TAX[t].chian > 0 ? '+' : ''}${TAX[t].chian}` : ''}${TAX[t].grow !== 1 ? `・開発の伸び×${TAX[t].grow}` : ''}${TAX[t].cap !== 1 ? `・動員上限×${TAX[t].cap}` : ''}${TAX[t].ember !== 1 ? `・残り火の鎮まり×${TAX[t].ember}` : ''}`).join('<br>')}<br>鉱山と貿易の稼ぎは年貢の率に関わらない。</p>
-      <p class="hint">城ごとの投資・新田開発・普請・楽市楽座は「内政」の領内で。</p>
+  // 内政 › 予算と動員: 左に決めること（年貢・治水・施し・重点・動員目標）、右にその結果（金の収支・治安の増減・兵と兵糧の見通し）
+  yosan: (st) => {
+    const me = st.clans[st.player], cs = clanCastles(st, st.player), n = Math.max(1, cs.length);
+    const tx = TAX[taxOf(st, st.player)];
+    const sgn = (v: number, d = 0) => { const a = d ? Math.abs(v).toFixed(d) : fmt(Math.abs(Math.round(v))); return `${+a.replace(/,/g, '') === 0 ? '±' : v > 0 ? '+' : '−'}${a}`; };
+    // 金（毎月）
+    const com = Math.round(cs.reduce((t, c) => t + castleCom(c), 0) * tx.income), mine = clanMine(st, st.player), inc = com + mine;
+    const fiefOut = frontsOf(st).reduce((t, f) => t + Math.round(f.castles.map((i) => st.castles[i]).filter((c) => c.owner === st.player).reduce((u, c) => u + castleCom(c), 0) * (1 - R.FIEF_TRIBUTE) * tx.income), 0);
+    const chisuiG = Math.floor((clanIncome(st, st.player) * me.budget.chisui) / 100), hodoG = Math.floor((clanIncome(st, st.player) * me.budget.hodo) / 100);
+    const gunG = Math.round((clanGuns(st, st.player) * R.GUN_UPKEEP + clanCannon(st, st.player) * R.CANNON_UPKEEP) * (hasProduct(st, st.player, 'powder') ? R.POWDER_UPKEEP : 1));
+    const ashiG = Math.round(clanAshi(st, st.player) * R.ASHI_WAGE);
+    const net = inc - fiefOut - chisuiG - hodoG - gunG - ashiG;
+    const row = (k: string, v: number, note = '') => `<tr><td>${k}${note ? `<span class="hint" style="margin:0">　${note}</span>` : ''}</td><td class="n">${sgn(v)}貫</td></tr>`;
+    const gold = `<table class="ledger"><tbody>${row('商業', com, `年貢の率×${tx.income}`)}${mine ? row('鉱山', mine) : ''}${fiefOut ? row('知行（領）へ渡す', -fiefOut, `商いの${Math.round((1 - R.FIEF_TRIBUTE) * 100)}%`) : ''}${row('治水', -chisuiG, '使い切らなければ残る')}${row('施し', -hodoG, '同上')}${gunG ? row('鉄砲・大筒の維持', -gunG) : ''}${ashiG ? row('足軽の給金', -ashiG) : ''}
+      <tr class="sum"><td>差し引き</td><td class="n">${sgn(net)}貫</td></tr></tbody></table><p class="hint" style="margin-top:2px">南蛮船・唐船・銀の交易は来航の月だけ入る。先月の治水 ${fmt(me.lastBudget?.chisui ?? 0)}貫・施し ${fmt(me.lastBudget?.hodo ?? 0)}貫。</p>`;
+    // 治安（全城の平均、毎月）
+    const agg = new Map<string, number>();
+    for (const c of cs) for (const [k, v] of chianDelta(st, me, c, besieged(st, c), me.food <= 0).parts) agg.set(k, (agg.get(k) ?? 0) + v / n);
+    const per = (money: number, unit: number) => (money / n) * cs.reduce((t, c) => t + 1 / Math.max(0.1, c.baseKoku * unit), 0) / n; // 低い城から均して配ったときの平均の上がり
+    const hodoUp = per(hodoG, R.HODO_COST), chisuiUp = per(chisuiG, R.CHISUI_COST);
+    const avg = (k: 'chian' | 'chisui') => cs.reduce((t, c) => t + c[k], 0) / n;
+    const parts = [...agg.entries()].filter(([, v]) => Math.abs(v) >= 0.05);
+    const chianTotal = parts.reduce((t, [, v]) => t + v, 0) + hodoUp;
+    const chian = `<table class="ledger"><tbody>${parts.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${sgn(v, 1)}</td></tr>`).join('')}<tr><td>施し<span class="hint" style="margin:0">　およそ</span></td><td class="n">${sgn(hodoUp, 1)}</td></tr>
+      <tr class="sum"><td>治安 今${avg('chian').toFixed(0)}</td><td class="n">月${sgn(chianTotal, 1)}</td></tr><tr class="sum"><td>治水 今${avg('chisui').toFixed(0)}</td><td class="n">月${sgn(chisuiUp, 1)}</td></tr></tbody></table>`;
+    // 兵と兵糧
+    const camp = campsOf(st, st.player).reduce((t, a) => t + a.troops, 0), field = fieldTroops(st, st.player), ashi = clanAshi(st, st.player);
+    const cap = clanCapacity(st, st.player), mcap = mobilizeCap(st, st.player), rate = mobilizeRate(st, st.player), drop = mobilizeDrop(st, st.player);
+    const upkeep = clanUpkeep(st, st.player);
+    const { koku: harvest, loss } = harvestForecast(st);
+    const toHarvest = (R.HARVEST_MONTH - st.month + 12) % 12 || 12;
+    const lasts = upkeep > 0 ? Math.floor(me.food / upkeep) : Infinity;
+    const troops = `<dl class="kv"><dt>兵</dt><dd>${fmt(field + camp)}人（出陣 ${fmt(field)}・名簿 ${fmt(camp)}${ashi ? `・うち足軽 ${fmt(ashi)}` : ''}）</dd>
+      <dt>動員上限</dt><dd>${fmt(cap)}人　補充はこの${me.mobilize ?? R.MOBILIZE_DEFAULT}%＝${fmt(mcap)}人まで</dd>
+      <dt>動員率</dt><dd>${Math.round(rate * 100)}%（出陣中の農兵）${drop ? `<span class="warn">　治安 毎月−${drop.toFixed(1)}</span>` : '<span class="hint" style="margin:0">　治安は下がらない</span>'}</dd>
+      <dt>兵糧</dt><dd>${fmt(me.food)}石　月−${fmt(upkeep)}石${upkeep ? `（${lasts === Infinity ? '' : lasts >= toHarvest ? `収穫まで${toHarvest}か月もつ` : `<span class="warn">${lasts}か月で尽きる（収穫まで${toHarvest}か月）</span>`}）` : ''}</dd>
+      <dt>十月の収穫</dt><dd>見込 ${fmt(harvest)}石${loss >= 0.01 ? `<span class="warn">（農繁期の出陣で−${Math.round(loss * 100)}%）</span>` : ''}</dd></dl>`;
+    // 左: 決めること
+    const taxTip = (t: Tax) => `${TAX[t].note}: 年貢・商いの収入×${TAX[t].income}${TAX[t].chian ? `・治安 毎月${TAX[t].chian > 0 ? '+' : ''}${TAX[t].chian}` : ''}${TAX[t].grow !== 1 ? `・開発の伸び×${TAX[t].grow}` : ''}${TAX[t].cap !== 1 ? `・動員上限×${TAX[t].cap}` : ''}${TAX[t].ember !== 1 ? `・残り火の鎮まり×${TAX[t].ember}` : ''}`;
+    const focusSel = `<select id="sel-focus" aria-label="重点の城"><option value="">なし</option>${cs.map((c) => `<option value="${c.i}" ${me.focus === c.i ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`;
+    const left = `<dl class="kv">
+      <dt>年貢の率</dt><dd><div class="subtabs" style="margin:0">${(['low', 'mid', 'high'] as Tax[]).map((t) => `<button aria-selected="${taxOf(st, st.player) === t}" data-act="tax" data-id="${t}" title="${esc(taxTip(t))}">${TAX[t].name}</button>`).join('')}</div><div class="hint" style="margin:2px 0 0">${esc(taxTip(taxOf(st, st.player)))}</div></dd>
+      <dt>治水</dt><dd>${selPct('chisui', me.budget.chisui, R.BUDGET_STEPS)}　収入の割合（月およそ${fmt(chisuiG)}貫）</dd>
+      <dt>施し</dt><dd>${selPct('hodo', me.budget.hodo, R.BUDGET_STEPS)}　収入の割合（月およそ${fmt(hodoG)}貫）</dd>
+      <dt>重点の城</dt><dd>${focusSel}　治水・施しの半分を先に回す</dd>
+      <dt>動員目標</dt><dd>${selPct('mobilize', me.mobilize ?? R.MOBILIZE_DEFAULT, R.MOBILIZE_STEPS)}　動員上限のうち、毎月の補充と編成はここまで</dd></dl>`;
+    return `${dNote(st, 'budget')}<div class="yosan-grid"><section><h3 class="sect-h" style="margin-top:0">決めること</h3>${left}<p class="hint">城ごとの投資・新田開発・普請・楽市楽座は「内政」の領内で。</p></section>
+      <section><h3 class="sect-h" style="margin-top:0">金の収支（毎月）</h3>${gold}<h3 class="sect-h">治安・治水（全城の平均、毎月）</h3>${chian}<h3 class="sect-h">兵と兵糧</h3>${troops}</section></div>
       ${hints([
-        `毎月の収入のうち、決めた割合を治水と施しに回す。重点の城に半分を先に回し、残りは低い城から自動で配る。治水1＝基本石高×${R.CHISUI_COST}貫、治安1（施し）＝基本石高×${R.HODO_COST}貫。城ごとの値は「内政」の領内で見られる。`,
+        `治水・施しは毎月の収入のうち決めた割合を上限に使い、重点の城に半分を先に回し、残りは低い城から配る。治水1＝基本石高×${R.CHISUI_COST}貫、治安1（施し）＝基本石高×${R.HODO_COST}貫。上がり幅の見込みは、低い城から均して配ったときの平均。`,
         '治水: 収穫＝石高×（0.7＋治水×0.006）。0で70%、50で100%、100で130%。',
         '治安: 動員上限＝石高×（200＋治安×1.5）人、開発の上限＝100%＋治安×0.6%。上限を超えた開発度は毎月少しずつ下がる。',
-        `治安が下がる: 動員率（出陣中の農兵÷動員上限。名簿の兵は数えない）が50%を超えた分×10が毎月（100%で−5）、包囲${R.CHIAN_SIEGE}、兵糧切れ${R.CHIAN_STARVE}、落とした城は${R.CHIAN_CAPTURED}から。上がる: 城主の魅力（(魅力−40)÷20）、戦のない月+${R.CHIAN_PEACE}、施し。動員目標は「軍事」で決める。`,
+        `動員: 自城と隣にいる軍団・城兵は、兵が動員目標に届くまで毎月補充される（兵糧${R.RECRUIT_COST}石/人）。動員率（地図に出ている農兵÷動員上限。陣払いの名簿の兵と足軽は数えない）が${R.MOBILIZE_FREE * 100}%を超えた分×${R.MOBILIZE_DROP}だけ、全城の治安が毎月下がる。農繁期（${R.FARM_MONTHS.join('・')}月）に農兵を領外へ出すと十月の収穫が減る。`,
+        `治安が下がる: 動員、包囲${R.CHIAN_SIEGE}、兵糧切れ${R.CHIAN_STARVE}、落とした城は${R.CHIAN_CAPTURED}から。上がる: 城主の魅力（(魅力−40)÷20）、戦のない月+${R.CHIAN_PEACE}、施し。`,
       ])}`;
   },
   // 内政 › 領内: 城ごとの内政の操作（投資・新田・普請・楽市楽座・重点）を一つの表で。城主・奉行の任命は人事で
@@ -1653,15 +1700,6 @@ const TABS: Record<string, (st: GameState) => string> = {
         `足軽（常備兵）: 自城か隣にいる部隊に、1人${R.ASHI_HIRE}貫で一度に${R.ASHI_STEP}人まで雇える（練度${R.DRILL_ASHI}で加わる）。兵数の上限を超える分は、農兵を帰して足軽に入れ替える。給金は1人月${R.ASHI_WAGE}貫で、払えなければ毎月1割が去る。動員上限を使わず、動員による治安の低下にも数えない。`,
         `農繁期（${R.FARM_MONTHS.join('・')}月）に領外へ出陣している農兵の分だけ、十月の収穫が減る（減り＝${R.FARM_LOSS}×農繁期に領外にいた農兵の平均÷動員上限、最大${R.FARM_LOSS_MAX * 100}%）。足軽は季節を問わない。`,
       ])}`;
-  },
-  mobilize: (st) => {
-    const me = st.clans[st.player], rate = mobilizeRate(st, st.player), drop = mobilizeDrop(st, st.player);
-    return `${dNote(st, 'budget')}<dl class="kv">
-      <dt>動員目標</dt><dd>${selPct('mobilize', me.mobilize ?? R.MOBILIZE_DEFAULT, R.MOBILIZE_STEPS)}　毎月の補充はここまで</dd>
-      <dt>兵</dt><dd>${fmt(clanTroops(st, st.player))}人（うち足軽${fmt(clanAshi(st, st.player))}人）／動員上限 ${fmt(clanCapacity(st, st.player))}人（出陣中の農兵の動員率${Math.round(rate * 100)}%）</dd>
-      <dt>治安</dt><dd>${drop ? `動員で毎月−${drop.toFixed(1)}（すべての城）` : '動員による低下なし'}</dd>
-      <dt>兵糧</dt><dd>${fmt(me.food)}石（月 −${fmt(clanUpkeep(st, st.player))}）</dd></dl>
-      ${hints([`自城と隣のヘックスにいる部隊・城兵は、動員率がこの目標に届くまで毎月補充される（兵糧${R.RECRUIT_COST}石/人）。`, `動員率（地図に出ている農兵÷動員上限。陣払いの名簿の兵と足軽は数えない）が${R.MOBILIZE_FREE * 100}%を超えた分×${R.MOBILIZE_DROP}だけ、家のすべての城の治安が毎月下がる。治安が下がると動員上限と開発の上限も下がる。`])}`;
   },
   tsukai: (st) => {
     const label = tsukaiLabel(st.player), ts = tsukaiOf(st, st.player);

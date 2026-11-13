@@ -17,7 +17,7 @@ const hud = async () => p.evaluate(() => document.getElementById('stats').textCo
 const h0 = await hud();
 await p.click('#btn-naisei'); await p.waitForTimeout(150); await p.click('[data-act="stab"][data-id="yosan"]'); await p.waitForTimeout(100);
 await p.selectOption('select[data-budget="hodo"]', '30'); await p.waitForTimeout(100);
-await p.click('[data-act="sub"][data-id="mobilize"]'); await p.waitForTimeout(100);
+// 動員目標は予算と同じ画面に
 await p.selectOption('select[data-budget="mobilize"]', '80'); await p.waitForTimeout(100);
 const budget = await p.evaluate(() => { const s = window.__sengoku.state; const c = s.clans[s.player]; return { ...c.budget, mob: c.mobilize }; });
 await p.screenshot({ path: `${out}/85-budget.png` });
