@@ -25,14 +25,14 @@ await p.click('[data-act="mtab"][data-id="gaiko"]'); await p.click('[data-act="s
 await p.click('[data-act="court-buy"]'); await p.waitForTimeout(100);
 const court = await p.evaluate(() => { const s = window.__sengoku.state; return { court: s.clans[s.player].court, gold: s.clans[s.player].gold, shogun: Object.values(s.clans).find((c) => c.court === 8)?.name }; });
 await p.screenshot({ path: `${out}/86-court.png` });
-await p.click('[data-act="mtab"][data-id="akinai"]'); await p.click('[data-act="stab"][data-id="rice"]'); await p.waitForTimeout(100);
+await p.click('[data-act="mtab"][data-id="akinai"]'); await p.click('[data-act="stab"][data-id="ichiba"]'); await p.waitForTimeout(100);
 await p.click('[data-act="rice-buy"][data-id="1000"]'); await p.waitForTimeout(100);
 await p.click('[data-act="rice-sell"][data-id="5000"]'); await p.waitForTimeout(100);
 await p.screenshot({ path: `${out}/80-trade-rice.png` });
-await p.click('[data-act="stab"][data-id="gunbuy"]'); await p.waitForTimeout(100);
+await p.click('[data-act="stab"][data-id="ichiba"]'); await p.waitForTimeout(100);
 await p.click('[data-act="gun-buy"][data-id="500"]'); await p.waitForTimeout(100);
 await p.screenshot({ path: `${out}/81-trade-gun.png` });
-await p.click('[data-act="stab"][data-id="item"]'); await p.waitForTimeout(100);
+await p.click('[data-act="stab"][data-id="ichiba"]'); await p.waitForTimeout(100);
 const buy = await p.$('[data-act="item-buy"]:not([disabled])');
 if (buy) { await buy.click(); await p.waitForTimeout(100); }
 await p.click('[data-act="mtab"][data-id="jinji"]'); await p.click('[data-act="stab"][data-id="rewards"]'); await p.waitForTimeout(100);

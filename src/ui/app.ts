@@ -1239,7 +1239,7 @@ const MENUS: { key: MenuKey; name: string; tabs: [string, string][] }[] = [
   { key: 'gunji', name: '軍事', tabs: [['jindate', '陣立て'], ['butai', '部隊']] },
   { key: 'jinji', name: '人事', tabs: [['vassals', '家臣団'], ['rewards', '恩賞'], ['fronts', '知行'], ['governors', '城主'], ['yaku', '奉行と使番'], ['katoku', '家督'], ['jinzai', '人材']] },
   { key: 'gaiko', name: '外交', tabs: [['gaike', '諸大名'], ['shinobi', '忍び'], ['bakufu', '幕府'], ['court', '朝廷'], ['mission', '布教']] },
-  { key: 'akinai', name: '商い', tabs: [['rice', '兵糧'], ['gunbuy', '鉄砲'], ['item', '名物の市場'], ['nanban', '南蛮市']] },
+  { key: 'akinai', name: '商い', tabs: [['ichiba', '市場']] },
   { key: 'kiroku', name: '記録', tabs: [['log', '全記録'], ['save', '保存と設定'], ['help', '遊び方']] },
 ];
 // 束ねたタブ: [見出し, 旧タブ]（見出しが空なら見出しなし）
@@ -1247,7 +1247,7 @@ const COMPOSITE: Record<string, [string, string][]> = {
   jinzai: [['在野', 'ronin'], ['捕虜', 'captive'], ['判明した敵将', 'known']],
 };
 // 旧タブの名で開かれたら、束ねたタブへ
-const ALIAS: Record<string, string> = { ...Object.fromEntries(Object.entries(COMPOSITE).flatMap(([k, v]) => v.map(([, old]) => [old, k]))), clans: 'gaike', dip: 'gaike', ichiba: 'rice', castles: 'shiro', budget: 'yosan', mobilize: 'yosan', armies: 'butai', ashi: 'butai', guns: 'butai', corps: 'jindate', bugyo: 'yaku', tsukai: 'yaku', gift: 'rewards', tokusei: 'vassals' };
+const ALIAS: Record<string, string> = { ...Object.fromEntries(Object.entries(COMPOSITE).flatMap(([k, v]) => v.map(([, old]) => [old, k]))), clans: 'gaike', dip: 'gaike', rice: 'ichiba', gunbuy: 'ichiba', item: 'ichiba', nanban: 'ichiba', castles: 'shiro', budget: 'yosan', mobilize: 'yosan', armies: 'butai', ashi: 'butai', guns: 'butai', corps: 'jindate', bugyo: 'yaku', tsukai: 'yaku', gift: 'rewards', tokusei: 'vassals' };
 // 束ねたタブの中の小見出し（一度に一つだけ見せる）。見出しが空のものはこの名で
 const SUB_NAME: Record<string, string> = { castles: '城一覧', budget: '予算', armies: '部隊一覧' };
 const lastSub: Record<string, string> = {};
@@ -1348,7 +1348,7 @@ const GLOSSARY: [string, string, string][] = [
 ];
 const GLOSSARY_HTML = `<dl class="kv glossary">${GLOSSARY.map(([w, y, d]) => `<dt>${w}<small>${y}</small></dt><dd>${d}</dd>`).join('')}</dl>`;
 // 委任: 任せられる画面の上に入・切を出し、任せている間はその画面の操作を薄くする（名前のリンクや地図へ移るボタンは残す）
-const TAB_DELEG: Record<string, DelegateKey> = { shiro: 'invest', yosan: 'budget', rice: 'trade', gunbuy: 'trade', item: 'trade', nanban: 'trade', yaku: 'yaku', jinzai: 'ronin', court: 'court', jindate: 'military', butai: 'military' };
+const TAB_DELEG: Record<string, DelegateKey> = { shiro: 'invest', yosan: 'budget', ichiba: 'trade', yaku: 'yaku', jinzai: 'ronin', court: 'court', jindate: 'military', butai: 'military' };
 const DELEG_NOLOCK = new Set<DelegateKey>(['ronin']); // 仕官の受け入れだけを任せる。人材の画面のほかの操作は手でできる
 const delegLastText = (st: GameState, k: DelegateKey) => { const L = st.clans[st.player].delegLast; return L && L.turn >= st.turn - 1 ? L.by[k] ?? '' : ''; };
 function delegBar(st: GameState, k: DelegateKey) {
@@ -2025,17 +2025,21 @@ const TABS: Record<string, (st: GameState) => string> = {
       ${knownG.map((g) => `<tr><td>${nameLink(g)}</td><td>${esc(g.clan ? clanName(st, g.clan) : g.status === 'captive' ? '捕虜' : '在野')}</td><td class="n">${ageCell(st, g)}</td><td class="n">${g.bra}</td><td class="n">${g.int}</td><td class="n">${g.lea}</td><td class="n">${g.cha}</td></tr>`).join('')}</tbody></table></div>` : '<p class="lede">まだ交戦した敵将はいない。交戦した敵将の能力は恒久的に判明する。</p>';
   },
   // ── 商い ──
+  // 商い › 市場: 兵糧・鉄砲・名物・南蛮市を1画面に（PCでは2×2）
+  ichiba: (st) => `<div class="ichiba-grid"><section><h3 class="sect-h" style="margin-top:0">兵糧</h3>${TABS.rice(st)}</section><section><h3 class="sect-h" style="margin-top:0">鉄砲</h3>${TABS.gunbuy(st)}</section>
+    <section><h3 class="sect-h" style="margin-top:0">名物の市場（堺）</h3>${TABS.item(st)}</section><section><h3 class="sect-h" style="margin-top:0">南蛮市</h3>${TABS.nanban(st)}</section></div>`,
   rice: (st) => {
     const me = st.clans[st.player], price = ricePrice(st);
     const buyable = (n: number) => me.gold >= Math.ceil(n * price);
     return `<dl class="kv"><dt>相場</dt><dd>1石 ${price.toFixed(2)}貫（売りは${(price * R.RICE_SELL).toFixed(2)}貫）</dd><dt>兵糧</dt><dd>${fmt(me.food)}石（月 −${fmt(clanUpkeep(st, st.player))}）</dd><dt>金</dt><dd>${fmt(me.gold)}貫</dd></dl>
       <h3 style="margin-top:10px">買う</h3><div class="actions">${[1000, 5000, 10000, 30000].map((n) => `<button class="mini" data-act="rice-buy" data-id="${n}" ${buyable(n) ? '' : 'disabled'}>${fmt(n)}石（${fmt(Math.ceil(n * price))}貫）</button>`).join('')}</div>
       <h3 style="margin-top:10px">売る</h3><div class="actions">${[1000, 5000, 10000, 30000].map((n) => `<button class="mini" data-act="rice-sell" data-id="${n}" ${me.food >= n ? '' : 'disabled'}>${fmt(n)}石（${fmt(Math.floor(n * price * R.RICE_SELL))}貫）</button>`).join('')}</div>
+      ${(() => { const up = clanUpkeep(st, st.player), toH = (R.HARVEST_MONTH - st.month + 12) % 12 || 12, lasts = up > 0 ? Math.floor(me.food / up) : Infinity, hv = harvestForecast(st); return `<p class="hint">見通し: 月の消費 ${fmt(up)}石（地図に出ている兵）。${up ? (lasts >= toH ? `収穫まで${toH}か月もつ（あと${lasts}か月分）` : `<span class="warn">${lasts}か月で尽きる（収穫まで${toH}か月）</span>`) : '名簿の兵は食べない'}。十月の収穫の見込み ${fmt(hv.koku)}石${hv.loss >= 0.01 ? `（農繁期の出陣で−${Math.round(hv.loss * 100)}%）` : ''}。</p>`; })()}
       <p class="hint">相場は月ごとに動く: 収穫後の10〜12月は×0.7と安く、6〜8月は×1.3と高い。</p>`;
   },
   gunbuy: (st) => {
     const me = st.clans[st.player], gp = gunPrice(st, st.player), total = clanGuns(st, st.player);
-    return `<dl class="kv"><dt>鉄砲</dt><dd>蔵 ${fmt(me.guns)}丁・全体 ${fmt(total)}丁</dd><dt>値段</dt><dd>1丁 ${gp}貫${hasGunSource(st, st.player) ? '（産地を持つ）' : `（産地を持てば${R.GUN_PRICE_SOURCE}貫）`}${hasProduct(st, st.player, 'iron') ? `・鉄の産地で${Math.round(R.IRON_GUN * 100)}%` : ''}</dd><dt>維持費</dt><dd>月 ${fmt(Math.round(total * R.GUN_UPKEEP * (hasProduct(st, st.player, 'powder') ? R.POWDER_UPKEEP : 1)))}貫（1丁${R.GUN_UPKEEP}貫${hasProduct(st, st.player, 'powder') ? `・硫黄・煙硝の産地で${Math.round(R.POWDER_UPKEEP * 100)}%` : ''}）</dd><dt>金</dt><dd>${fmt(me.gold)}貫</dd></dl>
+    return `<dl class="kv"><dt>鉄砲</dt><dd>蔵 ${fmt(me.guns)}丁・部隊に ${fmt(total - me.guns)}丁 <button class="mini" data-act="open-tab" data-id="gunji:butai">部隊に配る →</button></dd><dt>値段</dt><dd>1丁 ${gp}貫${hasGunSource(st, st.player) ? '（産地を持つ）' : `（産地を持てば${R.GUN_PRICE_SOURCE}貫）`}${hasProduct(st, st.player, 'iron') ? `・鉄の産地で${Math.round(R.IRON_GUN * 100)}%` : ''}</dd><dt>維持費</dt><dd>月 ${fmt(Math.round(total * R.GUN_UPKEEP * (hasProduct(st, st.player, 'powder') ? R.POWDER_UPKEEP : 1)))}貫（1丁${R.GUN_UPKEEP}貫${hasProduct(st, st.player, 'powder') ? `・硫黄・煙硝の産地で${Math.round(R.POWDER_UPKEEP * 100)}%` : ''}）</dd><dt>金</dt><dd>${fmt(me.gold)}貫</dd></dl>
       <h3 style="margin-top:10px">買う</h3><div class="actions">${[100, 300, 500, 1000].map((n) => `<button class="mini" data-act="gun-buy" data-id="${n}" ${me.gold >= n * gp ? '' : 'disabled'}>${fmt(n)}丁（${fmt(n * gp)}貫）</button>`).join('')}</div>
       ${hints([
         '産地: 堺（岸和田城）・国友（小谷城）・根来寺・雑賀城。',
@@ -2057,7 +2061,8 @@ const TABS: Record<string, (st: GameState) => string> = {
   },
   item: (st) => {
     const me = st.clans[st.player];
-    return `<h3>堺の市場</h3>${marketItems(st).length ? `<div class="tbl-wrap"><table><thead><tr><th>名物</th><th>効果</th><th class="n">値</th><th></th></tr></thead><tbody>
+    const own = clanItems(st, st.player), idle = own.filter((i) => !i.holder).length;
+    return `<p class="hint" style="margin-top:0">当家の名物 ${own.length}点${idle ? `（蔵に置いたまま ${idle}点）` : ''} <button class="mini" data-act="open-tab" data-id="jinji:rewards">下賜する →</button></p>${marketItems(st).length ? `<div class="tbl-wrap"><table><thead><tr><th>名物</th><th>効果</th><th class="n">値</th><th></th></tr></thead><tbody>
       ${marketItems(st).sort((a, b) => b.grade - a.grade).map((it) => `<tr><td>${esc(itemLabel(it))}</td><td>${effOf(it)}</td><td class="n">${fmt(itemPrice(st, st.player, it))}貫</td><td><button class="mini" data-act="item-buy" data-id="${it.id}" ${me.gold >= itemPrice(st, st.player, it) ? '' : 'disabled'}>買う</button></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="lede">市場に名物は出ていない。</p>'}
       ${hints([
@@ -2077,6 +2082,7 @@ const TABS: Record<string, (st: GameState) => string> = {
       ${items.map((it) => `<tr><td>${esc(itemLabel(it))}</td><td>${effOf(it)}</td><td class="n">${fmt(nanbanItemPrice(it))}貫</td><td><button class="mini" data-act="ship-item" data-id="${it.id}" ${me.gold >= nanbanItemPrice(it) ? '' : 'disabled'}>買う</button></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="hint">積荷の品は売り切れた。</p>'}`
       : `<p class="lede">${clanPorts(st, st.player).length ? `当家の港（${clanPorts(st, st.player).map(([id]) => esc(portName(id))).join('・')}）に南蛮船は来ていない。` : '当家は南蛮港を持っていない。'}南蛮市は、南蛮船が当家の港に来ている間だけ開く。</p>`;
+    if (!ships.length) return `${market}<p class="hint" style="margin:2px 0">来航の見込み: ${odds}${all.length ? `。来航中: ${all.join('、')}` : ''}</p>`;
     return `${market}
       <dl class="kv" style="margin-top:10px"><dt>来航中</dt><dd>${all.length ? all.join('、') : 'なし'}</dd><dt>来航の見込み</dt><dd>${odds}</dd><dt>唐船</dt><dd>${(st.karasen ?? []).length ? (st.karasen ?? []).map((x) => `${esc(karaPortName(x.port))}（${portOwner(st, x.port) ? esc(clanName(st, portOwner(st, x.port))) + '家' : '国人'}・あと${Math.max(1, x.until - st.turn + 1)}か月）`).join('、') : '来ていない（平戸・坊津・博多に、ときどき来る）'}</dd>${silverTrade(st, st.player) ? `<dt>銀の上乗せ</dt><dd>船が来ている月は+${fmt(silverTrade(st, st.player))}貫</dd>` : ''}</dl>
       ${hints([
@@ -2872,6 +2878,7 @@ function onModalClick(e: Event) {
   if (act === 'sub') { lastSub[lastTab[curMenu]] = id; openMenu(); document.querySelector('#modal .sheet')!.scrollTop = 0; return; }
   if (act === 'dip-open') { dipFocus = id; openMenu(curMenu, 'gaike'); document.querySelector('#modal .sheet')!.scrollTop = 0; return; }
   if (act === 'dip-filter') { dipAll = id === 'all'; openMenu(curMenu, 'gaike'); return; }
+  if (act === 'open-tab') { const [m, t] = id.split(':'); openMenu(m as MenuKey, t); return; }
   if (act === 'ninja-at') { ninjaClan = id; ninjaSel.target = ''; openMenu('gaiko', 'shinobi'); return; }
   if (act === 'ninja-clan-off') { ninjaClan = null; openMenu(); return; }
   if (act === 'dip-back') { dipFocus = null; openMenu(curMenu, 'gaike'); return; }

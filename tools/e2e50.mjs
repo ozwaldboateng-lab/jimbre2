@@ -29,7 +29,7 @@ await p.screenshot({ path: `${out}/00-map${sfx}.png` });
 await p.keyboard.press('Escape'); await p.keyboard.press('n'); await p.waitForTimeout(200); await p.keyboard.press('Escape'); await p.waitForTimeout(200);
 await p.screenshot({ path: `${out}/01-side${sfx}.png` });
 const side = await p.evaluate(() => { const el = document.querySelector('#side, aside, .side'); return el ? { h: el.scrollHeight, vh: el.clientHeight } : null; });
-const shots = [['1', 'shiro'], ['3', 'governors'], ['3', 'bugyo'], ['1', 'deleg'], ['2', 'butai'], ['2', 'jindate'], ['3', 'vassals'], ['3', 'rewards'], ['3', 'fronts'], ['3', 'gift'], ['4', 'gaike'], ['4', 'bakufu'], ['4', 'court'], ['5', 'gunbuy']];
+const shots = [['1', 'shiro'], ['3', 'governors'], ['3', 'bugyo'], ['1', 'deleg'], ['2', 'butai'], ['2', 'jindate'], ['3', 'vassals'], ['3', 'rewards'], ['3', 'fronts'], ['3', 'gift'], ['4', 'gaike'], ['4', 'bakufu'], ['4', 'court'], ['5', 'ichiba']];
 const res = [];
 for (const [key, tab] of shots) {
   await p.keyboard.press(key); await p.waitForTimeout(80);

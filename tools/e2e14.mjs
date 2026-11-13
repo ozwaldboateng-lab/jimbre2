@@ -36,7 +36,7 @@ const remembered = await p.evaluate(() => document.querySelector('[data-act="sta
 await p.keyboard.press('3'); await p.waitForTimeout(80);
 const key4 = await p.evaluate(() => document.getElementById('modal-title').textContent);
 // 鉄砲の配備（蔵が空なので買ってから）
-await p.keyboard.press('5'); await p.click('[data-act="stab"][data-id="gunbuy"]'); await p.click('[data-act="gun-buy"][data-id="300"]'); await p.waitForTimeout(80);
+await p.keyboard.press('5'); await p.click('[data-act="stab"][data-id="ichiba"]'); await p.click('[data-act="gun-buy"][data-id="300"]'); await p.waitForTimeout(80);
 await p.keyboard.press('2'); await p.click('[data-act="stab"][data-id="butai"]');
 const armBtn = await p.$('[data-act="arm-guns-m"]:not([disabled])');
 if (armBtn) { await armBtn.click(); await p.waitForTimeout(80); }

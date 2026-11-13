@@ -25,7 +25,7 @@ await p.click('[data-act="mis-allow"]'); await p.waitForTimeout(150);
 const mission = await p.evaluate(() => { const st = window.__sengoku.state; return { m: st.clans.shimazu.mission, home: st.missions?.torres?.home, visit: st.missionVisit }; });
 await closeAll();
 // 南蛮市
-await p.keyboard.press('5'); await p.click('[data-act="stab"][data-id="nanban"]'); await p.waitForTimeout(150);
+await p.keyboard.press('5'); await p.click('[data-act="stab"][data-id="ichiba"]'); await p.waitForTimeout(150);
 await p.screenshot({ path: `${out}/201-nanban${sfx}.png` });
 const g0 = await p.evaluate(() => window.__sengoku.state.clans.shimazu.guns);
 await p.click('[data-act="ship-guns"][data-id="300"]'); await p.waitForTimeout(100);

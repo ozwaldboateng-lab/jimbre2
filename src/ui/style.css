@@ -689,3 +689,8 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
   .dip-cols .dip-back-m { display: inline-flex; }
   .dip-cols.has-focus > .dip-list, .dip-cols:not(.has-focus) > .dip-detail { display: none; }
 }
+/* 商い › 市場: PCでは2×2 */
+.sheet:has(.ichiba-grid) { width: min(1480px, 100%); }
+.ichiba-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 28px; align-items: start; }
+.ichiba-grid > section { border-top: 1px solid var(--hair); padding-top: 8px; }
+@media (max-width: 1100px) { .ichiba-grid { grid-template-columns: 1fr; } }

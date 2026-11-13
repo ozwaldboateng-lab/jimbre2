@@ -12,7 +12,7 @@ await p.click('[data-act="t-new"]'); await p.click('[data-act="pick-scen"][data-
 await p.click('[data-act="start"]'); await p.waitForTimeout(300);
 for (let k = 0; k < 4; k++) if (await p.$('#modal:not([hidden])')) await p.click('#modal-close').catch(() => {});
 await p.evaluate(() => { const s = window.__sengoku.state; s.karasen = [{ port: 'uchi', until: s.turn + 3 }]; s.ships = []; });
-await p.keyboard.press('5'); await p.click('[data-act="stab"][data-id="nanban"]'); await p.waitForTimeout(150);
+await p.keyboard.press('5'); await p.click('[data-act="stab"][data-id="ichiba"]'); await p.waitForTimeout(150);
 const tab = await p.evaluate(() => [...document.querySelectorAll('#modal-body dt')].filter((d) => /唐船|銀/.test(d.textContent)).map((d) => d.textContent + '=' + d.nextElementSibling.textContent));
 await p.click('#modal-close');
 await p.keyboard.press('1'); await p.click('[data-act="stab"][data-id="shiro"]'); await p.waitForTimeout(100);
