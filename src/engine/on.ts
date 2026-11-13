@@ -68,7 +68,7 @@ function aiReward(s: GameState, clan: string) {
 export function monthlyOn(s: GameState) {
   for (const C of Object.values(s.clans)) {
     if (!C.alive) continue;
-    if (C.id !== s.player || delegateOf(s).staff) aiReward(s, C.id);
+    if (C.id !== s.player || delegateOf(s).reward) aiReward(s, C.id);
     for (const g of vassalsOf(s, C.id)) {
       const due = dueOf(g), on = onOf(g);
       if (due >= R.ON_DUE_FREE) bump(g, -R.ON_DUE_DROP(due));

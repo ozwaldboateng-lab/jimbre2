@@ -91,7 +91,8 @@ export interface Clan {
   shipSeen?: boolean; // 南蛮船が当家の港に来たことがある
   budget: { chisui: number; hodo: number }; // 毎月の収入から治水・施しに回す割合（%）
   focus?: number | null; // 予算を優先する城
-  delegate?: { budget: boolean; trade: boolean; staff: boolean; court: boolean; military?: boolean }; // 委任（プレイヤー）。military は直轄も含む全軍
+  delegate?: Partial<Record<'invest' | 'budget' | 'trade' | 'yaku' | 'reward' | 'ronin' | 'gift' | 'court' | 'military' | 'staff', boolean>>; // 委任（プレイヤー）。military は直轄も含む全軍。staff は古い保存（人事をひとまとめ）
+  delegLast?: { turn: number; by: Record<string, string> }; // 先月、委任でしたこと（項目ごと）
   court?: number; // 官位（0 無位〜8 征夷大将軍）
   mobilize?: number; // 動員目標（動員上限に対する%）。毎月の補充はここまで
   lastBudget?: { chisui: number; hodo: number }; // 先月実際に使った額

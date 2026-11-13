@@ -657,3 +657,8 @@ table.ledger { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.ledger td { padding: 2px 4px; border-bottom: 1px solid var(--hair); }
 table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 0; font-weight: 600; }
 @media (max-width: 860px) { .yosan-grid { grid-template-columns: 1fr; } }
+/* 委任の帯（任せられる画面の上）と、任せている間の画面 */
+.deleg-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; margin: 0 0 10px; border: 1px solid var(--hair); border-radius: 3px; font-size: 13px; }
+.deleg-bar .lbl { color: var(--paper-dim); letter-spacing: 0.1em; }
+.deleg-bar.on { border-color: var(--gold-soft); background: rgba(200, 160, 80, 0.08); }
+.deleg-lock :is(select, input, textarea, button:not(.glink):not([data-act="goto-castle"]):not([data-act="sub"]):not([data-act="cast-filter"]):not([data-act="reg-toggle"])) { pointer-events: none; opacity: 0.4; }

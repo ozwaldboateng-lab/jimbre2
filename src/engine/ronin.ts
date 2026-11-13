@@ -66,7 +66,7 @@ export function monthlyRonin(s: GameState) {
     if (rand(s) < R.RONIN_MOVE) wander(s, g);
     const c = s.castles[g.loc];
     if (!c.owner || !s.clans[c.owner]?.alive || rand(s) >= offerChance(s, g, c.owner)) continue;
-    if (c.owner === s.player && !delegateOf(s).staff) {
+    if (c.owner === s.player && !delegateOf(s).ronin) {
       if (s.offers.some((o) => o.gen === g.id)) continue;
       s.offers.push({ gen: g.id, castle: c.i, turn: s.turn });
       addLog(s, `在野の${g.name}が${c.name}に来て、仕官を願い出た。`, 'info', true);

@@ -15,7 +15,7 @@ await p.click('[data-act="start"]');
 await p.waitForTimeout(300);
 await p.click('#btn-naisei'); await p.waitForTimeout(150);
 await p.click('[data-act="stab"][data-id="deleg"]'); await p.waitForTimeout(100);
-for (const k of ['budget', 'trade', 'staff', 'court']) { await p.click(`[data-act="deleg"][data-id="${k}"]`); await p.waitForTimeout(80); }
+for (const k of ['budget', 'trade', 'yaku', 'reward', 'ronin', 'gift', 'court']) { await p.click(`[data-act="deleg"][data-id="${k}"]`); await p.waitForTimeout(80); }
 await p.screenshot({ path: `${out}/90-deleg.png` });
 const flags = await p.evaluate(() => window.__sengoku.state.clans.oda.delegate);
 await p.click('#modal-close'); await p.waitForTimeout(100);

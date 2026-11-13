@@ -137,7 +137,7 @@ export function promoteOne(s: GameState, g: General): boolean {
   return true;
 }
 function promote(s: GameState, clan: string) {
-  if (clan === s.player && !delegateOf(s).staff) return;
+  if (clan === s.player && !delegateOf(s).reward) return;
   const label = tsukaiLabel(clan);
   const gens = Object.values(s.generals).filter((g) => g.clan === clan && isActive(g) && !isLeader(s, g) && !g.liege).sort((a, b) => b.merit - a.merit);
   for (const g of gens) {
