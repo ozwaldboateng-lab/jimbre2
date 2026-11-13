@@ -1236,7 +1236,7 @@ type MenuKey = 'naisei' | 'gunji' | 'jinji' | 'gaiko' | 'akinai' | 'kiroku';
 // やりたいことでまとめたメニュー（いくつかのタブは旧タブを束ねたもの: COMPOSITE）
 const MENUS: { key: MenuKey; name: string; tabs: [string, string][] }[] = [
   { key: 'naisei', name: '内政', tabs: [['shiro', '領内'], ['yosan', '予算と動員'], ['deleg', '委任']] },
-  { key: 'gunji', name: '軍事', tabs: [['jindate', '陣立て'], ['butai', '部隊'], ['corps', '軍団']] },
+  { key: 'gunji', name: '軍事', tabs: [['jindate', '陣立て'], ['butai', '部隊']] },
   { key: 'jinji', name: '人事', tabs: [['vassals', '家臣団'], ['rewards', '恩賞'], ['fronts', '知行'], ['governors', '城主'], ['bugyo', '奉行'], ['tsukai', '使番'], ['katoku', '家督'], ['gift', '下賜'], ['tokusei', '特性'], ['jinzai', '人材']] },
   { key: 'gaiko', name: '外交', tabs: [['gaike', '諸大名'], ['bakufu', '幕府'], ['court', '朝廷'], ['mission', '布教']] },
   { key: 'akinai', name: '商い', tabs: [['rice', '兵糧'], ['gunbuy', '鉄砲'], ['item', '名物の市場'], ['nanban', '南蛮市']] },
@@ -1244,11 +1244,10 @@ const MENUS: { key: MenuKey; name: string; tabs: [string, string][] }[] = [
 ];
 // 束ねたタブ: [見出し, 旧タブ]（見出しが空なら見出しなし）
 const COMPOSITE: Record<string, [string, string][]> = {
-  butai: [['', 'armies'], ['足軽と練度', 'ashi'], ['鉄砲・大筒の配備', 'guns']],
   jinzai: [['在野', 'ronin'], ['捕虜', 'captive'], ['判明した敵将', 'known']],
 };
 // 旧タブの名で開かれたら、束ねたタブへ
-const ALIAS: Record<string, string> = { ...Object.fromEntries(Object.entries(COMPOSITE).flatMap(([k, v]) => v.map(([, old]) => [old, k]))), clans: 'gaike', dip: 'gaike', ichiba: 'rice', castles: 'shiro', budget: 'yosan', mobilize: 'yosan' };
+const ALIAS: Record<string, string> = { ...Object.fromEntries(Object.entries(COMPOSITE).flatMap(([k, v]) => v.map(([, old]) => [old, k]))), clans: 'gaike', dip: 'gaike', ichiba: 'rice', castles: 'shiro', budget: 'yosan', mobilize: 'yosan', armies: 'butai', ashi: 'butai', guns: 'butai', corps: 'jindate' };
 // 束ねたタブの中の小見出し（一度に一つだけ見せる）。見出しが空のものはこの名で
 const SUB_NAME: Record<string, string> = { castles: '城一覧', budget: '予算', armies: '部隊一覧' };
 const lastSub: Record<string, string> = {};
@@ -1349,7 +1348,7 @@ const GLOSSARY: [string, string, string][] = [
 ];
 const GLOSSARY_HTML = `<dl class="kv glossary">${GLOSSARY.map(([w, y, d]) => `<dt>${w}<small>${y}</small></dt><dd>${d}</dd>`).join('')}</dl>`;
 // 委任: 任せられる画面の上に入・切を出し、任せている間はその画面の操作を薄くする（名前のリンクや地図へ移るボタンは残す）
-const TAB_DELEG: Record<string, DelegateKey> = { shiro: 'invest', yosan: 'budget', rice: 'trade', gunbuy: 'trade', item: 'trade', nanban: 'trade', bugyo: 'yaku', tsukai: 'yaku', rewards: 'reward', jinzai: 'ronin', gift: 'gift', court: 'court', jindate: 'military', butai: 'military', corps: 'military' };
+const TAB_DELEG: Record<string, DelegateKey> = { shiro: 'invest', yosan: 'budget', rice: 'trade', gunbuy: 'trade', item: 'trade', nanban: 'trade', bugyo: 'yaku', tsukai: 'yaku', rewards: 'reward', jinzai: 'ronin', gift: 'gift', court: 'court', jindate: 'military', butai: 'military' };
 const DELEG_NOLOCK = new Set<DelegateKey>(['ronin']); // 仕官の受け入れだけを任せる。人材の画面のほかの操作は手でできる
 const delegLastText = (st: GameState, k: DelegateKey) => { const L = st.clans[st.player].delegLast; return L && L.turn >= st.turn - 1 ? L.by[k] ?? '' : ''; };
 function delegBar(st: GameState, k: DelegateKey) {
@@ -1677,6 +1676,51 @@ const TABS: Record<string, (st: GameState) => string> = {
       ])}`;
   },
   // ── 軍事 ──
+  // 軍事 › 部隊: 一行に一部隊（名簿の軍団も）。足軽の雇い入れ・鉄砲と大筒の配備・陣触をその行で
+  butai: (st) => {
+    const me = st.clans[st.player];
+    const all = clanArmies(st, st.player).filter((a) => !a.ikki).sort((a, b) => b.troops - a.troops);
+    const cs = campsOf(st, st.player).sort((a, b) => b.troops - a.troops);
+    const cannon = (me.cannon ?? 0) > 0 || clanCannon(st, st.player) > 0;
+    const FIL: [string, string, (a: Army) => boolean][] = [['all', 'すべて', () => true], ['idle', '未行動', (a) => !a.acted && !orderFor(st, a.id) && !delegatedArmy(st, a)], ['order', '出陣命令', (a) => !!orderFor(st, a.id)], ['direct', '直轄', (a) => !delegatedArmy(st, a)], ['fief', '領・委任', (a) => delegatedArmy(st, a)], ['near', '自城の近く', (a) => nearOwn(st, a)]];
+    const fl = FIL.find(([k]) => k === armyFilter) ?? FIL[0];
+    const as = all.filter(fl[2]);
+    const chips = all.length > 8 ? `<div class="subtabs">${FIL.map(([k, l, f]) => { const n = all.filter(f).length; return n || k === 'all' ? `<button aria-selected="${armyFilter === k}" data-act="army-filter" data-id="${k}">${l} ${n}</button>` : ''; }).join('')}</div>` : '';
+    const b = (act: string, id: number, label: string, why: string | null) => `<button class="mini" data-act="${act}" data-id="${id}" ${why ? `disabled title="${esc(why)}"` : ''}>${label}</button>`;
+    const head = `<thead><tr><th>部隊</th><th>所在</th><th class="n">兵 / 上限</th><th class="n">足軽</th><th></th><th class="n">練度</th><th class="n">士気</th><th class="n">鉄砲</th><th></th>${cannon ? '<th class="n">大筒</th><th></th>' : ''}<th>状態</th></tr></thead>`;
+    const row = (a: Army, camp: boolean) => {
+      const near = !camp && nearOwn(st, a), dg = !camp && delegatedArmy(st, a);
+      const lock = camp ? '陣触して地図に出てから' : dg ? '領・委任の部隊' : !near ? '自城か、その隣にいるときだけ' : null;
+      const room = lock ? 0 : ashiRoom(st, a), cur = a.guns ?? 0, cn = a.cannon ?? 0;
+      const ord = camp ? null : orderFor(st, a.id);
+      const occ = ord ? occupancy(st).get(ord.hex) : null;
+      const tn = ord ? (occ ? `${st.generals[occ.main].name}隊` : castleAt(st, ord.hex)?.name ?? '敵陣') : '';
+      const here = castleAt(st, a.hex);
+      const state = camp ? `${a.muster !== undefined ? '<span class="pill good">陣触</span>' : `名簿 ${b('jin-muster', a.id, '陣触', musterBlock(st, a, false))} ${b('jin-hurry', a.id, '急ぎ', musterBlock(st, a, true))}`}`
+        : ord ? `<span class="pill warn">出陣: ${esc(tn)}</span>` : a.routed ? '<span class="pill bad">潰走</span>' : dg ? '領・委任' : a.acted ? '行動済み' : '<span class="pill good">未行動</span>';
+      return `<tr><td class="gname">${face(a.main, 32, 'face face-sm')}${camp ? `<b>${esc(st.generals[a.main].name)}隊</b>` : `<button class="mini" data-act="goto-army" data-id="${a.id}">${esc(st.generals[a.main].name)}隊</button>`}${staffOf(a).length ? `<span class="hint" style="margin:0">　傘下${staffOf(a).length}</span>` : ''}</td>
+        <td>${camp ? `<button class="mini" data-act="open-jindate-m" data-id="${a.camp}" title="この城の陣立てへ">${esc(st.castles[a.camp!].name)}</button>` : esc(here ? here.name : PROVINCES[HEXES[a.hex].p].name)}</td>
+        <td class="n">${fmt(a.troops)} / ${fmt(maxTroops(st, a))}</td>
+        <td class="n">${fmt(ashiOf(a))}</td><td>${b('hire-ashi-m', a.id, room > 0 ? `雇う ${fmt(room)}人（${fmt(room * R.ASHI_HIRE)}貫）` : '雇う', lock ?? (room > 0 ? null : '金が足りないか、もう足軽で満ちている'))}</td>
+        <td class="n">${Math.round(drillOf(a))}<span class="hint" style="margin:0">/${Math.round(R.drillCap(a.ashi ?? 0))}</span></td><td class="n">${a.morale.toFixed(2)}</td>
+        <td class="n">${fmt(cur)}<span class="hint" style="margin:0">/${fmt(gunCap(a))}</span></td><td>${b('arm-guns-m', a.id, '配る', lock ?? (me.guns > 0 && cur < gunCap(a) ? null : me.guns > 0 ? 'もう上限まで持っている' : '蔵に鉄砲がない'))} ${b('unarm-guns-m', a.id, '戻す', lock ?? (cur > 0 ? null : '持っていない'))}</td>
+        ${cannon ? `<td class="n">${cn}</td><td>${b('arm-cannon-m', a.id, '持たせる', lock ?? ((me.cannon ?? 0) > 0 && cn < R.CANNON_MAX ? null : '蔵に大筒がないか、上限'))} ${b('unarm-cannon-m', a.id, '外す', lock ?? (cn > 0 ? null : '持っていない'))}</td>` : ''}
+        <td>${state}</td></tr>`;
+    };
+    const table = (xs: Army[], camp = false) => `<div class="tbl-wrap"><table class="butai-tbl">${head}<tbody>${xs.map((a) => row(a, camp)).join('')}</tbody></table></div>`;
+    const ghead = (r: string, xs: Army[]) => `${r}　${xs.length}隊・兵${fmt(xs.reduce((t, a) => t + a.troops, 0))}${xs.some((a) => !a.acted && !orderFor(st, a.id) && !delegatedArmy(st, a)) ? `・<span class="good">未行動${xs.filter((a) => !a.acted && !orderFor(st, a.id) && !delegatedArmy(st, a)).length}</span>` : ''}`;
+    const wage = Math.round(clanAshi(st, st.player) * R.ASHI_WAGE);
+    const sum = `<p class="hint" style="margin-top:0">足軽 ${fmt(clanAshi(st, st.player))}人（給金 月${fmt(wage)}貫）・蔵の鉄砲 ${fmt(me.guns)}丁（全体 ${fmt(clanGuns(st, st.player))}丁・維持費 月${fmt(Math.round(clanGuns(st, st.player) * R.GUN_UPKEEP))}貫）${cannon ? `・蔵の大筒 ${me.cannon ?? 0}門` : ''}・金 ${fmt(me.gold)}貫。鉄砲と大筒は「商い」で買う。</p>`;
+    if (!all.length && !cs.length) return '<p class="lede">部隊はない。</p>';
+    return `${sum}${cs.length ? `<h3 class="sect-h">陣払い中の軍団（名簿）　${cs.length}隊・兵${fmt(cs.reduce((t, a) => t + a.troops, 0))}</h3>${table(cs, true)}` : ''}
+      ${all.length ? `<h3 class="sect-h">出陣中の軍団</h3>${chips}${as.length ? regionGroups('army', as, (a) => regionOf(provName(a.hex)), ghead, (xs) => table(xs)) : '<p class="hint">当てはまる部隊はない。</p>'}` : ''}
+      ${hints([
+        `足軽（常備兵）: 自城か隣にいる部隊に、1人${R.ASHI_HIRE}貫で一度に${R.ASHI_STEP}人まで雇える（練度${R.DRILL_ASHI}で加わる）。兵数の上限を超える分は、農兵を帰して足軽に入れ替える。給金は月${R.ASHI_WAGE}貫/人。動員上限を使わず、農繁期にも収穫を減らさない。`,
+        `練度（0〜100）: 攻撃・防御 ×（0.8＋練度÷250）。自城か隣で過ごした月は統率に応じて+${R.drillGain(0)}〜${R.drillGain(100)}、合戦を経れば伸びる。上限は足軽の割合で決まる（農兵だけ60、足軽だけ100）。陣払い中は毎月下がる。`,
+        `鉄砲: 自城か隣にいる部隊に、兵の${R.GUN_SHARE * 100}%まで持たせられる。${R.GUN_MIN_UNIT}丁以上で合戦に鉄砲隊が出る。大筒は1部隊に${R.CANNON_MAX}門まで（南蛮市で買う）。`,
+        '名簿の軍団は「陣触」で翌月に、「急ぎ」でその月のうちに半分が地図に出る。所在の城を押すとその城の陣立てへ。',
+      ])}`;
+  },
   armies: (st) => {
     const all = clanArmies(st, st.player).filter((a) => !a.ikki).sort((a, b) => b.troops - a.troops);
     const FIL: [string, string, (a: Army) => boolean][] = [['all', 'すべて', () => true], ['idle', '未行動', (a) => !a.acted && !orderFor(st, a.id) && !delegatedArmy(st, a)], ['order', '出陣命令', (a) => !!orderFor(st, a.id)], ['direct', '直轄', (a) => !delegatedArmy(st, a)], ['deleg', '領・委任', (a) => delegatedArmy(st, a)]];
@@ -2264,9 +2308,10 @@ const TABS: Record<string, (st: GameState) => string> = {
     };
     const campsHtml = `<h3 class="sect-h">${esc(c.name)}の名簿（陣払い中の軍団 ${camps.length}）</h3>${camps.length ? camps.map(campCard).join('') : '<p class="hint" style="margin:0 0 6px">名簿の軍団はない。</p>'}`;
     const waiting = `<h3 class="sect-h">${esc(c.name)}で待機中の武将（${local.length}人）</h3>${local.length ? `<div class="tbl-wrap"><table><thead><tr><th>武将</th><th>身分</th><th class="n">統率</th><th class="n">武勇</th><th class="n">知略</th><th class="n">兵の上限</th></tr></thead><tbody>${local.map((g) => `<tr><td class="gname">${face(g.id, 32, 'face face-sm')}${nameLink(g)}</td><td>${esc(rankName(st, g))}</td><td class="n">${g.lea}</td><td class="n">${g.bra}</td><td class="n">${g.int}</td><td class="n">${fmt(capOf(g))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="hint" style="margin:0">いない（ほかの城の待機中の武将も、大将や傘下に選べる）。</p>'}`;
-    return `<div class="jin-top">${pick}</div>${form}${campsHtml}<h3 class="sect-h">この城と隣にいる出陣中の軍団（${here.length}）</h3>${armies}
-      ${here.length > 1 ? `<div class="actions" style="margin:6px 0"><button class="act" data-act="jin-reshuffle">この城の軍団の傘下を、おまかせで組み直す</button></div>` : ''}
-      ${waiting}
+    const fillable = clanArmies(st, st.player).filter((a) => !a.ikki && !delegatedArmy(st, a) && !fillBlock(st, a));
+    const vacancy = fillable.length ? `<div class="deleg-bar"><span class="lbl">空き</span><span>傘下に空きがあり、待機の武将で埋められる軍団 ${fillable.length}隊（${fillable.slice(0, 4).map((a) => esc(st.generals[a.main].name)).join('・')}${fillable.length > 4 ? ' ほか' : ''}）</span><button class="mini" data-act="corps-fill-all">すべておまかせで埋める</button></div>` : '';
+    return `<div class="jin-top">${pick}</div>${vacancy}<div class="jin-cols"><div>${form}${waiting}</div><div>${campsHtml}<h3 class="sect-h">この城と隣にいる出陣中の軍団（${here.length}）</h3>${armies}
+      ${here.length > 1 ? `<div class="actions" style="margin:6px 0"><button class="act" data-act="jin-reshuffle">この城の軍団の傘下を、おまかせで組み直す</button></div>` : ''}</div></div>
       ${hints([
         '城を選ぶと、その城と隣のマスにいる自家の軍団と、待機中の武将がまとめて出る。編成を変えられるのは、城か隣にいる軍団だけ。',
         '身分の決まり: 当主・宿老の下に侍大将、侍大将の下に足軽大将、足軽大将の下に足軽組頭を、それぞれ2人まで置ける。一門は侍大将以上として扱う。',

@@ -14,7 +14,7 @@ await p.waitForTimeout(400);
 await p.click('[data-act="t-new"]'); await p.click('[data-act="pick-scen"][data-id="1560"]'); await p.click('[data-act="pick-clan"][data-id="oda"]');
 await p.click('[data-act="start"]'); await p.waitForTimeout(300);
 const header = await p.evaluate(() => { const bs = [...document.querySelectorAll('.cmds button')].filter((x) => x.offsetParent); return { n: bs.length, tops: [...new Set(bs.map((x) => Math.round(x.getBoundingClientRect().top)))], sw: document.documentElement.scrollWidth }; });
-await p.keyboard.press('2'); await p.click('[data-act="stab"][data-id="corps"]'); await p.waitForTimeout(150);
+await p.keyboard.press('2'); await p.click('[data-act="stab"][data-id="jindate"]'); await p.waitForTimeout(150);
 await p.screenshot({ path: `${out}/190-corps${mobile ? '-m' : ''}.png`, fullPage: false });
 const before = await p.evaluate(() => Object.values(window.__sengoku.state.armies).filter((a) => a.clan === 'oda').map((a) => (a.staff ?? []).length));
 // 空き枠に配属
@@ -23,11 +23,11 @@ let attached = null;
 if (sel) { const v = await sel.evaluate((s) => s.options[1]?.value); if (v) { await sel.selectOption(v); await p.waitForTimeout(150); attached = v; } }
 const mid = await p.evaluate(() => Object.values(window.__sengoku.state.armies).filter((a) => a.clan === 'oda').map((a) => (a.staff ?? []).length));
 // 外す
-const outBtn = await p.$('[data-act="corps-out"]');
+const outBtn = await p.$('[data-act="jin-out"]');
 if (outBtn) { await outBtn.click(); await p.waitForTimeout(150); }
 const after = await p.evaluate(() => Object.values(window.__sengoku.state.armies).filter((a) => a.clan === 'oda').map((a) => (a.staff ?? []).length));
 // 城主
-await p.keyboard.press('1'); await p.click('[data-act="stab"][data-id="shiro"]'); await p.waitForTimeout(100);
+await p.keyboard.press("3"); await p.click(`[data-act="stab"][data-id="governors"]`); await p.waitForTimeout(100);
 await p.screenshot({ path: `${out}/191-governors${mobile ? '-m' : ''}.png` });
 const gsel = await p.$('select[data-gov]');
 let gov = null;

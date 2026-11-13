@@ -25,7 +25,7 @@ await p.screenshot({ path: `${out}/480-castle-reorg${mobile ? '-m' : ''}.png` })
 let reorg = null;
 if (reorgBtn) { await p.click('[data-act="castle-reorg"]'); await p.waitForTimeout(250); reorg = await p.evaluate((id) => ({ staff: window.__sengoku.state.armies[id].staff.length, log: window.__sengoku.state.log.slice(-1)[0].text }), setup.A); }
 // 軍事 › 軍団の札のボタン
-await p.keyboard.press('2'); await p.click('[data-act="stab"][data-id="corps"]'); await p.waitForTimeout(200);
+await p.keyboard.press('2'); await p.click('[data-act="stab"][data-id="jindate"]'); await p.waitForTimeout(200);
 const corpsBtns = await p.evaluate(() => document.querySelectorAll('[data-act="corps-fill"]').length);
 await p.screenshot({ path: `${out}/481-corps-fill${mobile ? '-m' : ''}.png` });
 console.log(JSON.stringify({ setup, fill, reorgBtn, reorg, corpsBtns, errors: errors.length ? errors : 'none' }, null, 1));

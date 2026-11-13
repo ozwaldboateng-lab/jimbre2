@@ -29,7 +29,7 @@ await p.screenshot({ path: `${out}/00-map${sfx}.png` });
 await p.keyboard.press('Escape'); await p.keyboard.press('n'); await p.waitForTimeout(200); await p.keyboard.press('Escape'); await p.waitForTimeout(200);
 await p.screenshot({ path: `${out}/01-side${sfx}.png` });
 const side = await p.evaluate(() => { const el = document.querySelector('#side, aside, .side'); return el ? { h: el.scrollHeight, vh: el.clientHeight } : null; });
-const shots = [['1', 'shiro'], ['3', 'governors'], ['3', 'bugyo'], ['1', 'deleg'], ['2', 'butai'], ['2', 'corps'], ['3', 'vassals'], ['3', 'rewards'], ['3', 'fronts'], ['3', 'gift'], ['4', 'gaike'], ['4', 'bakufu'], ['4', 'court'], ['5', 'gunbuy']];
+const shots = [['1', 'shiro'], ['3', 'governors'], ['3', 'bugyo'], ['1', 'deleg'], ['2', 'butai'], ['2', 'jindate'], ['3', 'vassals'], ['3', 'rewards'], ['3', 'fronts'], ['3', 'gift'], ['4', 'gaike'], ['4', 'bakufu'], ['4', 'court'], ['5', 'gunbuy']];
 const res = [];
 for (const [key, tab] of shots) {
   await p.keyboard.press(key); await p.waitForTimeout(80);
@@ -64,7 +64,7 @@ await p.screenshot({ path: `${out}/vassals-filter${sfx}.png` });
 await p.click('[data-act="vfilter"][data-id="reset"]'); await p.waitForTimeout(100);
 const vrows = await p.evaluate(() => document.querySelectorAll('#modal-body tbody tr').length);
 // 軍団のまとめ編成
-await p.click('#modal-close'); await p.keyboard.press('2'); await p.click('[data-act="stab"][data-id="corps"]'); await p.waitForTimeout(100);
+await p.click('#modal-close'); await p.keyboard.press('2'); await p.click('[data-act="stab"][data-id="jindate"]'); await p.waitForTimeout(100);
 const c0 = await p.evaluate(() => document.querySelector('#modal-body [data-act="corps-fill-all"]')?.textContent);
 if (c0) { await p.click('[data-act="corps-fill-all"]'); await p.waitForTimeout(150); }
 const t3 = await p.evaluate(() => document.getElementById('toast').textContent);
