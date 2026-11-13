@@ -1553,7 +1553,7 @@ const TABS: Record<string, (st: GameState) => string> = {
         `毎月の収入のうち、決めた割合を治水と施しに回す。重点の城に半分を先に回し、残りは低い城から自動で配る。治水1＝基本石高×${R.CHISUI_COST}貫、治安1（施し）＝基本石高×${R.HODO_COST}貫。城ごとの値は「内政」の領内で見られる。`,
         '治水: 収穫＝石高×（0.7＋治水×0.006）。0で70%、50で100%、100で130%。',
         '治安: 動員上限＝石高×（200＋治安×1.5）人、開発の上限＝100%＋治安×0.6%。上限を超えた開発度は毎月少しずつ下がる。',
-        `治安が下がる: 動員率（兵÷動員上限）が50%を超えた分×10が毎月（100%で−5）、包囲${R.CHIAN_SIEGE}、兵糧切れ${R.CHIAN_STARVE}、落とした城は${R.CHIAN_CAPTURED}から。上がる: 城主の魅力（(魅力−40)÷20）、戦のない月+${R.CHIAN_PEACE}、施し。動員目標は「軍事」で決める。`,
+        `治安が下がる: 動員率（出陣中の農兵÷動員上限。名簿の兵は数えない）が50%を超えた分×10が毎月（100%で−5）、包囲${R.CHIAN_SIEGE}、兵糧切れ${R.CHIAN_STARVE}、落とした城は${R.CHIAN_CAPTURED}から。上がる: 城主の魅力（(魅力−40)÷20）、戦のない月+${R.CHIAN_PEACE}、施し。動員目標は「軍事」で決める。`,
       ])}`;
   },
   // 内政 › 領内: 城ごとの内政の操作（投資・新田・普請・楽市楽座・重点）を一つの表で。城主・奉行の任命は人事で
@@ -1658,10 +1658,10 @@ const TABS: Record<string, (st: GameState) => string> = {
     const me = st.clans[st.player], rate = mobilizeRate(st, st.player), drop = mobilizeDrop(st, st.player);
     return `${dNote(st, 'budget')}<dl class="kv">
       <dt>動員目標</dt><dd>${selPct('mobilize', me.mobilize ?? R.MOBILIZE_DEFAULT, R.MOBILIZE_STEPS)}　毎月の補充はここまで</dd>
-      <dt>兵</dt><dd>${fmt(clanTroops(st, st.player))}人（うち足軽${fmt(clanAshi(st, st.player))}人）／動員上限 ${fmt(clanCapacity(st, st.player))}人（農兵の動員率${Math.round(rate * 100)}%）</dd>
+      <dt>兵</dt><dd>${fmt(clanTroops(st, st.player))}人（うち足軽${fmt(clanAshi(st, st.player))}人）／動員上限 ${fmt(clanCapacity(st, st.player))}人（出陣中の農兵の動員率${Math.round(rate * 100)}%）</dd>
       <dt>治安</dt><dd>${drop ? `動員で毎月−${drop.toFixed(1)}（すべての城）` : '動員による低下なし'}</dd>
       <dt>兵糧</dt><dd>${fmt(me.food)}石（月 −${fmt(clanUpkeep(st, st.player))}）</dd></dl>
-      ${hints([`自城と隣のヘックスにいる部隊・城兵は、動員率がこの目標に届くまで毎月補充される（兵糧${R.RECRUIT_COST}石/人）。`, `動員率が${R.MOBILIZE_FREE * 100}%を超えた分×${R.MOBILIZE_DROP}だけ、家のすべての城の治安が毎月下がる。治安が下がると動員上限と開発の上限も下がる。`])}`;
+      ${hints([`自城と隣のヘックスにいる部隊・城兵は、動員率がこの目標に届くまで毎月補充される（兵糧${R.RECRUIT_COST}石/人）。`, `動員率（地図に出ている農兵÷動員上限。陣払いの名簿の兵と足軽は数えない）が${R.MOBILIZE_FREE * 100}%を超えた分×${R.MOBILIZE_DROP}だけ、家のすべての城の治安が毎月下がる。治安が下がると動員上限と開発の上限も下がる。`])}`;
   },
   tsukai: (st) => {
     const label = tsukaiLabel(st.player), ts = tsukaiOf(st, st.player);
@@ -2297,7 +2297,7 @@ const TABS: Record<string, (st: GameState) => string> = {
     `同じ敵に隣接する味方は戦闘力の${R.FLANK_SUPPORT * 100}%で支援し、敵士気を下げる（側面${R.MORALE_FLANK}、包囲${R.MORALE_SURROUND}）。退路がなければ壊滅。`,
     `城は城兵が守る。城兵を崩せば落城し、その支配域を得る。自城と隣接ヘックスで毎月補充（兵糧${R.RECRUIT_COST}石/人）。兵は月${R.FOOD_PER_SOLDIER}石を消費。十月に収穫。`,
     `奉行（「人事」の奉行で任命）は農政か商業を担当する。農政の奉行が全城の開発を進め、石高・動員上限・収穫を上げる。月の伸び＝${R.BUGYO_RATE * 100}%×係数。係数＝${R.DEV_NATURAL}＋Σ 重み×知略÷100（重みは知略の高い順に${R.BUGYO_WEIGHT.join('・')}）。奉行1人で${R.BUGYO_CASTLES}城まで目が届き、城が多いと効率が落ちる。城主のいない城は半分、包囲中は進まない。開発の上限は治安で決まる（100〜160%）。`,
-    '治水は収穫の倍率、治安は動員上限と開発の上限を決める。どちらも「内政」の予算で金を回して上げる。兵を集めすぎる（動員率5割超）と治安が毎月下がる。補充の上限は「軍事」の動員目標で決める。',
+    '治水は収穫の倍率、治安は動員上限と開発の上限を決める。どちらも「内政」の予算で金を回して上げる。出陣中の農兵が多すぎる（動員率5割超。陣払いの名簿の兵は数えない）と治安が毎月下がる。補充の上限は「軍事」の動員目標で決める。',
     '官位は「外交」の朝廷で献金して買う。威信の上乗せと、AIに攻められにくくなる効果がある。関白・征夷大将軍は天下に1人（将軍は大領と京が条件）。',
     '本願寺だけは他家の城に一向一揆を起こせる（城の画面）。一揆勢は攻め込まれたのと同じ扱いで、討った分だけその城の開発と治安が下がる。忠誠・治安でも金でも防げない。',
     `金（貫）は城の商業値から毎月入る。商業値＝石高×${R.COM_PER_KOKU}＋要所の上乗せ（堺・京・博多・津島など）、商業の開発度は商業担当の奉行が上げる。調略・外交・在野の登用は金で払う。「商い」で兵糧の売買・鉄砲・名物を扱う。`,

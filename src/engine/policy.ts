@@ -3,7 +3,7 @@ import { frontChianOf } from './fronts';
 import { shugodaiChian } from './kan';
 import { taxDef } from './invest';
 import * as R from './rules';
-import { clanCapacity, clanCastles, farmTroops } from './state';
+import { clanAshi, clanCapacity, clanCastles, fieldTroops } from './state';
 import type { Castle, Clan, GameState } from './types';
 
 // 治安の毎月の変化（城主の魅力・戦のない月・包囲・兵糧切れ・動員の多さ）
@@ -26,10 +26,11 @@ export function chianDelta(s: GameState, clan: Clan, c: Castle, sieged: boolean,
   if (m) parts.push(['動員', -m]);
   return { total: parts.reduce((t, [, v]) => t + v, 0), parts };
 }
-// 動員率（兵 ÷ 動員上限）が5割を超えた分だけ、家のすべての城の治安が毎月下がる
+// 動員率（出陣中の農兵 ÷ 動員上限）が5割を超えた分だけ、家のすべての城の治安が毎月下がる。
+// 陣払いの名簿の兵は村に帰っているので数えない（足軽も数えない）
 export function mobilizeRate(s: GameState, clan: string) {
   const cap = clanCapacity(s, clan);
-  return cap > 0 ? farmTroops(s, clan) / cap : 0;
+  return cap > 0 ? Math.max(0, fieldTroops(s, clan) - clanAshi(s, clan)) / cap : 0;
 }
 export const mobilizeDrop = (s: GameState, clan: string) => Math.max(0, (mobilizeRate(s, clan) - R.MOBILIZE_FREE) * R.MOBILIZE_DROP);
 
