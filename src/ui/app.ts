@@ -81,7 +81,9 @@ import { attach, attachBlock, childrenOf, directOf, leaveArmy, levelOf, migrateC
 import { BIO } from '../data/bios';
 import { roleOf, bugyoCoef, bugyoOf, bugyoSlots, canBugyo, setBugyo, canTsukai, rankName, setTsukai, tsukaiLabel, tsukaiOf, tsukaiSlots, migrateRanks } from '../engine/ranks';
 
-const SAVE_KEY = 'jinbure2:save';
+const SAVE_KEY = 'jinbure2:save'; // 保存先1（以前からの保存先）
+const slotKey = (n: number) => (n === 1 ? SAVE_KEY : `${SAVE_KEY}${n}`); // 保存先は3つ
+const SLOTS = [1, 2, 3];
 const AUTO_KEY = 'jinbure2:auto';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -2043,7 +2045,7 @@ const TABS: Record<string, (st: GameState) => string> = {
       <h3 style="margin-top:10px">買う</h3><div class="actions">${[100, 300, 500, 1000].map((n) => `<button class="mini" data-act="gun-buy" data-id="${n}" ${me.gold >= n * gp ? '' : 'disabled'}>${fmt(n)}丁（${fmt(n * gp)}貫）</button>`).join('')}</div>
       ${hints([
         '産地: 堺（岸和田城）・国友（小谷城）・根来寺・雑賀城。',
-        `買った鉄砲は蔵に入る。「軍事」の鉄砲の配備か部隊の画面で、自城か自城の隣にいる部隊に持たせる（兵の${R.GUN_SHARE * 100}%まで）。${R.GUN_MIN_UNIT}丁以上で合戦に鉄砲隊が出る。`,
+        `買った鉄砲は蔵に入る。「軍事」の部隊か部隊の画面で、自城か自城の隣にいる部隊に持たせる（兵の${R.GUN_SHARE * 100}%まで）。${R.GUN_MIN_UNIT}丁以上で合戦に鉄砲隊が出る。`,
         '鉄砲隊は2ヘックス先まで撃てて反撃を受けない。攻撃力は武将によらず1.5。防御は低く、隣に敵がいると射撃×0.7。丘×1.1・城内×1.2・森×0.6・川や湿地×0.7。',
         '隊が兵を失うと鉄砲もその分失う。維持費が払えないと毎月5%が使えなくなる。',
       ])}`;
@@ -2066,7 +2068,7 @@ const TABS: Record<string, (st: GameState) => string> = {
       ${marketItems(st).sort((a, b) => b.grade - a.grade).map((it) => `<tr><td>${esc(itemLabel(it))}</td><td>${effOf(it)}</td><td class="n">${fmt(itemPrice(st, st.player, it))}貫</td><td><button class="mini" data-act="item-buy" data-id="${it.id}" ${me.gold >= itemPrice(st, st.player, it) ? '' : 'disabled'}>買う</button></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="lede">市場に名物は出ていない。</p>'}
       ${hints([
-        `持っている名物の格の合計だけ威信が上がる。「外交」で名物を添えると成功率+格×${R.ITEM_GIFT * 100}%。買った名物は「人事」の下賜で武将に持たせる。`,
+        `持っている名物の格の合計だけ威信が上がる。「外交」で名物を添えると成功率+格×${R.ITEM_GIFT * 100}%。買った名物は「人事」の恩賞（名物の下賜）で武将に持たせる。`,
         '家が滅べば、その家の名物は滅ぼした家のものになる。堺（岸和田城）を持てば市場の名物は2割引。',
       ])}`;
   },
@@ -2088,7 +2090,7 @@ const TABS: Record<string, (st: GameState) => string> = {
       ${hints([
         `南蛮船は毎年${R.SHIP_MONTH}月に1〜2隻が来て、${R.SHIP_STAY}か月とどまる。港: 平戸・府内・坊津（内城）・堺（岸和田城）、${'1570'}年から長崎（三城）。`,
         `布教を許した家の港には${R.SHIP_W_ALLOW}倍来やすく、禁教の家の港にはほとんど来ない（「外交」の布教）。`,
-        `来航中は港の持ち主に貿易の利が月${fmt(R.SHIP_TRADE)}貫入る（銀山を持てば、その産出の${R.SILVER_TRADE * 100}%を上乗せ）。唐船（明の商人の密貿易の船）も平戸・坊津・博多にときどき来て、${R.KARASEN_STAY}か月のあいだ月${fmt(R.KARASEN_TRADE)}貫が入る（唐入りのあいだは来ない）。貿易の利は港を家臣に与えても当家に入る。1隻が鉄砲${R.SHIP_GUNS}丁・大筒${R.SHIP_CANNON}門・南蛮の品を積んでくる。`,
+        `来航中は港の持ち主に貿易の利が月${fmt(R.SHIP_TRADE)}貫入る（銀山を持てば、その産出の${R.SILVER_TRADE * 100}%を上乗せ）。唐船（明の商人の密貿易の船）も平戸・坊津・博多にときどき来て、${R.KARASEN_STAY}か月のあいだ月${fmt(R.KARASEN_TRADE)}貫が入る。貿易の利は港を家臣に与えても当家に入る。1隻が鉄砲${R.SHIP_GUNS}丁・大筒${R.SHIP_CANNON}門・南蛮の品を積んでくる。`,
         `大筒（維持費 月${R.CANNON_UPKEEP}貫/門）は部隊に${R.CANNON_MAX}門まで持たせる。攻城の初めに城門を1門ごとに${R.CANNON_GATE * 100}%削り、城兵を怯ませ、その後も攻め手の手番ごとに城門を撃つ。自動の決着では城の守りを弱める。部隊が壊滅すると失う。`,
       ])}`;
   },
@@ -2388,10 +2390,23 @@ const TABS: Record<string, (st: GameState) => string> = {
   },
 
   // ── 記録 ──
-  log: (st) => `<ol class="hint" style="padding-left:1.2em">${st.log.slice(-200).reverse().map((l) => `<li>${turnLabel(l.turn)}　${esc(l.text)}</li>`).join('')}</ol>`,
+  // 記録 › 全記録: 種類で絞り込み、年ごとにたたむ（今年だけ開く）。PCでは本文を2列に流す
+  log: (st) => {
+    const F: [string, string, (l: GameState['log'][number]) => boolean][] = [['all', 'すべて', () => true], ['mine', '当家のこと', (l) => l.mine], ['battle', '合戦', (l) => l.kind === 'battle' || l.kind === 'death'], ['castle', '城', (l) => l.kind === 'castle'], ['econ', '金と内政', (l) => l.kind === 'econ']];
+    const f = F.find(([k]) => k === logFilter) ?? F[0];
+    const xs = st.log.filter(f[2]).reverse();
+    const years = new Map<string, typeof xs>();
+    for (const l of xs) { const y = turnLabel(l.turn).split('.')[0]; years.set(y, [...(years.get(y) ?? []), l]); }
+    const cur = turnLabel(st.turn).split('.')[0];
+    return `<div class="subtabs">${F.map(([k, l, fn]) => `<button aria-selected="${logFilter === k}" data-act="log-filter" data-id="${k}">${l} ${st.log.filter(fn).length}</button>`).join('')}</div>
+      ${years.size ? [...years].map(([y, ls]) => `<details class="log-year" ${y === cur || years.size === 1 ? 'open' : ''}><summary>${y}年（${ls.length}件）</summary><ol class="hint log-cols">${ls.map((l) => `<li${l.mine ? ' class="mine"' : ''}><span class="log-d">${turnLabel(l.turn).split('.')[1]}月</span>${esc(l.text)}</li>`).join('')}</ol></details>`).join('') : '<p class="hint">当てはまる記録はない。</p>'}
+      <p class="hint">記録は直近${400}件まで残る。</p>`;
+  },
   save: () => {
-    const saved = load(SAVE_KEY);
-    return `<div class="actions" style="margin-top:0"><button class="act primary" data-act="save">保存</button><button class="act" data-act="load" ${saved ? '' : 'disabled'}>読込${saved ? `（${dateLabel(saved)}・${esc(saved.clans[saved.player].name)}）` : ''}</button><button class="act" data-act="newgame">最初から</button></div>
+    const slotRow = (label: string, sv: GameState | null, saveId: string | null, loadId: string) => `<tr><td>${label}</td><td>${sv ? `${esc(sv.clans[sv.player].name)}家・${dateLabel(sv)}` : '<span class="hint" style="margin:0">空き</span>'}</td><td>${saveId ? `<button class="mini" data-act="save" data-id="${saveId}">ここに保存</button> ` : ''}<button class="mini" data-act="load" data-id="${loadId}" ${sv ? '' : 'disabled'}>読込</button></td></tr>`;
+    const slots = `<div class="tbl-wrap"><table><tbody>${SLOTS.map((n) => slotRow(`保存先${n}`, load(slotKey(n)), String(n), String(n))).join('')}${slotRow('自動（毎月）', load(AUTO_KEY), null, 'auto')}</tbody></table></div>
+      <div class="actions"><button class="act" data-act="newgame">最初から</button></div><p class="hint">保存はこのブラウザ内のみ。毎月の評定の終わりに「自動」へ保存される。</p>`;
+    return `<div class="two-cols"><section><h3 class="sect-h" style="margin-top:0">保存と読込</h3>${slots}</section><section><h3 class="sect-h" style="margin-top:0">表示と音</h3>
       <div class="actions"><button class="act" data-act="cutin-toggle" aria-pressed="${cutinOn()}">顔見せ（返事や節目のセリフ）: ${cutinOn() ? '出す' : '出さない'}</button></div>
       ${(() => { const so = soundSettings(); return `<div class="actions" style="align-items:center;gap:10px;flex-wrap:wrap"><button class="act" data-act="snd-music" aria-pressed="${so.music}">音楽: ${so.music ? '出す' : '出さない'}</button><label class="hint" style="margin:0;display:flex;align-items:center;gap:6px">音量<input type="range" min="0" max="100" value="${Math.round(so.vm * 100)}" data-vol="vm" aria-label="音楽の音量"></label></div>
       <div class="actions" style="align-items:center;gap:10px;flex-wrap:wrap"><button class="act" data-act="snd-sfx" aria-pressed="${so.sfx}">効果音: ${so.sfx ? '出す' : '出さない'}</button><label class="hint" style="margin:0;display:flex;align-items:center;gap:6px">音量<input type="range" min="0" max="100" value="${Math.round(so.vs * 100)}" data-vol="vs" aria-label="効果音の音量"></label></div>`; })()}
@@ -2399,9 +2414,9 @@ const TABS: Record<string, (st: GameState) => string> = {
       <div class="actions"><button class="act" data-act="opening-toggle" aria-pressed="${openingOn()}">序幕（始める前の時代の紹介）: ${openingOn() ? '出す' : '出さない'}</button></div>
       <div class="actions"><button class="act" data-act="battle-style">合戦の部隊の印: ${UNIT_STYLE_NAME[getBattleStyle()]}</button></div>
       <div class="actions"><button class="act" data-act="army-style" aria-pressed="${view.armyStyle === 'hayashi'}">地図の部隊の印: ${view.armyStyle === 'hayashi' ? '幟の林（兵が多いほど幟が増える）' : '丸（武将名と兵数の弧）'}</button></div>
-    <p class="hint">保存はこのブラウザ内のみ。毎月自動保存される。</p>`;
+    </section></div>`;
   },
-  help: () => `<h3 class="sect-h">操作</h3>${KEYS_HTML}<h3 class="sect-h">用語集</h3>${GLOSSARY_HTML}<h3 class="sect-h">仕組み</h3>` + helpList([
+  help: () => `<nav class="help-toc">${[['keys', '操作'], ['words', '用語集'], ['g0', '合戦と城攻め'], ['g1', '内政'], ['g2', '軍事'], ['g3', '人事'], ['g4', '外交'], ['g5', '商い・南蛮']].map(([k, l]) => `<button type="button" class="mini" data-act="help-go" data-id="help-${k}">${l}</button>`).join('')}</nav><h3 class="sect-h" id="help-keys">操作</h3>${KEYS_HTML}<h3 class="sect-h" id="help-words">用語集</h3>${GLOSSARY_HTML}<h3 class="sect-h" id="help-g0">合戦と城攻め</h3>` + helpList([
     `1ターン＝1か月。軍団は移動力${R.MOVE_POINTS}（平地1・森/川2・山3・城1）。敵軍に隣接すると止まる。1ヘックスに1軍団。`,
     `隣接する敵軍・城を攻撃すると、その月の会戦を最大${R.ROUNDS}合で解決。損害は相手の戦闘力に比例し、兵が多いほど有利。`,
     '兵科はない。武将の能力が部隊の性格になる。攻撃力＝0.5＋(武勇×0.6＋統率×0.4)÷100、防御力＝0.5＋(統率×0.6＋知略×0.2＋魅力×0.2)÷100、壊乱閾値＝0.60−(魅力×0.2＋統率×0.1)÷100。補佐は知略を補い（高いほうを使う）、武勇は主将との差の半分だけ補う。',
@@ -2409,21 +2424,26 @@ const TABS: Record<string, (st: GameState) => string> = {
     '地形で活きる能力が変わる: 平地の突撃は×1.3（他は×1.1）。森にいると計略+15%、知略で15以上勝れば森からの攻撃が伏兵×1.2。丘からの攻撃×1.15。',
     `同じ敵に隣接する味方は戦闘力の${R.FLANK_SUPPORT * 100}%で支援し、敵士気を下げる（側面${R.MORALE_FLANK}、包囲${R.MORALE_SURROUND}）。退路がなければ壊滅。`,
     `城は城兵が守る。城兵を崩せば落城し、その支配域を得る。自城と隣接ヘックスで毎月補充（兵糧${R.RECRUIT_COST}石/人）。兵は月${R.FOOD_PER_SOLDIER}石を消費。十月に収穫。`,
+  ]) + `<h3 class="sect-h" id="help-g1">内政</h3>` + helpList([
     `奉行（「人事」の奉行で任命）は農政か商業を担当する。農政の奉行が全城の開発を進め、石高・動員上限・収穫を上げる。月の伸び＝${R.BUGYO_RATE * 100}%×係数。係数＝${R.DEV_NATURAL}＋Σ 重み×知略÷100（重みは知略の高い順に${R.BUGYO_WEIGHT.join('・')}）。奉行1人で${R.BUGYO_CASTLES}城まで目が届き、城が多いと効率が落ちる。城主のいない城は半分、包囲中は進まない。開発の上限は治安で決まる（100〜160%）。`,
-    '治水は収穫の倍率、治安は動員上限と開発の上限を決める。どちらも「内政」の予算で金を回して上げる。出陣中の農兵が多すぎる（動員率5割超。陣払いの名簿の兵は数えない）と治安が毎月下がる。補充の上限は「軍事」の動員目標で決める。',
-    '官位は「外交」の朝廷で献金して買う。威信の上乗せと、AIに攻められにくくなる効果がある。関白・征夷大将軍は天下に1人（将軍は大領と京が条件）。',
-    '本願寺だけは他家の城に一向一揆を起こせる（城の画面）。一揆勢は攻め込まれたのと同じ扱いで、討った分だけその城の開発と治安が下がる。忠誠・治安でも金でも防げない。',
+    '治水は収穫の倍率、治安は動員上限と開発の上限を決める。どちらも「内政」の予算で金を回して上げる。出陣中の農兵が多すぎる（動員率5割超。陣払いの名簿の兵は数えない）と治安が毎月下がる。補充の上限は「内政」の予算と動員で決める。',
     `金（貫）は城の商業値から毎月入る。商業値＝石高×${R.COM_PER_KOKU}＋要所の上乗せ（堺・京・博多・津島など）、商業の開発度は商業担当の奉行が上げる。調略・外交・在野の登用は金で払う。「商い」で兵糧の売買・鉄砲・名物を扱う。`,
+  ]) + `<h3 class="sect-h" id="help-g2">軍事</h3>` + helpList([
+    `練度と足軽: 部隊には練度があり、自城の近くで過ごすと上がり、農兵を補充すると下がる。足軽（常備兵）は金で雇い（1人${R.ASHI_HIRE}貫、給金 月${R.ASHI_WAGE}貫）、練度を100まで上げられ、季節を問わない。農繁期（田植え・刈り入れ）に農兵を領外へ出すと秋の収穫が減る。詳しくは「軍事」の部隊。`,
+    `軍団の編成（「軍事」の陣立て）: 当主・宿老の下に侍大将、その下に足軽大将、その下に足軽組頭を、それぞれ${R.CORPS_CHILDREN}人まで置ける。兵数の上限＝主将の上限×${R.CORPS_MAIN_TROOP}＋傘下の武将それぞれの上限×${R.CORPS_SUB_TROOP}。合戦では主将と主将のすぐ下の武将が隊を率いる。軍団が戦えば傘下の全員に功績が入る。`,
+  ]) + `<h3 class="sect-h" id="help-g3">人事</h3>` + helpList([
     '年齢と病: 武将は年を取る。25歳までは毎年伸び、56歳から武勇、60歳から統率、68歳から知略が毎年下がる。寿命はなく、病にかかったときだけ死ぬ。病は年を取るほどかかりやすく、重くなる（1〜5か月続き、その間は毎月亡くなるおそれがある）。',
     '家督: 当主が亡くなると、一門の子の世代の年長者が継ぐ。いなければ一門、元服前の子（急ぎ元服させる）、家臣の順。威信と全城の治安が下がり、一門でない者や幼い者が継ぐとさらに下がる。',
-    `在野の武将は諸国を巡り、自家の城に来れば仕官を願い出ることがある（召し抱えるには${fmt(R.RONIN_GOLD)}貫）。威信が高く当主の魅力がある家ほど願い出が多い。旧主家を滅ぼした家には仕えない。「情報」の在野で全員の所在と能力が見られる。`,
-    `練度と足軽: 部隊には練度があり、自城の近くで過ごすと上がり、農兵を補充すると下がる。足軽（常備兵）は金で雇い（1人${R.ASHI_HIRE}貫、給金 月${R.ASHI_WAGE}貫）、練度を100まで上げられ、季節を問わない。農繁期（田植え・刈り入れ）に農兵を領外へ出すと秋の収穫が減る。詳しくは「軍事」の足軽と練度。`,
-    `軍団の編成（「人事」の軍団）: 当主・宿老の下に侍大将、その下に足軽大将、その下に足軽組頭を、それぞれ${R.CORPS_CHILDREN}人まで置ける。兵数の上限＝主将の上限×${R.CORPS_MAIN_TROOP}＋傘下の武将それぞれの上限×${R.CORPS_SUB_TROOP}。合戦では主将と主将のすぐ下の武将が隊を率いる。軍団が戦えば傘下の全員に功績が入る。`,
-    `南蛮貿易と布教: 毎年${R.SHIP_MONTH}月に南蛮船が南蛮港（平戸・府内・坊津・堺、1570年から長崎）に来て、港の持ち主に南蛮市が開く（鉄砲が安く、大筒と南蛮の品が買える）。宣教師が布教の許しを願い出てくる。許せば商業と来航が伸びるが寺社が反発し、禁じれば洗礼を受けた家臣が去ることがある（「外交」の布教）。`,
+    `在野の武将は諸国を巡り、自家の城に来れば仕官を願い出ることがある（召し抱えるには${fmt(R.RONIN_GOLD)}貫）。威信が高く当主の魅力がある家ほど願い出が多い。旧主家を滅ぼした家には仕えない。「人事」の人材で全員の所在と能力が見られる。`,
     `知行（「人事」の知行）: 足軽大将以上の直参に城を与えると城持ちになる（宿老は何城でも、侍大将${R.FIEF_CAP[1]}城、足軽大将${R.FIEF_CAP[2]}城）。領の年貢・商いの8割は領に入り、${Math.round(R.FIEF_TRIBUTE * 100)}%が上納される。領の部隊は方針（攻略・防衛・軍備増強）に従って領主が動かし、陪臣の恩賞も領主が払う。領主がいなくなれば後継ぎを選ぶ。「内政」の委任で軍事を任せれば、直轄の部隊と城もAIが動かす。`,
     '御恩と奉公: 家臣には恩がある。功を立てたら「人事」の恩賞で報いる（感状・加増・取り立て・下賜）。報いずにいれば恩が下がり、出奔・城ごとの寝返り・城持ちの謀反を招く。名声の高い家臣には外から官の誘いが来る。縁のある者は去就を共にする。落とした城は仕置を決め、残り火に気をつける。当主が病に倒れたら跡継ぎと遺言を定める。',
+  ]) + `<h3 class="sect-h" id="help-g4">外交</h3>` + helpList([
+    '官位は「外交」の朝廷で献金して買う。威信の上乗せと、AIに攻められにくくなる効果がある。関白・征夷大将軍は天下に1人（将軍は大領と京が条件）。',
     '大義名分: 戦には名分が要る。名分は将軍から発する（御内書・幕府の職・守護職）ほか、旧領の回復・仇討ち・反撃・救援など。名分のない戦（私戦）は家臣・民・諸家に支持されない。出陣の画面で名分を確かめ、「外交」の幕府で願い出る。',
-  ]),
+    '本願寺だけは他家の城に一向一揆を起こせる（城の画面）。一揆勢は攻め込まれたのと同じ扱いで、討った分だけその城の開発と治安が下がる。忠誠・治安でも金でも防げない。',
+  ]) + `<h3 class="sect-h" id="help-g5">商い・南蛮</h3>` + helpList([
+    `南蛮貿易と布教: 毎年${R.SHIP_MONTH}月に南蛮船が南蛮港（平戸・府内・坊津・堺、1570年から長崎）に来て、港の持ち主に南蛮市が開く（鉄砲が安く、大筒と南蛮の品が買える）。宣教師が布教の許しを願い出てくる。許せば商業と来航が伸びるが寺社が反発し、禁じれば洗礼を受けた家臣が去ることがある（「外交」の布教）。`,
+  ]) + ``,
 };
 
 // ───────── 外交 ─────────
@@ -2434,6 +2454,7 @@ function relationLabel(st: GameState, c: string) {
 }
 
 let dipGift: string | null = null;
+let logFilter = 'all'; // 全記録の絞り込み
 let ninjaClan: string | null = null; // 忍び: 諸大名の札から来たときは、その家だけを狙う先に出す
 const ninjaSel: { act: NinjaAct; target: string } = { act: 'rumor', target: '' }; // 忍びの働きと狙い（'g:武将id' か 'c:城の番号'）
 let teaHost = '';
@@ -2494,7 +2515,7 @@ function offerRows(st: GameState) {
 const offerHead = '<thead><tr><th>武将</th><th class="n">年齢</th><th class="n">武勇</th><th class="n">知略</th><th class="n">統率</th><th class="n">魅力</th><th>旧主</th><th>来た城</th><th>身分</th><th></th></tr></thead>';
 function offersBlock(st: GameState) {
   if (!st.offers?.length) return '';
-  return `<h3 style="margin-top:4px">仕官の願い出</h3><p class="hint" style="margin-top:0">在野の武将が当家を見込んで願い出ている。召し抱えるには金${fmt(R.RONIN_GOLD)}貫（今${fmt(st.clans[st.player].gold)}貫）。この月のうちは「情報」の在野からも決められる。</p>
+  return `<h3 style="margin-top:4px">仕官の願い出</h3><p class="hint" style="margin-top:0">在野の武将が当家を見込んで願い出ている。召し抱えるには金${fmt(R.RONIN_GOLD)}貫（今${fmt(st.clans[st.player].gold)}貫）。この月のうちは「人事」の人材からも決められる。</p>
     <div class="tbl-wrap"><table>${offerHead}<tbody>${offerRows(st)}</tbody></table></div>`;
 }
 
@@ -2878,6 +2899,8 @@ function onModalClick(e: Event) {
   if (act === 'sub') { lastSub[lastTab[curMenu]] = id; openMenu(); document.querySelector('#modal .sheet')!.scrollTop = 0; return; }
   if (act === 'dip-open') { dipFocus = id; openMenu(curMenu, 'gaike'); document.querySelector('#modal .sheet')!.scrollTop = 0; return; }
   if (act === 'dip-filter') { dipAll = id === 'all'; openMenu(curMenu, 'gaike'); return; }
+  if (act === 'log-filter') { logFilter = id; openMenu(); return; }
+  if (act === 'help-go') { document.getElementById(id)?.scrollIntoView({ block: 'start' }); return; }
   if (act === 'open-tab') { const [m, t] = id.split(':'); openMenu(m as MenuKey, t); return; }
   if (act === 'ninja-at') { ninjaClan = id; ninjaSel.target = ''; openMenu('gaiko', 'shinobi'); return; }
   if (act === 'ninja-clan-off') { ninjaClan = null; openMenu(); return; }
@@ -2910,8 +2933,8 @@ function onModalClick(e: Event) {
     return;
   }
   if (act === 'dip-break') { breakTreaty(st, st.player, id); refresh(); openMenu(); return; }
-  if (act === 'save') { toast(store(SAVE_KEY, JSON.stringify(st)) ? '保存した' : '保存できなかった（ブラウザの保存領域が使えない）'); openMenu(); return; }
-  if (act === 'load') { const sv = load(SAVE_KEY); if (sv) { startWith(sv); toast('読み込んだ'); } return; }
+  if (act === 'save') { const n = +id || 1; toast(store(slotKey(n), JSON.stringify(st)) ? `保存先${n}に保存した` : '保存できなかった（ブラウザの保存領域が使えない）'); openMenu(); return; }
+  if (act === 'load') { const sv = load(id === 'auto' ? AUTO_KEY : slotKey(+id || 1)); if (sv) { startWith(sv); toast('読み込んだ'); } return; }
   const g = st.generals[id];
   if (!g) return;
   if (act === 'bugyo-role') { const r = roleOf(g); g.role = r === 'agri' ? 'com' : r === 'com' ? 'hyoro' : 'agri'; toast(`${g.name}を${ROLE_NAME[g.role]}の担当にした`); refresh(); reopen(); return; }

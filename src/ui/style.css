@@ -694,3 +694,12 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 .ichiba-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 28px; align-items: start; }
 .ichiba-grid > section { border-top: 1px solid var(--hair); padding-top: 8px; }
 @media (max-width: 1100px) { .ichiba-grid { grid-template-columns: 1fr; } }
+/* 記録: 全記録の年ごとのたたみと2列、遊び方の目次 */
+.log-year { margin: 4px 0; }
+.log-year > summary { cursor: pointer; color: var(--gold, #cfa95e); padding: 4px 0; }
+.log-cols { list-style: none; padding: 0; margin: 4px 0 8px; }
+.log-cols li { padding: 2px 0; break-inside: avoid; }
+.log-cols li.mine { color: var(--paper); }
+.log-cols .log-d { display: inline-block; min-width: 3.2em; color: var(--paper-dim); }
+@media (min-width: 1200px) { .sheet:has(.log-cols) { width: min(1480px, 100%); } .log-cols { columns: 2; column-gap: 28px; } .sheet:has(.help-toc) { width: min(1480px, 100%); } .glossary { grid-template-columns: auto 1fr auto 1fr; column-gap: 16px; } }
+.help-toc { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: -22px; background: var(--lacquer-2); padding: 6px 0; z-index: 1; }
