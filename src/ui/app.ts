@@ -1233,7 +1233,7 @@ function openTitle() {
 type MenuKey = 'naisei' | 'gunji' | 'jinji' | 'gaiko' | 'akinai' | 'kiroku';
 // やりたいことでまとめたメニュー（いくつかのタブは旧タブを束ねたもの: COMPOSITE）
 const MENUS: { key: MenuKey; name: string; tabs: [string, string][] }[] = [
-  { key: 'naisei', name: '内政', tabs: [['shiro', '城'], ['yosan', '予算と動員'], ['deleg', '委任']] },
+  { key: 'naisei', name: '内政', tabs: [['shiro', '領内'], ['yosan', '予算と動員'], ['deleg', '委任']] },
   { key: 'gunji', name: '軍事', tabs: [['jindate', '陣立て'], ['butai', '部隊'], ['corps', '軍団']] },
   { key: 'jinji', name: '人事', tabs: [['vassals', '家臣団'], ['rewards', '恩賞'], ['fronts', '知行'], ['governors', '城主'], ['bugyo', '奉行'], ['tsukai', '使番'], ['katoku', '家督'], ['gift', '下賜'], ['tokusei', '特性'], ['jinzai', '人材']] },
   { key: 'gaiko', name: '外交', tabs: [['gaike', '諸大名'], ['bakufu', '幕府'], ['court', '朝廷'], ['mission', '布教']] },
@@ -1544,19 +1544,19 @@ const TABS: Record<string, (st: GameState) => string> = {
     return `${dNote(st, 'budget')}<dl class="kv">
       <dt>治水</dt><dd>${selPct('chisui', me.budget.chisui, R.BUDGET_STEPS)}　月およそ${fmt((inc * me.budget.chisui) / 100)}貫${lb ? `（先月${fmt(lb.chisui)}貫）` : ''}</dd>
       <dt>施し</dt><dd>${selPct('hodo', me.budget.hodo, R.BUDGET_STEPS)}　月およそ${fmt((inc * me.budget.hodo) / 100)}貫${lb ? `（先月${fmt(lb.hodo)}貫）` : ''}</dd>
-      <dt>重点の城</dt><dd>${me.focus !== null && me.focus !== undefined ? esc(st.castles[me.focus].name) : 'なし（「内政」の城で指定）'}</dd></dl>
+      <dt>重点の城</dt><dd>${me.focus !== null && me.focus !== undefined ? esc(st.castles[me.focus].name) : 'なし（「内政」の領内で指定）'}</dd></dl>
       <h3 style="margin-top:12px">年貢の率</h3>
       <div class="subtabs">${(['low', 'mid', 'high'] as Tax[]).map((t) => `<button aria-selected="${taxOf(st, st.player) === t}" data-act="tax" data-id="${t}">${TAX[t].name}</button>`).join('')}</div>
       <p class="hint" style="margin-top:0">${(['low', 'mid', 'high'] as Tax[]).map((t) => `<b>${TAX[t].name}</b>（${TAX[t].note}）: 年貢・商いの収入×${TAX[t].income}${TAX[t].chian ? `・治安 毎月${TAX[t].chian > 0 ? '+' : ''}${TAX[t].chian}` : ''}${TAX[t].grow !== 1 ? `・開発の伸び×${TAX[t].grow}` : ''}${TAX[t].cap !== 1 ? `・動員上限×${TAX[t].cap}` : ''}${TAX[t].ember !== 1 ? `・残り火の鎮まり×${TAX[t].ember}` : ''}`).join('<br>')}<br>鉱山と貿易の稼ぎは年貢の率に関わらない。</p>
-      <p class="hint">城ごとの投資・新田開発・普請・楽市楽座は「内政」の城で。</p>
+      <p class="hint">城ごとの投資・新田開発・普請・楽市楽座は「内政」の領内で。</p>
       ${hints([
-        `毎月の収入のうち、決めた割合を治水と施しに回す。重点の城に半分を先に回し、残りは低い城から自動で配る。治水1＝基本石高×${R.CHISUI_COST}貫、治安1（施し）＝基本石高×${R.HODO_COST}貫。城ごとの値は「内政」の城で見られる。`,
+        `毎月の収入のうち、決めた割合を治水と施しに回す。重点の城に半分を先に回し、残りは低い城から自動で配る。治水1＝基本石高×${R.CHISUI_COST}貫、治安1（施し）＝基本石高×${R.HODO_COST}貫。城ごとの値は「内政」の領内で見られる。`,
         '治水: 収穫＝石高×（0.7＋治水×0.006）。0で70%、50で100%、100で130%。',
         '治安: 動員上限＝石高×（200＋治安×1.5）人、開発の上限＝100%＋治安×0.6%。上限を超えた開発度は毎月少しずつ下がる。',
         `治安が下がる: 動員率（兵÷動員上限）が50%を超えた分×10が毎月（100%で−5）、包囲${R.CHIAN_SIEGE}、兵糧切れ${R.CHIAN_STARVE}、落とした城は${R.CHIAN_CAPTURED}から。上がる: 城主の魅力（(魅力−40)÷20）、戦のない月+${R.CHIAN_PEACE}、施し。動員目標は「軍事」で決める。`,
       ])}`;
   },
-  // 内政 › 城: 城ごとの内政の操作（投資・新田・普請・楽市楽座・重点）を一つの表で。城主・奉行の任命は人事で
+  // 内政 › 領内: 城ごとの内政の操作（投資・新田・普請・楽市楽座・重点）を一つの表で。城主・奉行の任命は人事で
   shiro: (st) => {
     const me = st.clans[st.player];
     const all = clanCastles(st, st.player).sort((a, b) => castleKoku(b) - castleKoku(a));
@@ -2554,7 +2554,7 @@ function onModalClick(e: Event) {
   if (act === 'stance') { const r = stanceResolve; stanceResolve = null; closeModal(); r?.(id as Stance); return; }
   if (act === 'ask-yes' || act === 'ask-no') { const r = askResolve; askResolve = null; closeModal(); r?.(act === 'ask-yes'); return; }
   if (act === 'close') { closeModal(); return; }
-  if (['inv-agri', 'inv-com', 'shinden', 'fort', 'rakuichi', 'focus-toggle'].includes(act)) { onPanelClick(e); return; } // 内政 › 城の表の操作は城の画面と同じ処理
+  if (['inv-agri', 'inv-com', 'shinden', 'fort', 'rakuichi', 'focus-toggle'].includes(act)) { onPanelClick(e); return; } // 内政 › 領内の表の操作は城の画面と同じ処理
   if (act === 'newgame') { store(AUTO_KEY, null); s = null; openTitle(); return; }
   if (act === 'end-new' || act === 'end-close') { $('ending').hidden = true; if (act === 'end-new') { store(AUTO_KEY, null); s = null; openTitle(); } return; }
   if (!s) return;
