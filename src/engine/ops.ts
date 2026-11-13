@@ -7,7 +7,7 @@ import { goodwill, initOn, onOf } from './on';
 import { pushScene } from './lines';
 import { graphDistances, HEXES } from './map';
 import * as R from './rules';
-import { addLog, clanCastles, clanName, garrisonMax, hostile, initialMorale, occupancy, rand } from './state';
+import { addLog, clanCastles, learnCastle, clanName, garrisonMax, hostile, initialMorale, occupancy, rand } from './state';
 import { dropItems, seizeItems } from './money';
 import { presOf } from './court';
 import { dropIkkiLeader } from './ikki';
@@ -311,7 +311,7 @@ export function doPlot(s: GameState, g: General, c: Castle, clan: string): 'defe
       addLog(s, `${g.name}の調略で${c.name}の国人衆が${clanName(s, clan)}家に寝返った。`, 'castle', mine);
       return 'defect';
     }
-    c.naio = s.turn + 1; c.naioBy = clan;
+    c.naio = s.turn + 1; c.naioBy = clan; if (clan === s.player) learnCastle(s, c.i);
     addLog(s, `${g.name}の調略が実り、${c.name}に内応者ができた（翌月まで）。`, 'info', mine);
     return 'naio';
   }

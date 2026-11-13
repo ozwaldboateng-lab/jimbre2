@@ -145,6 +145,7 @@ export interface GameState {
   armies: Record<number, Army>;
   castles: Castle[];
   revealed: string[]; // プレイヤーが交戦済みの武将
+  intel?: Record<number, number>; // プレイヤーが他家の城の中身（城兵・蔵・治安など）を知っている期限（城の番号 → このターンまで）
   log: LogEntry[];
   reports: BattleReport[]; // 直近ターンの戦闘報告
   nextArmyId: number;

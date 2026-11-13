@@ -8,7 +8,7 @@ import * as R from './rules';
 import { captureCastle, captureGeneral, killGeneral, naioActive, removeArmy } from './ops';
 import { membersOf } from './corps';
 import { TRAITS } from '../data/traits';
-import { castleDef, addLog, allied, armyCombat, armyStats, castleAt, clanName, gen, hexOwner, hostile, noteClash, occupancy, rand } from './state';
+import { castleDef, addLog, learnCastle, allied, armyCombat, armyStats, castleAt, clanName, gen, hexOwner, hostile, noteClash, occupancy, rand } from './state';
 import type { Army, BattleReport, Castle, GameState } from './types';
 import type { Target } from './move';
 import type { Tactical } from './tactical';
@@ -186,7 +186,8 @@ export function battle(s: GameState, a: Army, t: Target, charge: boolean, joined
   const defenderWon = aBroke && !dBroke;
   if (!dBroke) D.morale += attackerWon ? 0 : R.MORALE_WIN;
 
-  // 交戦で敵武将の能力を公開
+  // 交戦で敵武将の能力を公開（城を攻めた・守った城の中身も分かる）
+  if (t.kind === 'castle' && (a.clan === s.player || defClan === s.player)) learnCastle(s, t.castle);
   if (a.clan === s.player && t.kind === 'army') for (const id of membersOf(t.army)) if (!s.revealed.includes(id)) s.revealed.push(id);
   if (defClan === s.player) for (const x of attackers) for (const id of membersOf(x)) if (!s.revealed.includes(id)) s.revealed.push(id);
   if (supports.length) events.push(`援軍${supports.length}隊`);

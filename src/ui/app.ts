@@ -576,6 +576,13 @@ function freeGenerals(): General[] {
 // 身分を含めた兵数の上限
 const capOf = (g: General) => Math.round(((3000 + g.lea * 100) * troopMult(s!, g)) / 100) * 100;
 
+// 他家の城の中身（城兵・蔵・治安など）が分かるか: 当家・同盟の城、自軍か自城が隣にいる、探り・城攻め・内応から間もない
+function castleKnown(st: GameState, c: Castle) {
+  if (c.owner === st.player || (c.owner && treatyOf(st, st.player, c.owner))) return true;
+  if ((st.intel?.[c.i] ?? -1) >= st.turn) return true;
+  const near = (h: number) => h === c.hex || NEIGHBORS[c.hex].includes(h);
+  return clanArmies(st, st.player).some((a) => near(a.hex)) || clanCastles(st, st.player).some((x) => near(x.hex));
+}
 // 城の画面: 見るための札（自分の城も他家の城も同じ形。出さない・当てはまらない項目は「—」、分からない項目は「不明」）
 function castleCard(c: Castle) {
   const st = s!, me = st.clans[st.player], mine = c.owner === st.player;
@@ -586,25 +593,29 @@ function castleCard(c: Castle) {
   const sieged = besieged(st, c);
   const d = owner ? chianDelta(st, owner, c, sieged, owner.food <= 0) : null;
   const sg = (v: number, k = 1) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(k)}`;
-  const NA = '—';
+  const NA = '—', UK = '不明';
+  const known = castleKnown(st, c);
   const tile = (label: string, val: string, sub = '') => `<div class="ctile"><span class="ct-l">${label}</span><span class="ct-v"><b>${val}</b>${sub ? `<small>${sub}</small>` : ''}</span></div>`;
   const months = c.garrison ? storeOf(c) / Math.max(1, c.garrison * R.FOOD_PER_SOLDIER) : 0;
+  const k = (v: string, sub = '') => (known ? [v, sub] : [UK, '']) as [string, string];
+  const T = (label: string, [v, sub]: [string, string]) => tile(label, v, sub);
   const tiles = `<div class="ctiles">
-    ${tile('石高', man(castleKoku(c)))}${tile('商業', owner ? `${fmt(castleCom(c))}貫` : NA, owner ? '月' : '')}${tile('城兵', fmt(c.garrison), `/${fmt(garrisonMax(c))}`)}${tile('城の蔵', owner ? `${months.toFixed(1)}か月` : NA, owner ? `${fmt(storeOf(c))}石` : '')}
-    ${tile('治安', String(Math.round(c.chian)), d ? `月${sg(d.total)}` : '')}${tile('治水', String(Math.round(c.chisui)), `収穫×${R.harvestMult(c.chisui).toFixed(2)}`)}${tile('開発', `${Math.round(c.dev * 100)}%`, `上限${Math.round(R.devCap(c.chian) * 100)}%`)}${tile('動員', owner ? `${fmt(castleKoku(c) * R.manpowerPer(c.chian))}人` : NA, owner ? '上限' : '')}</div>`;
+    ${tile('石高', man(castleKoku(c)))}${T('商業', owner ? k(`${fmt(castleCom(c))}貫`, '月') : [NA, ''])}${T('城兵', k(fmt(c.garrison), `/${fmt(garrisonMax(c))}`))}${T('城の蔵', owner ? k(`${months.toFixed(1)}か月`, `${fmt(storeOf(c))}石`) : [NA, ''])}
+    ${T('治安', k(String(Math.round(c.chian)), d ? `月${sg(d.total)}` : ''))}${T('治水', k(String(Math.round(c.chisui)), `収穫×${R.harvestMult(c.chisui).toFixed(2)}`))}${T('開発', k(`${Math.round(c.dev * 100)}%`, `上限${Math.round(R.devCap(c.chian) * 100)}%`))}${T('動員', owner ? k(`${fmt(castleKoku(c) * R.manpowerPer(c.chian))}人`, '上限') : [NA, ''])}</div>
+    ${mine ? '' : `<p class="hint" style="margin:0 0 4px">${known ? ((st.intel?.[c.i] ?? -1) >= st.turn && !(c.owner && treatyOf(st, st.player, c.owner)) ? `探り・城攻めで分かった様子（${turnLabel(st.intel![c.i])}まで）。` : '同盟の城か、自軍・自城が隣にいるので様子が分かる。') : `中身は不明。隣に自軍か自城を置くか、「外交」の忍びで探る（${R.INTEL_MONTHS}か月分かる）。城攻めでも分かる。`}</p>`}`;
   const pills: string[] = [];
   if (sieged) pills.push('<span class="pill bad">包囲中</span>');
-  if (c.shinden) pills.push(`<span class="pill good">新田工事中${mine ? ` あと${c.shinden.until - st.turn}か月` : ''}</span>`);
-  if (c.fortBuild) pills.push(`<span class="pill good">${esc(FORT_NAME[fortOf(c) + 1])}を普請中${mine ? ` あと${c.fortBuild.until - st.turn}か月` : ''}</span>`);
+  if (known && c.shinden) pills.push(`<span class="pill good">新田工事中${mine ? ` あと${c.shinden.until - st.turn}か月` : ''}</span>`);
+  if (known && c.fortBuild) pills.push(`<span class="pill good">${esc(FORT_NAME[fortOf(c) + 1])}を普請中${mine ? ` あと${c.fortBuild.until - st.turn}か月` : ''}</span>`);
   if (c.rakuichi !== undefined) pills.push('<span class="pill">楽市楽座</span>');
   if (mine && me.focus === c.i) pills.push('<span class="pill warn">予算の重点</span>');
-  if (c.ember && c.ember >= 1) pills.push(`<span class="pill bad" title="治安${R.EMBER_FLARE_CHIAN}未満で燃え上がることがある">残り火 ${Math.round(c.ember)}${c.oldOwner && !mine ? '' : ''}</span>`);
+  if (known && c.ember && c.ember >= 1) pills.push(`<span class="pill bad" title="治安${R.EMBER_FLARE_CHIAN}未満で燃え上がることがある">残り火 ${Math.round(c.ember)}${c.oldOwner && !mine ? '' : ''}</span>`);
   if (mine && castleSupply(st, c) === 'enclave') pills.push('<span class="pill warn">飛び地</span>');
   for (const [, n, k] of productsAt(c)) pills.push(`<span class="pill">特産 ${esc(n)}${k === 'com' ? '' : `（${esc(PRODUCT_KIND_NAME[k])}）`}</span>`);
   for (const [, n, k] of minesAt(c)) pills.push(`<span class="pill">${esc(n)}（${MINE_KIND_NAME[k]}）</span>`);
   if (isPort(st, c)) pills.push(`<span class="pill">南蛮港${(st.ships ?? []).some((x) => x.port === c.id) ? '・来航中' : ''}</span>`);
   if (isKaraPort(c)) pills.push(`<span class="pill">唐船の港${karasenAt(st, c.id) ? '・来航中' : ''}</span>`);
-  if (c.kiri && c.kiri >= 0.5) pills.push(`<span class="pill">信者 ${Math.round(c.kiri)}%</span>`);
+  if (known && c.kiri && c.kiri >= 0.5) pills.push(`<span class="pill">信者 ${Math.round(c.kiri)}%</span>`);
   // 見通し
   const NEAR = R.hx(3);
   const harvest = mine ? `見込 ${fmt(Math.round(castleKoku(c) * R.harvestMult(c.chisui) * R.HARVEST_RATE * TAX[taxOf(st, st.player)].income))}石` : NA;
@@ -963,7 +974,7 @@ function ninjaBeats(st: GameState, kind: NinjaAct, head: General, tg: { gen?: Ge
     assassinate: `月のない夜。忍び頭の${head.name}が、${tg.gen?.name ?? ''}のいる${place}へ忍び入る。`,
     rumor: `${place}の城下。旅の商人や虚無僧に化けた者たちが、市や辻に紛れ込んでいく。`,
     arson: `風の強い夜。${head.name}の手の者が、${place}の蔵と城門に近づく。`,
-    spy: `${head.name}の手の者が、${tg.gen?.name ?? ''}のいる${place}に紛れ込む。`,
+    spy: tg.gen ? `${head.name}の手の者が、${tg.gen.name}のいる${place}に紛れ込む。` : `${head.name}の手の者が、商人に化けて${place}の城下に紛れ込む。`,
   };
   const word: Record<NinjaAct, string> = { assassinate: '……一太刀で、終わらせる。', rumor: '噂というものは、刀より深く刺さるものよ。', arson: '火は、風が運んでくれる。', spy: '見るだけ、聞くだけ。それで足りる。' };
   const beats: OpeningBeat[] = [
@@ -978,7 +989,8 @@ function ninjaBeats(st: GameState, kind: NinjaAct, head: General, tg: { gen?: Ge
       beats.push({ head: '流言', text: `${c!.name}の治安は${Math.round(c0!.chian)}→${Math.round(c!.chian)}に乱れた。${gv ? `城主${gv.name}の主家への恩も${Math.round(c0!.on)}→${Math.round(gv.on ?? 0)}に下がった。` : ''}`, ...base });
     }
     if (kind === 'arson') beats.push({ head: '放火', text: `夜空を焦がす火の手が上がった。${c!.name}の蔵の兵糧は${fmt(c0!.store)}→${fmt(c!.store ?? 0)}石、城門も焼けた。`, ...base, sound: 'fire' });
-    if (kind === 'spy') { const t = tg.gen!, a = t.army !== null ? st.armies[t.army] : undefined; beats.push({ head: '探り', text: `${t.name}の力量が明らかになった。武勇${t.bra}・知略${t.int}・統率${t.lea}・魅力${t.cha}。${a ? `率いる隊は兵${fmt(a.troops)}・鉄砲${fmt(a.guns ?? 0)}。` : ''}`, ...base }); }
+    if (kind === 'spy' && !tg.gen && tg.castle) { const c = tg.castle; beats.push({ head: '探り', text: `${c.name}の様子が明らかになった。城兵${fmt(c.garrison)}・蔵の兵糧${fmt(c.store ?? 0)}石・治安${Math.round(c.chian)}。${R.INTEL_MONTHS}か月は城の中身が分かる。` }); }
+    else if (kind === 'spy') { const t = tg.gen!, a = t.army !== null ? st.armies[t.army] : undefined; beats.push({ head: '探り', text: `${t.name}の力量が明らかになった。武勇${t.bra}・知略${t.int}・統率${t.lea}・魅力${t.cha}。${a ? `率いる隊は兵${fmt(a.troops)}・鉄砲${fmt(a.guns ?? 0)}。` : ''}`, ...base }); }
   } else {
     if (tg.gen && kind === 'assassinate') beats.push({ who: tg.gen.id, name: tg.gen.name, label: foeName, text: '何奴！ 曲者じゃ、出あえ、出あえ！', ...base, sound: 'clash' });
     else beats.push({ head: '露見', text: `${place}の者たちが騒ぎ出した。手の者は闇に紛れて逃げた。`, ...base });
@@ -2148,7 +2160,7 @@ const TABS: Record<string, (st: GameState) => string> = {
     if (ninjaClan && !st.clans[ninjaClan]?.alive) ninjaClan = null;
     const castleOpts = st.castles.filter((c) => c.owner && (!ninjaClan || c.owner === ninjaClan) && hostile(st, st.player, c.owner) && reach[c.hex] <= NINJA_RANGE).sort((a, b) => reach[a.hex] - reach[b.hex]).slice(0, 40);
     const genOpts = Object.values(st.generals).filter((g) => g.clan && (!ninjaClan || g.clan === ninjaClan) && hostile(st, st.player, g.clan) && (g.status === 'army' || g.status === 'governor' || g.status === 'free') && (genHex(st, g) ?? -1) >= 0 && reach[genHex(st, g)!] <= NINJA_RANGE).sort((a, b) => a.rank - b.rank || b.lea - a.lea).slice(0, 60);
-    const isGen = ninjaSel.act === 'assassinate' || ninjaSel.act === 'spy';
+    const isGen = ninjaSel.act === 'assassinate' || ninjaSel.act === 'spy', both = ninjaSel.act === 'spy'; // 探りは城（中身）も武将（力量）も
     const chajins = own.filter((g) => traitOf(g) === 'chajin' && g.status !== 'young');
     if (!teaHost || !chajins.some((g) => g.id === teaHost)) teaHost = chajins[0]?.id ?? '';
     const tw = teaBlock(st, st.generals[teaHost]);
@@ -2159,7 +2171,7 @@ const TABS: Record<string, (st: GameState) => string> = {
     <div class="picker" style="margin:0 0 8px"><label for="sel-ninja-head">待機の「忍び」から一人。部隊や役に就けると外れる</label>
       <select id="sel-ninja-head"><option value="">（置かない）</option>${ninjas.map((g) => `<option value="${g.id}" ${head?.id === g.id ? 'selected' : ''}>${esc(g.name)}　知${g.int}・武${g.bra}</option>`).join('')}</select></div>
     ${head ? `<div class="actions" style="flex-wrap:wrap;gap:6px"><select id="sel-ninja-act" aria-label="忍びの働き">${(Object.keys(NINJA_NAME) as NinjaAct[]).map((k) => `<option value="${k}" ${ninjaSel.act === k ? 'selected' : ''}>${NINJA_NAME[k]}（金${fmt(NINJA_COST[k])}貫）</option>`).join('')}</select>
-      <select id="sel-ninja-target" aria-label="狙う相手"><option value="">${isGen ? '狙う武将を選ぶ' : '狙う城を選ぶ'}</option>${isGen ? genOpts.map((g) => `<option value="g:${g.id}" ${ninjaSel.target === `g:${g.id}` ? 'selected' : ''}>${esc(clanName(st, g.clan))}・${esc(g.name)}${st.clans[g.clan!]?.leader === g.id ? '（当主）' : ''}</option>`).join('') : castleOpts.map((c) => `<option value="c:${c.i}" ${ninjaSel.target === `c:${c.i}` ? 'selected' : ''}>${esc(clanName(st, c.owner))}・${esc(c.name)}</option>`).join('')}</select>
+      <select id="sel-ninja-target" aria-label="狙う相手"><option value="">${both ? '探る城か武将を選ぶ' : isGen ? '狙う武将を選ぶ' : '狙う城を選ぶ'}</option>${both ? `<optgroup label="城（城兵・蔵・治安が${R.INTEL_MONTHS}か月分かる）">${castleOpts.map((c) => `<option value="c:${c.i}" ${ninjaSel.target === `c:${c.i}` ? 'selected' : ''}>${esc(clanName(st, c.owner))}・${esc(c.name)}</option>`).join('')}</optgroup><optgroup label="武将（力量と軍勢）">` : ''}${isGen ? genOpts.map((g) => `<option value="g:${g.id}" ${ninjaSel.target === `g:${g.id}` ? 'selected' : ''}>${esc(clanName(st, g.clan))}・${esc(g.name)}${st.clans[g.clan!]?.leader === g.id ? '（当主）' : ''}</option>`).join('') : castleOpts.map((c) => `<option value="c:${c.i}" ${ninjaSel.target === `c:${c.i}` ? 'selected' : ''}>${esc(clanName(st, c.owner))}・${esc(c.name)}</option>`).join('')}${both ? '</optgroup>' : ''}</select>
       <button class="act primary" data-act="ninja-do" ${why ? `disabled title="${esc(why)}"` : ''}>${NINJA_NAME[ninjaSel.act]}を命じる${why ? '' : `（見込み ${Math.round(ninjaChance(st, st.player, ninjaSel.act, tg) * 100)}%）`}</button></div>
       ${why && ninjaSel.target ? `<p class="hint" style="margin:2px 0">${esc(why)}</p>` : ''}` : `<p class="hint">${ninjas.length ? '忍び頭を置けば、月に一度、忍びを使える。' : '待機の「忍び」の家臣がいない（在野の忍びを登用できる）。'}</p>`}
 

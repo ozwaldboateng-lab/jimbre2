@@ -104,6 +104,8 @@ export const personalCap = (s: GameState, g: General) => (3000 + g.lea * 100) * 
 export const maxTroops = (s: GameState, a: Army) => Math.round((personalCap(s, s.generals[a.main]) * R.CORPS_MAIN_TROOP + (a.staff ?? (a.deputy ? [a.deputy] : [])).reduce((t, id) => t + (s.generals[id] ? personalCap(s, s.generals[id]) * R.CORPS_SUB_TROOP : 0), 0)) / 100) * 100;
 
 
+// 他家の城の中身を、しばらく知っている（探り・城攻め・内応）
+export function learnCastle(s: GameState, ci: number) { (s.intel ??= {})[ci] = Math.max(s.intel[ci] ?? 0, s.turn + R.INTEL_MONTHS); }
 export function addLog(s: GameState, text: string, kind: LogEntry['kind'], mine: boolean) {
   s.log.push({ turn: s.turn, text, kind, mine });
   if (s.log.length > 400) s.log.splice(0, s.log.length - 400);

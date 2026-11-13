@@ -4,7 +4,7 @@ import { membersOf } from './corps';
 import { graphDistances } from './map';
 import { captureGeneral, killGeneral } from './ops';
 import * as R from './rules';
-import { addLog, clanCastles, hostile, rand } from './state';
+import { addLog, clanCastles, hostile, learnCastle, rand } from './state';
 import type { Army, Castle, GameState, General } from './types';
 
 export const traitOf = (g: General | null | undefined): TraitId | null => (g ? TRAITS[g.id] ?? null : null);
@@ -100,7 +100,8 @@ export function ninjaBlock(s: GameState, clan: string, act: NinjaAct, target: { 
   if (!tc || !hostile(s, clan, tc)) return '敵の家だけ';
   const hex = target.castle?.hex ?? (target.gen ? genHex(s, target.gen) : undefined);
   if (hex === undefined || ninjaReach(s, clan)[hex] > NINJA_RANGE) return `自城・自軍から${NINJA_RANGE}マス以内だけ`;
-  if ((act === 'assassinate' || act === 'spy') && !target.gen) return '武将を選ぶ';
+  if (act === 'assassinate' && !target.gen) return '武将を選ぶ';
+  if (act === 'spy' && !target.gen && !target.castle) return '武将か城を選ぶ';
   if ((act === 'rumor' || act === 'arson') && !target.castle) return '城を選ぶ';
   if (target.gen && (target.gen.status === 'dead' || target.gen.status === 'captive' || target.gen.status === 'young')) return '狙えない';
   return null;
@@ -117,7 +118,8 @@ export function ninjaDo(s: GameState, clan: string, act: NinjaAct, target: { gen
     if (act === 'assassinate') { const t = target.gen!; killGeneral(s, t, `${C.name}家の忍びに暗殺された`); }
     else if (act === 'rumor') { const c = target.castle!; c.chian = Math.max(0, c.chian - 15); const gv = c.governor ? s.generals[c.governor] : null; if (gv) gv.on = Math.max(0, (gv.on ?? R.ON_START) - 10); addLog(s, `${c.name}に流言が広まり、治安が乱れた${gv ? `。城主${gv.name}は主家を疑い始めた` : ''}。`, 'info', mine); }
     else if (act === 'arson') { const c = target.castle!; c.store = Math.round((c.store ?? 0) * 0.65); c.gate = Math.max(0.3, (c.gate ?? 1) - 0.3); addLog(s, `${c.name}で火の手が上がり、蔵の兵糧と城門が焼けた。`, 'info', mine); }
-    else { const t = target.gen!; if (clan === s.player && !s.revealed.includes(t.id)) s.revealed.push(t.id); if (t.army !== null && s.armies[t.army!] && clan === s.player) addLog(s, `探り: ${t.name}隊は兵${s.armies[t.army!].troops.toLocaleString()}・鉄砲${s.armies[t.army!].guns ?? 0}。`, 'info', true); addLog(s, `${g.name}の探りで、${t.name}の力量が明らかになった。`, 'info', clan === s.player); }
+    else if (!target.gen) { const c = target.castle!; if (clan === s.player) { learnCastle(s, c.i); addLog(s, `探り: ${c.name}は城兵${c.garrison.toLocaleString()}・蔵の兵糧${Math.round(c.store ?? 0).toLocaleString()}石・治安${Math.round(c.chian)}（${R.INTEL_MONTHS}か月は城の様子が分かる）。`, 'info', true); } }
+    else { const t = target.gen!; if (clan === s.player && t.status === 'governor') learnCastle(s, t.loc); if (clan === s.player && !s.revealed.includes(t.id)) s.revealed.push(t.id); if (t.army !== null && s.armies[t.army!] && clan === s.player) addLog(s, `探り: ${t.name}隊は兵${s.armies[t.army!].troops.toLocaleString()}・鉄砲${s.armies[t.army!].guns ?? 0}。`, 'info', true); addLog(s, `${g.name}の探りで、${t.name}の力量が明らかになった。`, 'info', clan === s.player); }
     return 'ok';
   }
   // しくじり: 暗殺は捕らわれやすい。相手は当家を恨む

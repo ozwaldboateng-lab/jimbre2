@@ -247,6 +247,7 @@ export const manpowerPer = (chian: number) => 200 + chian * 1.5; // 1万石あ�
 export const devCap = (chian: number) => 1 + chian * 0.006; // 開発度の上限: 0→100%、60→136%、100→160%
 export const DEV_DECAY = 0.002; // 上限を超えた開発度は毎月これだけ下がる
 export const CHIAN_CAPTURED = 30; // 落とした直後の城
+export const INTEL_MONTHS = 6; // 探り・城攻め・内応で分かった他家の城の中身を、このか月だけ知っている
 export const MOBILIZE_FREE = 0.5; // 動員率（出陣中の農兵÷動員上限。名簿の兵は数えない）がこれを超えると毎月治安が下がる
 export const MOBILIZE_DROP = 10; // 下がり幅 =（動員率−0.5）×10。動員率100%で毎月−5
 export const CHIAN_SIEGE = -3; // 包囲中
