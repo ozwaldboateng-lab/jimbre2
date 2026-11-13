@@ -19,7 +19,9 @@ await p.click('[data-act="goto-castle"] >> text=躑躅ヶ崎館'); await p.waitF
 const panel = await p.evaluate(() => document.body.innerText.match(/鉱山[^\n]*\n?[^\n]*|特産[^\n]*\n?[^\n]*/g));
 await p.screenshot({ path: `${out}/480-mine${sfx}.png` });
 // 楽市楽座
-const rk = await p.$('[data-act="rakuichi"]');
+await p.keyboard.press('1'); await p.click('[data-act="stab"][data-id="shiro"]'); await p.waitForTimeout(150); // 楽市楽座は内政 › 領内で
+const tk = await p.evaluate(() => window.__sengoku.state.castles.find((x) => x.id === 'tsutsujigasaki').i);
+const rk = await p.$(`#modal [data-act="rakuichi"][data-id="${tk}"]`);
 if (rk) { await rk.click(); await p.waitForTimeout(150); }
 const rakuichi = await p.evaluate(() => { const s = window.__sengoku.state; const c = s.castles.find((x) => x.id === 'tsutsujigasaki'); return c.rakuichi; });
 // 躑躅ヶ崎館以外に黒川金山はない。家臣に与えても鉱山は当家へ（与えられるのは当主の居城以外なので、金山の城を当主の居城から外す）

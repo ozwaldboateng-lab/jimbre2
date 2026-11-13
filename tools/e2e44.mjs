@@ -20,10 +20,11 @@ let fill = null;
 if (btn) { await btn.click(); await p.waitForTimeout(250); fill = await p.evaluate((id) => ({ staff: window.__sengoku.state.armies[id].staff.map((x) => window.__sengoku.state.generals[x].name), toast: document.getElementById('toast')?.textContent }), setup.A); }
 // 城の画面で組み直す
 await p.click('[data-act="view-castle"]').catch(() => {}); await p.waitForTimeout(250);
-const reorgBtn = await p.evaluate(() => document.querySelector('[data-act="castle-reorg"]')?.textContent ?? null);
+await p.click('#panel [data-act="open-jindate"]').catch(() => {}); await p.waitForTimeout(250); // 組み直しは陣立てで
+const reorgBtn = await p.evaluate(() => document.querySelector('[data-act="jin-reshuffle"]')?.textContent ?? null);
 await p.screenshot({ path: `${out}/480-castle-reorg${mobile ? '-m' : ''}.png` });
 let reorg = null;
-if (reorgBtn) { await p.click('[data-act="castle-reorg"]'); await p.waitForTimeout(250); reorg = await p.evaluate((id) => ({ staff: window.__sengoku.state.armies[id].staff.length, log: window.__sengoku.state.log.slice(-1)[0].text }), setup.A); }
+if (reorgBtn) { await p.click('[data-act="jin-reshuffle"]'); await p.waitForTimeout(250); reorg = await p.evaluate((id) => ({ staff: window.__sengoku.state.armies[id].staff.length, log: window.__sengoku.state.log.slice(-1)[0].text }), setup.A); }
 // 軍事 › 軍団の札のボタン
 await p.keyboard.press('2'); await p.click('[data-act="stab"][data-id="jindate"]'); await p.waitForTimeout(200);
 const corpsBtns = await p.evaluate(() => document.querySelectorAll('[data-act="corps-fill"]').length);

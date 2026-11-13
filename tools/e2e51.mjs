@@ -14,12 +14,11 @@ for (let k = 0; k < 4; k++) if (await p.$('#modal:not([hidden])')) await p.click
 await p.evaluate(() => { window.__sengoku.state.clans.oda.gold = 100000; });
 const C = () => p.evaluate(() => { const s = window.__sengoku.state, c = s.castles.find((x) => x.id === 'kiyosu'); return { dev: +c.dev.toFixed(3), cdev: +c.cdev.toFixed(3), koku: +c.baseKoku.toFixed(2), shinden: c.shinden ?? null, fort: c.fort ?? 0, fortBuild: c.fortBuild ?? null, gold: Math.round(s.clans.oda.gold) }; });
 await p.keyboard.press('1'); await p.click('[data-act="stab"][data-id="shiro"]'); await p.waitForTimeout(100);
-await p.click('[data-act="goto-castle"] >> text=清洲城'); await p.waitForTimeout(200);
+// 城ごとの操作は内政 › 領内の表で（清洲城の行）
+const ki = await p.evaluate(() => window.__sengoku.state.castles.find((x) => x.id === 'kiyosu').i);
 const c0 = await C();
-await p.click('#panel [data-act="inv-agri"]'); await p.waitForTimeout(100);
-await p.click('#panel [data-act="inv-com"]'); await p.waitForTimeout(100);
-await p.click('#panel [data-act="shinden"]'); await p.waitForTimeout(100);
-await p.click('#panel [data-act="fort"]'); await p.waitForTimeout(100);
+for (const a of ['inv-agri', 'inv-com', 'shinden', 'fort']) { await p.click(`#modal [data-act="${a}"][data-id="${ki}"]`); await p.waitForTimeout(100); }
+await p.click('[data-act="goto-castle"] >> text=清洲城'); await p.waitForTimeout(200);
 const c1 = await C();
 const panel = await p.evaluate(() => document.body.innerText.match(/投資[\s\S]{0,40}|新田開発\n[^\n]*|普請\n[^\n]*/g));
 await p.screenshot({ path: `${out}/510-invest${sfx}.png` });

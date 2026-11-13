@@ -703,3 +703,13 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 .log-cols .log-d { display: inline-block; min-width: 3.2em; color: var(--paper-dim); }
 @media (min-width: 1200px) { .sheet:has(.log-cols) { width: min(1480px, 100%); } .log-cols { columns: 2; column-gap: 28px; } .sheet:has(.help-toc) { width: min(1480px, 100%); } .glossary { grid-template-columns: auto 1fr auto 1fr; column-gap: 16px; } }
 .help-toc { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: -22px; background: var(--lacquer-2); padding: 6px 0; z-index: 1; }
+/* 自分の城の画面（見るための札） */
+.cgov { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 13px; }
+.ctiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 6px 0; }
+.ctile { border: 1px solid var(--hair); border-radius: 3px; padding: 4px 6px; display: flex; flex-direction: column; min-width: 0; }
+.ctile b { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctile span { font-size: 11px; color: var(--paper-dim); }
+.ctile small { font-size: 10.5px; color: var(--paper-dim); }
+.cpills { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.ckv { font-size: 12.5px; }
+.clinks { flex-wrap: wrap; gap: 4px; margin-top: 8px; }
