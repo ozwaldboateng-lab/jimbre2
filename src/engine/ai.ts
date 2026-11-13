@@ -9,6 +9,7 @@ import { carryOf, isSupplied, supplyNet, type SupplyNet } from './supply';
 import { attackTargets, reachable, type Target } from './move';
 import { canPlot, capital, doPlot, moveArmy, plotChance, recruitRonin } from './ops';
 import * as R from './rules';
+import { aiFeast } from './feast';
 import { castleAt, hostile, rand, seenGarrison, castleKoku, clanArmies, mobilizeCap, clanCastles, clanTroops, garrisonMax, maxTroops, occupancy, troopMult, castleDef , farmTroops } from './state';
 import type { Army, GameState, General } from './types';
 import { aiFillBugyo, aiFillTsukai } from './ranks';
@@ -284,6 +285,8 @@ export async function runClanAI(s: GameState, clan: string) {
   organize(s, clan);
   decideStance(s, clan);
   const stance = s.clans[clan].stance;
+  // 攻勢のときは、士気の落ちた部隊を陣払いせず酒宴で立て直す（平時は陣払いで家に帰す）
+  if (stance === '攻勢') for (const a of clanArmies(s, clan)) if (!a.ikki && a.front === undefined) aiFeast(s, a);
   // 陣触・陣払い（攻勢なら狙う家の城の近くに陣触、迫られれば急ぎの陣触、平時は陣払い）
   { const C = s.clans[clan];
     // 攻勢に転じた月を覚え、しばらく様子を見てから攻めの陣触を出す（ゲームの始まりの数か月も平時のまま）
@@ -297,6 +300,7 @@ export async function runClanAI(s: GameState, clan: string) {
   const net = supplyNet(s, clan);
   for (const a of armies) {
     if (!s.armies[a.id] || s.over) continue;
+    if (aiFeast(s, a)) continue; // 士気の落ちた部隊は酒宴で立て直す
     if (!a.routed && a.troops >= d.rotation * a.departTroops && (await tryAttack(s, a))) continue;
     // 自城の籠城: 敵が隣接し、城にいるなら動かない
     const here = castleAt(s, a.hex);

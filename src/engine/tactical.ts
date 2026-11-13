@@ -41,6 +41,7 @@ export const TR = {
   IN_RIVER: 0.85, // 川の中からの攻撃
   HQ_FALL: 0.25, // 本陣崩壊時の全軍士気低下
   RUSE_RANGE: 2,
+  CHEER_BASE: 0.05, CHEER_PER_CHA: 0.001, CHEER_MAX: 2, CHEER_HQ_RANGE: 2, // 鼓舞: 士気+（0.05＋魅力÷1000）、合戦に2回まで、本陣は2マス先まで
   GATE_DMG: 0.12,
   DEATH_HIT: 0.005,
   DEATH_CHARGE: 0.02,
@@ -74,6 +75,7 @@ export interface TUnit {
   cmd?: boolean; // この手番に指揮下にある（本陣の近く、または伝令を受けた）
   hidden?: boolean; // 伏兵（敵から見えない。動くか仕掛けると現れる）
   ninja?: boolean; sneaked?: boolean; // 忍びの部隊と、忍び込みを使ったか（合戦に一度）
+  cha?: number; morale0?: number; cheers?: number; // 鼓舞: 率いる武将の魅力、合戦が始まった時の士気（鼓舞で戻せる上限）、使った回数
 }
 // 伝令: 本陣から range 以内は自由に指揮、外の部隊は伝令（手番ごとに couriers 回）で指揮する
 export interface Command { clan: string; range: number; couriers: number; left: number; label: string; tsukai: string[]; }
@@ -178,7 +180,7 @@ function armyUnits(s: GameState, a: Army, side: Side, hq: boolean, nextId: () =>
     return {
       id: nextId(), side, clan: a.clan, army: a.id, general: g?.id ?? null, role: p.role,
       name: a.ikki ? '一向一揆' : g ? `${g.name}隊` : `${m.name.slice(0, -2) || m.name}足軽隊`, hq: hq && p.role === 'main',
-      troops, troops0: troops, morale: a.routed ? Math.max(a.morale, rout + R.ROUTED_START_MARGIN) : a.morale, atk, def, rout, int: g ? g.int : 40,
+      troops, troops0: troops, morale: a.routed ? Math.max(a.morale, rout + R.ROUTED_START_MARGIN) : a.morale, atk, def, rout, int: g ? g.int : 40, cha: g ? g.cha : 40,
       tile: -1, mp: 0, moved: false, acted: false, routed: false, confused: a.routed ? 1 : 0, out: null, ninja: !!g && !!p.nin,
     };
   }), ...gunUnit];
@@ -297,6 +299,7 @@ export function createTactical(s: GameState, a: Army, target: Target, playerSide
     }
   }
   t.units = [...unitsA, ...unitsD];
+  for (const u of t.units) u.morale0 ??= u.morale;
   t.cmd.A = commandOf(s, a.clan);
   // 城に籠もる側は声が届くので伝令は要らない
   if (kind === 'field' && primD) t.cmd.D = commandOf(s, primD.clan);
@@ -368,6 +371,7 @@ function resumeSiege(s: GameState, save: NonNullable<GameState['sieges']>[number
     u.hq = u.side === 'A' && u.army === a.id && u.role === 'main';
   }
   const fa = fresh.filter((u) => u.side === 'A'), fd = fresh.filter((u) => u.side === 'D');
+  for (const u of fresh) u.morale0 ??= u.morale;
   t.units.push(...fresh);
   for (const u of fresh) u.tile = -1;
   if (fa.length) deploy(t, fa, 'A');
@@ -496,7 +500,7 @@ export function unitReach(t: Tactical, u: TUnit): Map<number, number> {
   return cost;
 }
 
-export type TAction = { kind: 'attack'; target: TUnit } | { kind: 'gate'; tile: number } | { kind: 'bow'; target: TUnit } | { kind: 'shoot'; target: TUnit } | { kind: 'ruse'; target: TUnit }
+export type TAction = { kind: 'cheer'; tile: number } | { kind: 'attack'; target: TUnit } | { kind: 'gate'; tile: number } | { kind: 'bow'; target: TUnit } | { kind: 'shoot'; target: TUnit } | { kind: 'ruse'; target: TUnit }
   | { kind: 'fire'; tile: number } | { kind: 'douse'; tile: number } | { kind: 'sneak'; tile: number };
 export const actionTile = (a: TAction) => ('tile' in a ? a.tile : a.target.tile);
 
@@ -527,6 +531,7 @@ export function unitActions(t: Tactical, u: TUnit): TAction[] {
     if (d <= TR.RUSE_RANGE && u.general) out.push({ kind: 'ruse', target: e });
   }
   if (u.role === 'gun') return out;
+  if (u.general && (u.cheers ?? 0) < TR.CHEER_MAX) out.push({ kind: 'cheer', tile: u.tile }); // 鼓舞
   if (u.side === 'A') for (const j of adj) if (t.tiles[j] === 'G' && (t.gates[j] ?? 0) > 0 && !unitAt(t, j)) out.push({ kind: 'gate', tile: j });
   if (t.kind === 'siege' && u.side === 'A') {
     // 火計: 2ヘックス以内の城門・城内の敵部隊
@@ -731,12 +736,22 @@ function deathRoll(t: Tactical, s: GameState, u: TUnit, p: number) {
 // 画面側が音を鳴らすための口（行動の種類と突撃か）
 let onAction: ((kind: TAction['kind'], charge: boolean) => void) | null = null;
 export function setTacticalSound(f: typeof onAction) { onAction = f; }
+// 鼓舞: 自分と隣の味方（本陣なら2マス先まで）の士気を、合戦が始まった時の士気まで戻す
+export const cheerGain = (u: TUnit) => TR.CHEER_BASE + (u.cha ?? 40) * TR.CHEER_PER_CHA;
+export const cheerCap = (x: TUnit) => Math.max(x.morale, x.morale0 ?? x.morale);
+export const cheerTargets = (t: Tactical, u: TUnit) => t.units.filter((x) => !x.out && x.side === u.side && tDist(t, u.tile, x.tile) <= (u.hq ? TR.CHEER_HQ_RANGE : 1));
 export function doAction(t: Tactical, s: GameState, u: TUnit, a: TAction, charge = false): string {
   onAction?.(a.kind, charge);
   u.acted = true; u.moved = true;
   // 伏せた状態からの攻撃は伏兵の一撃になる（それ以外の行動は姿を現すだけ）
   const amb = !!u.hidden && (a.kind === 'attack' || a.kind === 'shoot' || a.kind === 'bow');
   if (!amb) u.hidden = false;
+  if (a.kind === 'cheer') {
+    u.cheers = (u.cheers ?? 0) + 1;
+    const lifted = cheerTargets(t, u).map((x) => { const before = x.morale; x.morale = Math.min(cheerCap(x), x.morale + cheerGain(u)); return [x, x.morale - before] as const; }).filter(([, d]) => d > 0.001);
+    const m = lifted.length ? `${u.name}が兵を鼓舞した（${lifted.map(([x, d]) => `${x.name}+${d.toFixed(2)}`).join('・')}）。` : `${u.name}が兵を鼓舞したが、士気はもう満ちている。`;
+    t.log.push(m); return m;
+  }
   if (a.kind === 'gate') {
     const dmg = Math.round(TR.GATE_DMG * power(t, u) * (charge ? R.CHARGE_ROUGH : 1));
     t.gates[a.tile] = Math.max(0, (t.gates[a.tile] ?? 0) - dmg);

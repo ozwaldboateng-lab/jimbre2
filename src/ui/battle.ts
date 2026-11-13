@@ -6,7 +6,7 @@ import { applyTactical } from '../engine/combat';
 import type { Target } from '../engine/move';
 import { addLog, castleKoku, clanName } from '../engine/state';
 import {
-  T_NAME, T_ROUT, TR, actionTile, canBow, fireChance, sneakChance, chargeMult, isAmbush, routAt, createTactical, doAction, endPhase, fleeRouted, moveUnit, preview, retreatSide, ruseChance,
+  T_NAME, T_ROUT, TR, actionTile, cheerGain, canBow, fireChance, sneakChance, chargeMult, isAmbush, routAt, createTactical, doAction, endPhase, fleeRouted, moveUnit, preview, retreatSide, ruseChance,
   siegeDay, SIEGE_DAYS, turnLabel, tcol, trow, tNeighbors, unitActions, unitAt, unitReach, canOrder, hqOf, inCommand, takeCommand, tDist, tdef, canSee, visibleTiles, doScout, scoutRange, ambushAllowance, ambushTiles, setAmbush, doVolley, volleyHelpers, volleyPreview, volleyMax, type TAction, type TUnit, type Tactical,
 } from '../engine/tactical';
 import { aiScout, aiUnit, autoResolve, nextAIUnit } from '../engine/tacticalAI';
@@ -984,7 +984,7 @@ function onTile(tile: number) {
   }
   const u = selected();
   if (u && !u.acted && canOrder(t, u)) {
-    const acts = unitActions(t, u).filter((a) => actionTile(a) === tile);
+    const acts = unitActions(t, u).filter((a) => a.kind !== 'cheer' && actionTile(a) === tile);
     const order = ['attack', 'shoot', 'bow', 'gate', 'sneak', 'fire', 'douse', 'ruse'];
     if (acts.length) { pending = acts.sort((x, y) => order.indexOf(x.kind) - order.indexOf(y.kind)); view!.focus = tile; refresh(); return; }
     const reach = u.moved ? new Map() : unitReach(t, u);
@@ -1027,6 +1027,7 @@ function act(a: TAction, charge: boolean) {
   if (a.kind === 'fire') view!.float(a.tile, t.fire[a.tile] ? '火計' : '不発', '#ffb050');
   if (a.kind === 'sneak') view!.float(a.tile, t.gates[a.tile] <= 0 ? '開門' : '見破られる', '#c8b4ff');
   if (a.kind === 'douse') view!.float(a.tile, t.fire[a.tile] ? '消えず' : '消火', '#9fd8ff');
+  if (a.kind === 'cheer') view!.float(u.tile, '鼓舞', '#f6d77a');
   pending = null; view!.focus = null;
   if (t.over) { refresh(); showResult(); return; }
   selectNext();
@@ -1153,6 +1154,7 @@ function onPanel(e: Event) {
   if (tac.over || aiRunning) return;
   if (k === 'pick') { sel = +b.dataset.id!; pending = null; view!.focus = null; refresh(); return; }
   if (k === 'next') { selectNext(); refresh(); return; }
+  if (k === 'cheer') { const u = selected(); const a = u && unitActions(tac, u).find((x) => x.kind === 'cheer'); if (a) act(a, false); return; }
   if (k === 'wait') { const u = selected(); if (u) { u.acted = true; u.moved = true; } selectNext(); refresh(); return; }
   if (k === 'do' && pending) {
     const a = pending[+b.dataset.i!];
@@ -1181,7 +1183,7 @@ function refresh(inspect?: TUnit | null) {
   const myTurn = t.phase === t.playerSide && !aiRunning && !t.over;
   const ok = !!u && canOrder(t, u);
   view.reach = deploy ? new Map(u && !u.hidden && deploy.left > 0 ? ambushTiles(t, t.playerSide!).map((i) => [i, 0]) : []) : myTurn && u && ok && !u.moved && !u.acted ? unitReach(t, u) : new Map();
-  view.acts = !deploy && myTurn && u && ok && !u.acted ? unitActions(t, u) : [];
+  view.acts = !deploy && myTurn && u && ok && !u.acted ? unitActions(t, u).filter((a) => a.kind !== 'cheer') : []; // 鼓舞は盤上ではなくボタンで
   view.redraw();
   $('bt-turn').textContent = turnLabel(t);
   $('bt-turn').title = t.kind === 'siege' ? `城攻めは一か月がかり。1手番＝約${(SIEGE_DAYS / t.maxTurn).toFixed(1)}日（${t.maxTurn}手番で月末）` : '野戦は一日のうち。日没（上限の刻）で両軍は兵を引く';
@@ -1265,7 +1267,9 @@ function panelHtml(t: Tactical, s: GameState, inspect: TUnit | null): string {
     parts.push(`<div class="actions bt-opts">${opts.join('')}</div>`);
     if (pending.some((x) => x.kind === 'attack')) parts.push(`<p class="hint">突撃: 平地なら攻撃×1.3、それ以外×1.1。被害×${TR.CHARGE_SELF}、武将討死率${TR.DEATH_CHARGE * 100}%。隣接する味方1部隊ごとに攻撃+${TR.FLANK * 100}%。</p>`);
   } else {
-    parts.push(`<div class="actions"><button class="act" data-bact="next">次の部隊</button><button class="act" data-bact="wait">待機</button>${scoutBtn(t)}</div>`);
+    const ch = u && !u.acted && canOrder(t, u) ? unitActions(t, u).find((a) => a.kind === 'cheer') : undefined;
+    const cheerBtn = ch && u ? `<button class="act" data-bact="cheer" title="自分と${u.hq ? `${TR.CHEER_HQ_RANGE}マス以内` : '隣'}の味方の士気+${cheerGain(u).toFixed(2)}（合戦が始まった時の士気まで）。この手番の行動を使う。合戦に${TR.CHEER_MAX}回まで">鼓舞（あと${TR.CHEER_MAX - (u.cheers ?? 0)}回）</button>` : '';
+    parts.push(`<div class="actions"><button class="act" data-bact="next">次の部隊</button><button class="act" data-bact="wait">待機</button>${cheerBtn}${scoutBtn(t)}</div>`);
     if (t.fog) parts.push(`<p class="hint">視界: 本陣の指揮下の部隊は周り${R.SIGHT}ヘックス（丘から${R.SIGHT_HIGH}）が見え、指揮の外の部隊は隣しか見えない。森の中の敵は隣まで近づかないと見えない。暗い所は見えていない。「？」は最後に敵を見た位置。</p>`);
     if (cm) parts.push(`<p class="hint">金の点線＝本陣の指揮範囲。外の部隊へは伝令で指揮する（${t.kind === 'siege' ? '手番' : '刻'}ごとに${cm.couriers}回＝1＋${esc(cm.label)}${cm.tsukai.length}人）。</p>`);
     if (u.role === 'gun') parts.push(`<p class="hint">鉄砲隊: 2ヘックス先まで撃てて反撃を受けない。丘×1.1・城内×1.2・森×0.6・川や湿地×0.7、隣に敵がいると×0.7。白兵戦はできず、防御が低い。</p>`);

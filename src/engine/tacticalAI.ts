@@ -3,6 +3,7 @@ import type { GameState } from './types';
 import {
   T_COST, TR, canBow, fireChance, sneakChance, doAction, endPhase, fleeRouted, moveUnit, power, preview, ruseChance, tDist, tNeighbors,
   takeCommand, tdef, canSee, doScout, noteSeen, scoutRange, visibleTiles, doVolley, volleyHelpers, volleyPreview, unitActions, unitAt, unitReach, type Side, type TAction, type TUnit, type Tactical,
+  cheerCap, cheerGain, cheerTargets,
 } from './tactical';
 
 // 目標地点までの地形コスト距離（部隊は無視、攻め手は未破壊の門も高コストで通れるとみなす）
@@ -26,6 +27,10 @@ function distField(t: Tactical, goals: number[], side: Side): number[] {
 
 function value(t: Tactical, u: TUnit, a: TAction, charge: boolean): number {
   if (a.kind === 'gate') return 300 + power(t, u) * TR.GATE_DMG * 0.6;
+  if (a.kind === 'cheer') { // 下がった士気を戻せる分だけ。崩れかけの隊を救えるなら大きい
+    const g = cheerGain(u);
+    return cheerTargets(t, u).reduce((v, x) => { const d = Math.min(g, cheerCap(x) - x.morale); return d <= 0.01 ? v : v + d * x.troops * 1.2 + (x.morale - x.rout < 0.15 ? 150 : 0); }, 0) - 60;
+  }
   if (a.kind === 'fire') {
     const e = unitAt(t, a.tile);
     const p = fireChance(t, u);

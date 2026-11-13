@@ -41,6 +41,7 @@ import { FORT_NAME, TAX, fortBlock, fortCost, fortMonths, fortOf, invest, invest
 import { chianDelta, mobilizeDrop, mobilizeRate } from '../engine/policy';
 import { buyCourt, courtBlock, courtName, courtOf, holderOf } from '../engine/court';
 import { appointShugodai, dismissShugodai, kanBlock, kanCost, kanName, kanOf, recommendKan, shugodaiBlock, shugodaiOf, shugoProvs } from '../engine/kan';
+import { FEAST, feast, feastBlock, feastCost } from '../engine/feast';
 import { DELEGATE_MENU, DELEGATE_NAME, delegateOf, type DelegateKey } from '../engine/delegate';
 import { ikkiBlock, ikkiSize, raiseIkki } from '../engine/ikki';
 import {
@@ -556,6 +557,7 @@ function armyPanel(a: Army | undefined) {
     for (const j of NEIGHBORS[a.hex]) { const b = occupancy(st).get(j); if (!b || b.clan !== st.player || b.ikki) continue; const why = mergeBlock(st, a, b); acts.push(`<button class="act" data-act="merge-ask" data-id="${b.id}" ${why ? `disabled title="${esc(why)}"` : ''}>合流: ${esc(st.generals[b.main].name)}隊と</button>`); }
     { const why = splitBlock(st, a); acts.push(`<button class="act" data-act="split-ask" ${why ? `disabled title="${esc(why)}"` : ''}>分ける</button>`); }
     { const why = campBlock(st, a); acts.push(`<button class="act" data-act="to-camp" ${why ? `disabled title="${esc(why)}"` : ''}>陣払い（名簿に戻す）</button>`); }
+    { const why = feastBlock(st, a); acts.push(`<button class="act" data-act="feast" ${why ? `disabled title="${esc(why)}"` : `title="士気を上限（${initialMorale(st, a).toFixed(2)}）まで戻し、主将と傘下の恩+${FEAST.ON}。この月の行動を使う"`}>酒宴（${fmt(feastCost(a))}貫）</button>`); }
     { const why = fillBlock(st, a); if (!why) acts.push(`<button class="act" data-act="fill-army">空きを埋める（おまかせ）</button>`); }
     { const home = castleAt(st, a.hex)?.owner === st.player ? castleAt(st, a.hex) : NEIGHBORS[a.hex].map((j) => castleAt(st, j)).find((x) => x?.owner === st.player); if (home) acts.push(`<button class="act" data-act="open-jindate" data-id="${home.i}">陣立て（${esc(home.name)}）</button>`); else acts.push(`<button class="act" data-act="open-corps">軍団の編成</button>`); }
     if (nearOwn && st.clans[st.player].guns > 0 && (a.guns ?? 0) < gunCap(a)) acts.push(`<button class="act" data-act="arm-guns">鉄砲を持たせる（蔵${fmt(st.clans[st.player].guns)}丁）</button>`);
@@ -784,6 +786,7 @@ function onPanelClick(e: Event) {
     if (act === 'fill-army') { const n = fillArmy(st, a).length; toast(n ? `${n}人を配属した` : '入れられる武将がいなかった'); select({ kind: 'army', id: a.id }); return; }
     if (act === 'merge-ask') { const b = st.armies[+(btn.dataset.id ?? -1)]; if (b) openMergeSheet(st, a, b); return; }
     if (act === 'split-ask') { openSplitSheet(st, a); return; }
+    if (act === 'feast') { if (feast(st, a)) toast(`${st.generals[a.main].name}隊が酒宴を開き、士気が満ちた`); refresh(); select({ kind: 'army', id: a.id }); return; }
     if (act === 'to-camp') { if (toCamp(st, a)) { toast(`${st.generals[a.main].name}隊が陣払いした`); select({ kind: 'none' }); refresh(); } return; }
     if (act === 'open-fronts') { if (frontOfArmy(st, a)) openMenu('jinji', 'fronts'); else openMenu('naisei', 'deleg'); return; }
     if (act === 'disband') { disband(st, a); select({ kind: 'none' }); return; }
@@ -1702,7 +1705,7 @@ const TABS: Record<string, (st: GameState) => string> = {
         <td>${camp ? `<button class="mini" data-act="open-jindate-m" data-id="${a.camp}" title="この城の陣立てへ">${esc(st.castles[a.camp!].name)}</button>` : esc(here ? here.name : PROVINCES[HEXES[a.hex].p].name)}</td>
         <td class="n">${fmt(a.troops)} / ${fmt(maxTroops(st, a))}</td>
         <td class="n">${fmt(ashiOf(a))}</td><td>${b('hire-ashi-m', a.id, room > 0 ? `雇う ${fmt(room)}人（${fmt(room * R.ASHI_HIRE)}貫）` : '雇う', lock ?? (room > 0 ? null : '金が足りないか、もう足軽で満ちている'))}</td>
-        <td class="n">${Math.round(drillOf(a))}<span class="hint" style="margin:0">/${Math.round(R.drillCap(a.ashi ?? 0))}</span></td><td class="n">${a.morale.toFixed(2)}</td>
+        <td class="n">${Math.round(drillOf(a))}<span class="hint" style="margin:0">/${Math.round(R.drillCap(a.ashi ?? 0))}</span></td><td class="n">${a.morale.toFixed(2)}<span class="hint" style="margin:0">/${initialMorale(st, a).toFixed(2)}</span> ${camp ? '' : b('feast-m', a.id, `酒宴 ${fmt(feastCost(a))}貫`, dg ? '領・委任の部隊' : feastBlock(st, a))}</td>
         <td class="n">${fmt(cur)}<span class="hint" style="margin:0">/${fmt(gunCap(a))}</span></td><td>${b('arm-guns-m', a.id, '配る', lock ?? (me.guns > 0 && cur < gunCap(a) ? null : me.guns > 0 ? 'もう上限まで持っている' : '蔵に鉄砲がない'))} ${b('unarm-guns-m', a.id, '戻す', lock ?? (cur > 0 ? null : '持っていない'))}</td>
         ${cannon ? `<td class="n">${cn}</td><td>${b('arm-cannon-m', a.id, '持たせる', lock ?? ((me.cannon ?? 0) > 0 && cn < R.CANNON_MAX ? null : '蔵に大筒がないか、上限'))} ${b('unarm-cannon-m', a.id, '外す', lock ?? (cn > 0 ? null : '持っていない'))}</td>` : ''}
         <td>${state}</td></tr>`;
@@ -2908,6 +2911,7 @@ function onModalClick(e: Event) {
   if (act === 'corps-out') { const g = st.generals[id]; const army = g?.army !== null && g ? st.armies[g.army!] : null; if (g && army) { const off: General[] = []; leaveArmy(st, g, off); const c = castleAt(st, army.hex)?.owner === st.player ? castleAt(st, army.hex)! : st.castles.find((x) => x.owner === st.player && NEIGHBORS[army.hex].includes(x.hex)); for (const h of [g, ...off]) { h.status = 'free'; if (c) h.loc = c.i; } toast(`${g.name}を軍団から外した${off.length ? `（${off.map((h) => h.name).join('・')}も城へ戻った）` : ''}`); } refresh(); openMenu(); return; }
   if (act === 'gov-out') { const c = st.castles[+id]; if (c.governor) { st.generals[c.governor].status = 'free'; c.governor = null; } refresh(); reopen(); return; }
   if (act === 'open-corps-m') { openMenu('gunji', 'corps'); return; }
+  if (act === 'feast-m') { const a = st.armies[+id]; if (a && feast(st, a)) toast(`${st.generals[a.main].name}隊が酒宴を開き、士気が満ちた`); refresh(); openMenu(); return; }
   if (act === 'hire-ashi-m') { const a = st.armies[+id]; if (a) { const n = hireAshi(st, a, R.ASHI_STEP); if (n) toast(`${st.generals[a.main].name}隊に足軽${fmt(n)}人を雇った`); } refresh(); openMenu(); return; }
   if (act === 'arm-guns-m' || act === 'unarm-guns-m') { const a = st.armies[+id]; if (a && nearOwn(st, a)) armGuns(st, a, act === 'arm-guns-m' ? gunCap(a) : -(a.guns ?? 0)); refresh(); openMenu(); return; }
   if (act === 'rice-buy' || act === 'rice-sell') { const n = +id; if ((act === 'rice-buy' ? buyRice : sellRice)(st, st.player, n)) merchantSay(st, riceMerchant(st), act === 'rice-buy' ? 'mRiceBuy' : 'mRiceSell', { n: fmt(n) }, n >= 10000); refresh(); openMenu(); return; }
