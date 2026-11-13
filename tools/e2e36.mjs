@@ -43,7 +43,7 @@ await p.screenshot({ path: `${out}/361-army-starve${sfx}.png` });
 await p.evaluate(() => { const s = window.__sengoku.state; window.__sengoku.view.onHexClick(s.castles.find((c) => c.id === 'kiyosu').hex); }); await p.waitForTimeout(100);
 res.store = await p.evaluate(() => [...document.querySelectorAll('#panel dt')].find((d) => d.textContent === '城の蔵')?.nextElementSibling.textContent ?? null);
 // 奉行の画面: 兵站
-await p.keyboard.press('Escape'); await p.keyboard.press('1'); await p.waitForTimeout(100);
+await p.keyboard.press('Escape'); await p.keyboard.press('3'); await p.waitForTimeout(100);
 await p.click('[data-act="stab"][data-id="bugyo"]'); await p.waitForTimeout(100);
 res.bugyoLine = await p.evaluate(() => (document.querySelector('#modal .hint')?.textContent.match(/兵站[^。]*/) ?? [null])[0]);
 const role0 = await p.evaluate(() => document.querySelector('#modal [data-act="bugyo-role"]')?.textContent ?? null);

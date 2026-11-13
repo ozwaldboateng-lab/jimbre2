@@ -26,7 +26,7 @@ await p.screenshot({ path: `${out}/510-invest${sfx}.png` });
 // 年貢の率とまとめて投資
 await p.keyboard.press('1'); await p.click('[data-act="stab"][data-id="yosan"]'); await p.waitForTimeout(100);
 await p.click('[data-act="tax"][data-id="low"]'); await p.waitForTimeout(100);
-await p.click('[data-act="inv-bulk"][data-id="agri"]'); await p.waitForTimeout(150);
+await p.click('[data-act="stab"][data-id="shiro"]'); await p.waitForTimeout(100); await p.click('[data-act="inv-bulk"][data-id="agri"]'); await p.waitForTimeout(150);
 const bulk = await p.evaluate(() => document.getElementById('toast').textContent);
 await p.screenshot({ path: `${out}/511-budget${sfx}.png`, fullPage: true });
 await p.click('#modal-close');

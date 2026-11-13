@@ -25,8 +25,8 @@ const afterOff = await p.evaluate(() => document.querySelectorAll('[data-act="ts
 const onBtn = await p.$('[data-act="tsukai-on"]:not([disabled])');
 if (onBtn) { await onBtn.click(); await p.waitForTimeout(150); }
 const afterOn = await p.evaluate(() => document.querySelectorAll('[data-act="tsukai-off"]').length);
-// 奉行の任命（内政の奉行のタブで）
-await p.keyboard.press('1'); await p.click('[data-act="stab"][data-id="bugyo"]'); await p.waitForTimeout(150);
+// 奉行の任命（人事の奉行のタブで）
+await p.keyboard.press('3'); await p.click('[data-act="stab"][data-id="bugyo"]'); await p.waitForTimeout(150);
 const bOn = await p.$('[data-act="bugyo-on"]:not([disabled])');
 if (bOn) { await bOn.click(); await p.waitForTimeout(150); }
 const bugyoN = await p.evaluate(() => document.querySelectorAll('[data-act="bugyo-off"]').length);

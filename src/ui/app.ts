@@ -35,7 +35,7 @@ import { PORTRAITS } from '../data/portraits';
 import { besieged, comCap, devRate, enactRakuichi, rakuichiBlock } from '../engine/economy';
 import { MINE_KIND_NAME, PRODUCT_KIND_NAME } from '../data/economy';
 import { REGION_ORDER, regionOf } from '../data/regions';
-import { FORT_NAME, TAX, fortBlock, fortCost, fortMonths, fortOf, invest, investBlock, investCost, setTax, shindenBlock, shindenCost, shindenDone, startFort, startShinden, taxOf, type InvestRole, type Tax } from '../engine/invest';
+import { FORT_NAME, TAX, fortBlock, fortCost, fortMonths, fortOf, invest, investBlock, investCap, investCost, setTax, shindenBlock, shindenCost, shindenDone, startFort, startShinden, taxOf, type InvestRole, type Tax } from '../engine/invest';
 import { chianDelta, mobilizeDrop, mobilizeRate } from '../engine/policy';
 import { buyCourt, courtBlock, courtName, courtOf, holderOf } from '../engine/court';
 import { appointShugodai, dismissShugodai, kanBlock, kanCost, kanName, kanOf, recommendKan, shugodaiBlock, shugodaiOf, shugoProvs } from '../engine/kan';
@@ -766,12 +766,13 @@ function onPanelClick(e: Event) {
       else if (act === 'shinden') { startShinden(st, st.player, c); toast(`${c.name}で新田開発を始めた`); }
       else if (act === 'fort') { const nm = FORT_NAME[fortOf(c) + 1]; startFort(st, st.player, c); toast(`${c.name}で${nm}の普請を始めた`); }
       else { invest(st, st.player, c, act === 'inv-agri' ? 'agri' : 'com'); toast(`${c.name}の${act === 'inv-agri' ? '開発' : '商業'}に投じた`); }
-      refresh();
+      refresh(); if (menuShown) reopen();
     }
     return;
   }
   if (act === 'open-fiefs') { openMenu('jinji', 'fronts'); return; }
-  if (act === 'rakuichi') { const c = st.castles[+(btn.dataset.id ?? -1)]; if (c) { const why = rakuichiBlock(st, c); if (why) toast(why); else { enactRakuichi(st, c); toast(`${c.name}に楽市楽座を布いた`); } refresh(); } return; }
+  if (act === 'rakuichi') { const c = st.castles[+(btn.dataset.id ?? -1)]; if (c) { const why = rakuichiBlock(st, c); if (why) toast(why); else { enactRakuichi(st, c); toast(`${c.name}に楽市楽座を布いた`); } refresh(); if (menuShown) reopen(); } return; }
+  if (act === 'focus-toggle') { const c = st.castles[+(btn.dataset.id ?? -1)], me = st.clans[st.player]; if (c && c.owner === st.player) { me.focus = me.focus === c.i ? null : c.i; toast(me.focus === c.i ? `${c.name}を予算の重点にした` : '重点の城を解いた'); refresh(); reopen(); } return; }
   if (act === 'cancel-order' && mode.kind === 'army') { cancelOrder(st, mode.id); select({ kind: 'army', id: mode.id }); return; }
   if (mode.kind === 'army') {
     const a = st.armies[mode.id];
@@ -1232,22 +1233,21 @@ function openTitle() {
 type MenuKey = 'naisei' | 'gunji' | 'jinji' | 'gaiko' | 'akinai' | 'kiroku';
 // やりたいことでまとめたメニュー（いくつかのタブは旧タブを束ねたもの: COMPOSITE）
 const MENUS: { key: MenuKey; name: string; tabs: [string, string][] }[] = [
-  { key: 'naisei', name: '内政', tabs: [['shiro', '城'], ['yosan', '予算と動員'], ['bugyo', '奉行'], ['deleg', '委任']] },
+  { key: 'naisei', name: '内政', tabs: [['shiro', '城'], ['yosan', '予算と動員'], ['deleg', '委任']] },
   { key: 'gunji', name: '軍事', tabs: [['jindate', '陣立て'], ['butai', '部隊'], ['corps', '軍団']] },
-  { key: 'jinji', name: '人事', tabs: [['vassals', '家臣団'], ['rewards', '恩賞'], ['fronts', '知行'], ['katoku', '家督'], ['tsukai', '使番'], ['gift', '下賜'], ['tokusei', '特性'], ['jinzai', '人材']] },
+  { key: 'jinji', name: '人事', tabs: [['vassals', '家臣団'], ['rewards', '恩賞'], ['fronts', '知行'], ['governors', '城主'], ['bugyo', '奉行'], ['tsukai', '使番'], ['katoku', '家督'], ['gift', '下賜'], ['tokusei', '特性'], ['jinzai', '人材']] },
   { key: 'gaiko', name: '外交', tabs: [['gaike', '諸大名'], ['bakufu', '幕府'], ['court', '朝廷'], ['mission', '布教']] },
   { key: 'akinai', name: '商い', tabs: [['rice', '兵糧'], ['gunbuy', '鉄砲'], ['item', '名物の市場'], ['nanban', '南蛮市']] },
   { key: 'kiroku', name: '記録', tabs: [['log', '全記録'], ['save', '保存と設定'], ['help', '遊び方']] },
 ];
 // 束ねたタブ: [見出し, 旧タブ]（見出しが空なら見出しなし）
 const COMPOSITE: Record<string, [string, string][]> = {
-  shiro: [['', 'castles'], ['城主', 'governors']],
   yosan: [['', 'budget'], ['動員目標', 'mobilize']],
   butai: [['', 'armies'], ['足軽と練度', 'ashi'], ['鉄砲・大筒の配備', 'guns']],
   jinzai: [['在野', 'ronin'], ['捕虜', 'captive'], ['判明した敵将', 'known']],
 };
 // 旧タブの名で開かれたら、束ねたタブへ
-const ALIAS: Record<string, string> = { ...Object.fromEntries(Object.entries(COMPOSITE).flatMap(([k, v]) => v.map(([, old]) => [old, k]))), clans: 'gaike', dip: 'gaike', ichiba: 'rice' };
+const ALIAS: Record<string, string> = { ...Object.fromEntries(Object.entries(COMPOSITE).flatMap(([k, v]) => v.map(([, old]) => [old, k]))), clans: 'gaike', dip: 'gaike', ichiba: 'rice', castles: 'shiro' };
 // 束ねたタブの中の小見出し（一度に一つだけ見せる）。見出しが空のものはこの名で
 const SUB_NAME: Record<string, string> = { castles: '城一覧', budget: '予算', armies: '部隊一覧' };
 const lastSub: Record<string, string> = {};
@@ -1544,40 +1544,49 @@ const TABS: Record<string, (st: GameState) => string> = {
     return `${dNote(st, 'budget')}<dl class="kv">
       <dt>治水</dt><dd>${selPct('chisui', me.budget.chisui, R.BUDGET_STEPS)}　月およそ${fmt((inc * me.budget.chisui) / 100)}貫${lb ? `（先月${fmt(lb.chisui)}貫）` : ''}</dd>
       <dt>施し</dt><dd>${selPct('hodo', me.budget.hodo, R.BUDGET_STEPS)}　月およそ${fmt((inc * me.budget.hodo) / 100)}貫${lb ? `（先月${fmt(lb.hodo)}貫）` : ''}</dd>
-      <dt>重点の城</dt><dd>${me.focus !== null && me.focus !== undefined ? esc(st.castles[me.focus].name) : 'なし（城の画面で指定）'}</dd></dl>
+      <dt>重点の城</dt><dd>${me.focus !== null && me.focus !== undefined ? esc(st.castles[me.focus].name) : 'なし（「内政」の城で指定）'}</dd></dl>
       <h3 style="margin-top:12px">年貢の率</h3>
       <div class="subtabs">${(['low', 'mid', 'high'] as Tax[]).map((t) => `<button aria-selected="${taxOf(st, st.player) === t}" data-act="tax" data-id="${t}">${TAX[t].name}</button>`).join('')}</div>
       <p class="hint" style="margin-top:0">${(['low', 'mid', 'high'] as Tax[]).map((t) => `<b>${TAX[t].name}</b>（${TAX[t].note}）: 年貢・商いの収入×${TAX[t].income}${TAX[t].chian ? `・治安 毎月${TAX[t].chian > 0 ? '+' : ''}${TAX[t].chian}` : ''}${TAX[t].grow !== 1 ? `・開発の伸び×${TAX[t].grow}` : ''}${TAX[t].cap !== 1 ? `・動員上限×${TAX[t].cap}` : ''}${TAX[t].ember !== 1 ? `・残り火の鎮まり×${TAX[t].ember}` : ''}`).join('<br>')}<br>鉱山と貿易の稼ぎは年貢の率に関わらない。</p>
-      ${(() => {
-        const cs = clanCastles(st, st.player);
-        const need = (role: InvestRole) => cs.filter((c) => !investBlock(st, st.player, c, role) || (investBlock(st, st.player, c, role) ?? '').startsWith('金'));
-        const works = cs.filter((c) => c.shinden || c.fortBuild);
-        return `<h3 style="margin-top:12px">城への投資をまとめて</h3>
-        <div class="actions" style="flex-wrap:wrap;gap:6px"><select id="inv-budget" aria-label="投資の予算">${[0.1, 0.3, 0.5, 1].map((r) => `<option value="${r}" ${r === 0.3 ? 'selected' : ''}>金の${r === 1 ? '全額' : `${r * 10}割`}まで（${fmt(Math.floor(me.gold * r))}貫）</option>`).join('')}</select>
-        <button class="act" data-act="inv-bulk" data-id="agri" ${need('agri').length ? '' : 'disabled'}>開発の低い城から（${need('agri').length}城）</button><button class="act" data-act="inv-bulk" data-id="com" ${need('com').length ? '' : 'disabled'}>商業の低い城から（${need('com').length}城）</button></div>
-        <p class="hint">一度に開発（または商業）+${R.INVEST_STEP * 100}%ずつ、上限（治安で決まる）まで。新田開発と普請は城の画面で。${works.length ? `工事中: ${works.map((c) => `${esc(c.name)}（${c.shinden ? '新田' : ''}${c.shinden && c.fortBuild ? '・' : ''}${c.fortBuild ? FORT_NAME[fortOf(c) + 1] : ''}）`).join('、')}` : ''}</p>`;
-      })()}
+      <p class="hint">城ごとの投資・新田開発・普請・楽市楽座は「内政」の城で。</p>
       ${hints([
-        `毎月の収入のうち、決めた割合を治水と施しに回す。重点の城に半分を先に回し、残りは低い城から自動で配る。治水1＝基本石高×${R.CHISUI_COST}貫、治安1（施し）＝基本石高×${R.HODO_COST}貫。城ごとの値は「城の一覧」で見られる。`,
+        `毎月の収入のうち、決めた割合を治水と施しに回す。重点の城に半分を先に回し、残りは低い城から自動で配る。治水1＝基本石高×${R.CHISUI_COST}貫、治安1（施し）＝基本石高×${R.HODO_COST}貫。城ごとの値は「内政」の城で見られる。`,
         '治水: 収穫＝石高×（0.7＋治水×0.006）。0で70%、50で100%、100で130%。',
         '治安: 動員上限＝石高×（200＋治安×1.5）人、開発の上限＝100%＋治安×0.6%。上限を超えた開発度は毎月少しずつ下がる。',
         `治安が下がる: 動員率（兵÷動員上限）が50%を超えた分×10が毎月（100%で−5）、包囲${R.CHIAN_SIEGE}、兵糧切れ${R.CHIAN_STARVE}、落とした城は${R.CHIAN_CAPTURED}から。上がる: 城主の魅力（(魅力−40)÷20）、戦のない月+${R.CHIAN_PEACE}、施し。動員目標は「軍事」で決める。`,
       ])}`;
   },
-  castles: (st) => {
+  // 内政 › 城: 城ごとの内政の操作（投資・新田・普請・楽市楽座・重点）を一つの表で。城主・奉行の任命は人事で
+  shiro: (st) => {
     const me = st.clans[st.player];
     const all = clanCastles(st, st.player).sort((a, b) => castleKoku(b) - castleKoku(a));
-    const FIL: [string, string, (c: Castle) => boolean][] = [['all', 'すべて', () => true], ['nogov', '城主不在', (c) => !c.governor], ['low', '治安40未満', (c) => c.chian < 40], ['siege', '包囲中', (c) => besieged(st, c)], ['direct', '直轄', (c) => { const f = frontOfCastle(st, c); return !f || !!f.vacant; }], ['fief', '領', (c) => { const f = frontOfCastle(st, c); return !!f && !f.vacant; }]];
+    const FIL: [string, string, (c: Castle) => boolean][] = [['all', 'すべて', () => true], ['nogov', '城主不在', (c) => !c.governor], ['low', '治安40未満', (c) => c.chian < 40], ['siege', '包囲中', (c) => besieged(st, c)], ['works', '工事中', (c) => !!(c.shinden || c.fortBuild)], ['direct', '直轄', (c) => { const f = frontOfCastle(st, c); return !f || !!f.vacant; }], ['fief', '領', (c) => { const f = frontOfCastle(st, c); return !!f && !f.vacant; }]];
     const fl = FIL.find(([k]) => k === castFilter) ?? FIL[0];
     const cs = all.filter(fl[2]);
     const chips = all.length > 8 ? `<div class="subtabs">${FIL.map(([k, l, f]) => { const n = all.filter(f).length; return n || k === 'all' ? `<button aria-selected="${castFilter === k}" data-act="cast-filter" data-id="${k}">${l} ${n}</button>` : ''; }).join('')}</div>` : '';
-    const table = (xs: Castle[]) => `<div class="tbl-wrap"><table><thead><tr><th>城</th><th>縄張り</th><th>城主</th><th class="n">石高</th><th class="n">城兵</th><th class="n">治安</th><th class="n">治水</th><th class="n">開発</th><th class="n">上限</th><th class="n">商業</th></tr></thead><tbody>
-      ${xs.map((c) => `<tr><td><button class="mini" data-act="goto-castle" data-id="${c.i}">${esc(c.name)}</button>${me.focus === c.i ? ' <span class="pill warn">重点</span>' : ''}${besieged(st, c) ? ' <span class="pill bad">包囲</span>' : ''}${fortOf(c) ? ` <span class="pill">${FORT_NAME[fortOf(c)]}</span>` : ''}${c.shinden ? ' <span class="pill good">新田</span>' : ''}${c.fortBuild ? ' <span class="pill good">普請</span>' : ''}</td>
-        <td>${R.CASTLE_KIND[c.kind ?? 'hira'].name}</td><td>${c.governor ? esc(st.generals[c.governor].name) : '<span class="hint" style="margin:0">不在</span>'}</td><td class="n">${man(castleKoku(c))}</td><td class="n">${fmt(c.garrison)}</td>
-        <td class="n">${Math.round(c.chian)}</td><td class="n">${Math.round(c.chisui)}</td><td class="n">${Math.round(c.dev * 100)}%</td><td class="n">${Math.round(R.devCap(c.chian) * 100)}%</td><td class="n">${fmt(Math.round(castleCom(c)))}</td></tr>`).join('')}
+    const b = (act: string, c: Castle, label: string, why: string | null, tip = '') => `<button class="mini" data-act="${act}" data-id="${c.i}" ${why ? `disabled title="${esc(why)}"` : tip ? `title="${esc(tip)}"` : ''}>${label}</button>`;
+    const cell = (c: Castle, role: InvestRole) => {
+      const cur = role === 'agri' ? c.dev : c.cdev, cap = investCap(c, role);
+      return `${Math.round(cur * 100)}<span class="hint" style="margin:0">/${Math.round(cap * 100)}%</span> ${b(role === 'agri' ? 'inv-agri' : 'inv-com', c, `+${R.INVEST_STEP * 100}%（${fmt(investCost(c, role))}貫）`, investBlock(st, st.player, c, role))}`;
+    };
+    const table = (xs: Castle[]) => `<div class="tbl-wrap"><table class="naisei-tbl"><thead><tr><th>城</th><th>城主</th><th class="n">石高</th><th class="n">治安</th><th class="n">治水</th><th>開発</th><th>商業</th><th>新田開発</th><th>普請</th><th>楽市楽座</th><th>重点</th></tr></thead><tbody>
+      ${xs.map((c) => `<tr><td><button class="mini" data-act="goto-castle" data-id="${c.i}" title="地図でこの城へ">${esc(c.name)}</button>${besieged(st, c) ? ' <span class="pill bad">包囲</span>' : ''}</td>
+        <td>${c.governor ? nameLink(st.generals[c.governor]) : '<span class="warn">不在</span>'}</td>
+        <td class="n">${man(castleKoku(c))}</td><td class="n">${Math.round(c.chian)}</td><td class="n">${Math.round(c.chisui)}</td>
+        <td>${cell(c, 'agri')}</td>
+        <td>月${fmt(Math.round(castleCom(c)))}貫 ${cell(c, 'com')}</td>
+        <td>${c.shinden ? `<span class="pill good">工事中</span> あと${c.shinden.until - st.turn}か月` : shindenDone(c) >= R.SHINDEN_MAX ? `${R.SHINDEN_MAX}度済み` : `${shindenDone(c)}/${R.SHINDEN_MAX} ${b('shinden', c, `始める（${fmt(shindenCost(c))}貫）`, shindenBlock(st, st.player, c), `${R.SHINDEN_MONTHS}か月・成れば石高+${(c.baseKoku * R.SHINDEN_GAIN).toFixed(1)}万石`)}`}</td>
+        <td>${esc(FORT_NAME[fortOf(c)])}${c.fortBuild ? ` → <span class="pill good">${esc(FORT_NAME[fortOf(c) + 1])}普請中</span> あと${c.fortBuild.until - st.turn}か月` : fortOf(c) < FORT_NAME.length - 1 ? ` ${b('fort', c, `${FORT_NAME[fortOf(c) + 1]}へ（${fmt(fortCost(c))}貫）`, fortBlock(st, st.player, c), `${fortMonths(st, c)}か月`)}` : ''}</td>
+        <td>${c.rakuichi !== undefined ? `布いた${st.turn - c.rakuichi < R.RAKUICHI_MONTHS ? `<span class="hint" style="margin:0">（反発 あと${c.rakuichi + R.RAKUICHI_MONTHS - st.turn}か月）</span>` : ''}` : b('rakuichi', c, '布く', rakuichiBlock(st, c), `商業の伸び×${R.RAKUICHI_GROW}・上限+${R.RAKUICHI_CAP * 100}%。${R.RAKUICHI_MONTHS}か月は治安${R.RAKUICHI_CHIAN}/月`)}</td>
+        <td><button class="mini" data-act="focus-toggle" data-id="${c.i}" aria-pressed="${me.focus === c.i}" title="治水・施しの予算の半分を先にこの城へ回す">${me.focus === c.i ? '★重点' : '☆'}</button></td></tr>`).join('')}
       </tbody></table></div>`;
     const head = (r: string, xs: Castle[]) => `${r}　${xs.length}城・${xs.reduce((t, c) => t + castleKoku(c), 0).toFixed(0)}万石${xs.some((c) => !c.governor) ? `・<span class="warn">城主不在${xs.filter((c) => !c.governor).length}</span>` : ''}${xs.some((c) => c.chian < 40) ? `・<span class="warn">治安の低い城${xs.filter((c) => c.chian < 40).length}</span>` : ''}`;
-    return `${chips}${cs.length ? regionGroups('cast', cs, castleRegion, head, table) : '<p class="hint">当てはまる城はない。</p>'}<p class="hint">城の名を押すとその城へ移る（城主の任命・重点の指定・登用は城の画面で）。商業は毎月の金の収入。城が多いときは地方ごとにたたむ（見出しを押すと開く）。</p>`;
+    const need = (role: InvestRole) => all.filter((c) => !investBlock(st, st.player, c, role) || (investBlock(st, st.player, c, role) ?? '').startsWith('金'));
+    const bulk = `<div class="actions" style="margin-top:0;flex-wrap:wrap;gap:6px;align-items:center"><span class="hint" style="margin:0">まとめて投資</span><select id="inv-budget" aria-label="投資の予算">${[0.1, 0.3, 0.5, 1].map((r) => `<option value="${r}" ${r === 0.3 ? 'selected' : ''}>金の${r === 1 ? '全額' : `${r * 10}割`}まで（${fmt(Math.floor(me.gold * r))}貫）</option>`).join('')}</select>
+      <button class="act" data-act="inv-bulk" data-id="agri" ${need('agri').length ? '' : 'disabled'}>開発の低い城から（${need('agri').length}城）</button><button class="act" data-act="inv-bulk" data-id="com" ${need('com').length ? '' : 'disabled'}>商業の低い城から（${need('com').length}城）</button></div>`;
+    const staff = `<p class="hint" style="margin-top:0">${bugyoLine('農政（開発の伸び）', bugyoCoef(st, st.player))}。${bugyoLine('商業の伸び', bugyoCoef(st, st.player, 'com'))}。奉行${bugyoOf(st, st.player).length}人（任命は「人事」の奉行、城主は「人事」の城主）。</p>`;
+    return `${staff}${bulk}${chips}${cs.length ? regionGroups('cast', cs, castleRegion, head, table) : '<p class="hint">当てはまる城はない。</p>'}
+      ${hints([`投資: 一度に開発（または商業）+${R.INVEST_STEP * 100}%。上限は治安で決まる（楽市楽座で商業の上限+${R.RAKUICHI_CAP * 100}%）。まとめて投資は、決めた金の範囲で低い城から順に投じる。`, `新田開発は${R.SHINDEN_MONTHS}か月の工事で基本の石高を上げる（一城${R.SHINDEN_MAX}度まで、回を重ねるほど高い）。普請は土塁→石垣→櫓と堀→天守。城の名を押すと地図でその城へ移る。`])}`;
   },
   bugyo: (st) => {
     const bs = bugyoOf(st, st.player);
@@ -2287,7 +2296,7 @@ const TABS: Record<string, (st: GameState) => string> = {
     '地形で活きる能力が変わる: 平地の突撃は×1.3（他は×1.1）。森にいると計略+15%、知略で15以上勝れば森からの攻撃が伏兵×1.2。丘からの攻撃×1.15。',
     `同じ敵に隣接する味方は戦闘力の${R.FLANK_SUPPORT * 100}%で支援し、敵士気を下げる（側面${R.MORALE_FLANK}、包囲${R.MORALE_SURROUND}）。退路がなければ壊滅。`,
     `城は城兵が守る。城兵を崩せば落城し、その支配域を得る。自城と隣接ヘックスで毎月補充（兵糧${R.RECRUIT_COST}石/人）。兵は月${R.FOOD_PER_SOLDIER}石を消費。十月に収穫。`,
-    `奉行（「内政」の奉行で任命）は農政か商業を担当する。農政の奉行が全城の開発を進め、石高・動員上限・収穫を上げる。月の伸び＝${R.BUGYO_RATE * 100}%×係数。係数＝${R.DEV_NATURAL}＋Σ 重み×知略÷100（重みは知略の高い順に${R.BUGYO_WEIGHT.join('・')}）。奉行1人で${R.BUGYO_CASTLES}城まで目が届き、城が多いと効率が落ちる。城主のいない城は半分、包囲中は進まない。開発の上限は治安で決まる（100〜160%）。`,
+    `奉行（「人事」の奉行で任命）は農政か商業を担当する。農政の奉行が全城の開発を進め、石高・動員上限・収穫を上げる。月の伸び＝${R.BUGYO_RATE * 100}%×係数。係数＝${R.DEV_NATURAL}＋Σ 重み×知略÷100（重みは知略の高い順に${R.BUGYO_WEIGHT.join('・')}）。奉行1人で${R.BUGYO_CASTLES}城まで目が届き、城が多いと効率が落ちる。城主のいない城は半分、包囲中は進まない。開発の上限は治安で決まる（100〜160%）。`,
     '治水は収穫の倍率、治安は動員上限と開発の上限を決める。どちらも「内政」の予算で金を回して上げる。兵を集めすぎる（動員率5割超）と治安が毎月下がる。補充の上限は「軍事」の動員目標で決める。',
     '官位は「外交」の朝廷で献金して買う。威信の上乗せと、AIに攻められにくくなる効果がある。関白・征夷大将軍は天下に1人（将軍は大領と京が条件）。',
     '本願寺だけは他家の城に一向一揆を起こせる（城の画面）。一揆勢は攻め込まれたのと同じ扱いで、討った分だけその城の開発と治安が下がる。忠誠・治安でも金でも防げない。',
@@ -2545,6 +2554,7 @@ function onModalClick(e: Event) {
   if (act === 'stance') { const r = stanceResolve; stanceResolve = null; closeModal(); r?.(id as Stance); return; }
   if (act === 'ask-yes' || act === 'ask-no') { const r = askResolve; askResolve = null; closeModal(); r?.(act === 'ask-yes'); return; }
   if (act === 'close') { closeModal(); return; }
+  if (['inv-agri', 'inv-com', 'shinden', 'fort', 'rakuichi', 'focus-toggle'].includes(act)) { onPanelClick(e); return; } // 内政 › 城の表の操作は城の画面と同じ処理
   if (act === 'newgame') { store(AUTO_KEY, null); s = null; openTitle(); return; }
   if (act === 'end-new' || act === 'end-close') { $('ending').hidden = true; if (act === 'end-new') { store(AUTO_KEY, null); s = null; openTitle(); } return; }
   if (!s) return;
