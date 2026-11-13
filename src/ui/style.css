@@ -678,3 +678,14 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
   .vas-tbl td { padding-top: 1px; padding-bottom: 1px; }
   #modal .vas-tbl .face-sm { width: 22px !important; height: 28px !important; margin-right: 4px; }
 }
+/* 外交 › 諸大名: PCでは左に一覧、右に選んだ家の札と交渉。狭い画面では札を選ぶと一覧を隠す（今までどおり） */
+.sheet:has(.dip-cols) { width: min(1600px, 100%); }
+.dip-cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 24px; align-items: start; }
+.dip-cols tr.sel td { background: rgba(207, 169, 94, 0.14); }
+.dip-cols .dip-back-m { display: none; }
+.dip-empty { border: 1px dashed var(--hair); padding: 18px; text-align: center; }
+@media (max-width: 1100px) {
+  .dip-cols { grid-template-columns: 1fr; }
+  .dip-cols .dip-back-m { display: inline-flex; }
+  .dip-cols.has-focus > .dip-list, .dip-cols:not(.has-focus) > .dip-detail { display: none; }
+}

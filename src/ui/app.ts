@@ -1855,13 +1855,14 @@ const TABS: Record<string, (st: GameState) => string> = {
   court: (st) => {
     const cur = courtOf(st, st.player), why = courtBlock(st, st.player);
     const kampaku = holderOf(st, R.KAMPAKU), shogun = holderOf(st, R.SHOGUN);
-    return `<dl class="kv"><dt>官位</dt><dd>${esc(R.COURT[cur].name)}（威信+${R.COURT[cur].pres}・攻められにくさ${Math.round(R.COURT[cur].deter * 100)}%）</dd>
+    return `<div class="two-cols"><section><dl class="kv"><dt>官位</dt><dd>${esc(R.COURT[cur].name)}（威信+${R.COURT[cur].pres}・攻められにくさ${Math.round(R.COURT[cur].deter * 100)}%）</dd>
       <dt>関白</dt><dd>${kampaku ? `${esc(kampaku.name)}家` : '空席（公家）'}</dd><dt>征夷大将軍</dt><dd>${shogun ? `${esc(shogun.name)}家` : '空席'}</dd></dl>
       ${st.clans[st.player].usurp ? '<p class="hint warn">官を自ら名乗った（僭称）。朝廷は官を与えず、諸家とは結びにくく、討つ大義を与えている。</p>' : `<div class="actions" style="margin-top:8px"><button class="act" data-act="usurp">官を自ら名乗る（僭称）</button></div><p class="hint" style="margin-top:2px">朝廷を経ずに名乗れば威信+${R.USURP_PRESTIGE}。だが以後は献金で官位を得られず、外交の成功率−${Math.round(R.USURP_DIP * 100)}%、他家に討つ大義を与える（狙われやすくなる）。取り消せない。</p>`}
       ${cur + 1 < R.COURT.length ? `<div class="actions" style="margin-top:8px"><button class="act primary" data-act="court-buy" ${why ? 'disabled' : ''}>献金して${esc(R.COURT[cur + 1].name)}に（${fmt(R.COURT[cur + 1].cost)}貫）</button></div>${why ? `<p class="hint">${esc(why)}</p>` : ''}` : ''}
       <div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>官位</th><th class="n">献金</th><th class="n">威信</th><th class="n">攻められにくさ</th></tr></thead><tbody>
       ${R.COURT.slice(1).map((c, k) => `<tr${k + 1 === cur ? ' class="me"' : ''}><td>${esc(c.name)}</td><td class="n">${fmt(c.cost)}貫</td><td class="n">+${c.pres}</td><td class="n">${Math.round(c.deter * 100)}%</td></tr>`).join('')}
       </tbody></table></div>
+      </section><section>
       ${(() => {
         const vs = Object.values(st.generals).filter((g) => g.clan === st.player && !g.liege && g.id !== st.clans[st.player].leader && ['free', 'army', 'camp', 'governor', 'bugyo', 'tsukai'].includes(g.status))
           .sort((a, b) => kanOf(b) - kanOf(a) || (b.fame ?? 0) - (a.fame ?? 0) || a.rank - b.rank).slice(0, 40);
@@ -1869,7 +1870,7 @@ const TABS: Record<string, (st: GameState) => string> = {
         <div class="tbl-wrap"><table><thead><tr><th>武将</th><th>身分</th><th class="n">名声</th><th class="n">恩</th><th>官位</th><th></th></tr></thead><tbody>
         ${vs.map((g) => { const why = kanBlock(st, g), next = Math.min(R.KAN_VASSAL_MAX, kanOf(g) + 1); return `<tr><td>${nameLink(g)}${g.outer ? ' <span class="pill bad">外の官</span>' : ''}</td><td>${esc(R.RANK_NAME[g.rank])}</td><td class="n">${Math.round(g.fame ?? 0)}</td><td class="n">${Math.round(onOf(g))}</td><td>${kanOf(g) ? esc(kanName(g)) : '無位'}</td><td>${kanOf(g) < R.KAN_VASSAL_MAX ? `<button class="mini" data-act="kan-up" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>${esc(R.COURT[next].name)}に（${fmt(kanCost(g))}貫）</button>` : ''}</td></tr>`; }).join('')}
         </tbody></table></div>`;
-      })()}
+      })()}</section></div>
       ${hints([
         '朝廷への献金で、1つ下から順に官位が上がる。威信の上乗せは外交・調略・登用の計算に効く（威信の上限100を超えて効く）。',
         '攻められにくさ: AIがこの家を攻める相手に選びにくくなり、攻めかかる判断も慎重になる。',
@@ -1883,6 +1884,7 @@ const TABS: Record<string, (st: GameState) => string> = {
     const others = Object.values(st.clans).filter((c) => c.alive && c.id !== st.player)
       .sort((a, b) => Number(near.has(b.id)) - Number(near.has(a.id)) || Number(!!treatyOf(st, st.player, b.id)) - Number(!!treatyOf(st, st.player, a.id)) || clanPower(st, b.id) - clanPower(st, a.id));
     const myP = clanPower(st, st.player);
+    let cardHtml = '';
     const c = dipFocus ? st.clans[dipFocus] : null;
     if (c && c.alive && c.id !== st.player) {
       const k = others.findIndex((x) => x.id === c.id);
@@ -1890,7 +1892,7 @@ const TABS: Record<string, (st: GameState) => string> = {
       const t = treatyOf(st, st.player, c.id);
       const lg = c.leader ? st.generals[c.leader] : null;
       const age = lg ? ageOf(st, lg) : null;
-      return `<div class="dip-nav"><button class="act" data-act="dip-back">← 諸大名の一覧</button><span class="grow"></span><button class="mini" data-act="dip-open" data-id="${prev.id}" title="前の家">◀ ${esc(prev.name)}</button><button class="mini" data-act="dip-open" data-id="${next.id}" title="次の家">${esc(next.name)} ▶</button></div>
+      cardHtml = `<div class="dip-nav"><button class="act dip-back-m" data-act="dip-back">← 諸大名の一覧</button><span class="grow"></span><button class="mini" data-act="dip-open" data-id="${prev.id}" title="前の家">◀ ${esc(prev.name)}</button><button class="mini" data-act="dip-open" data-id="${next.id}" title="次の家">${esc(next.name)} ▶</button></div>
       <div class="dip-card">
         ${faceOrMon(c.leader, c.name, c.color, 96)}
         <div class="dip-card-t">
@@ -1905,31 +1907,25 @@ const TABS: Record<string, (st: GameState) => string> = {
       <p class="hint" style="margin-top:0">数字は成功の見込み。断られると${DIP.COOLDOWN}か月は同じ家と交渉できない。押せない交渉は、押す（触れる）と理由が出る。</p>
       <div class="picker" style="margin:0 0 10px"><label for="sel-gift">名物を添える（成功率＋格×${R.ITEM_GIFT * 100}%。応じれば相手の家へ渡る。断られれば手元に残る）</label>
         <select id="sel-gift"><option value="">添えない</option>${clanItems(st, st.player).map((it) => `<option value="${it.id}" ${dipGift === it.id ? 'selected' : ''}>${esc(itemLabel(it))}　+${Math.round(it.grade * R.ITEM_GIFT * 100)}%${it.holder ? `（${esc(st.generals[it.holder].name)}が所持）` : ''}</option>`).join('')}</select></div>
-      <div class="actions dip-acts">${dipButton(st, 'alliance', c.id, true)}${dipButton(st, 'marriage', c.id, true)}${dipButton(st, 'surrender', c.id, true)}${t ? `<button class="act" data-act="dip-break" data-id="${c.id}">手切れ（威信−${t.kind === 'marriage' ? DIP.BREAK_MARRIAGE : DIP.BREAK_ALLIANCE}）</button>` : ''}</div>
-      ${hints([
-        `同盟: 金${fmt(DIP.ALLIANCE_COST)}貫。${DIP.ALLIANCE_MONTHS}か月のあいだ互いに攻められず、領内も通れる（城には入れない）。相手が狙っている家・半年以内に戦った家とは結びにくい。相手の近くに強敵がいれば結びやすい。`,
-        `婚姻: 金${fmt(DIP.MARRIAGE_COST)}貫。同盟${DIP.MARRIAGE_AFTER}か月後から。期限がなく、両家の威信+${DIP.MARRIAGE_PRESTIGE}。`,
-        `降伏勧告: 金${fmt(DIP.SURRENDER_COST)}貫。城が${DIP.NEIGHBOR_RANGE}ヘックス以内で接し、国力が${DIP.SURRENDER_RATIO}倍以上の相手だけ。応じれば城・軍団・武将・捕虜・蔵の物資がそのまま臣従する。婚姻相手は応じやすい。`,
-        '手切れ: 同盟・婚姻を破る。威信を失い、その家とは半年は結び直しにくい。',
-      ])}`;
-    }
-    dipFocus = null;
+      <div class="actions dip-acts">${hostile(st, st.player, c.id) ? `<button class="act" data-act="ninja-at" data-id="${c.id}">この家に忍びを送る</button>` : ''}${dipButton(st, 'alliance', c.id, true)}${dipButton(st, 'marriage', c.id, true)}${dipButton(st, 'surrender', c.id, true)}${t ? `<button class="act" data-act="dip-break" data-id="${c.id}">手切れ（威信−${t.kind === 'marriage' ? DIP.BREAK_MARRIAGE : DIP.BREAK_ALLIANCE}）</button>` : ''}</div>
+      `;
+    } else dipFocus = null;
     const me = st.clans[st.player];
     const row = (x: typeof me) => {
       const mine = x.id === st.player;
-      return `<tr${mine ? ' class="me"' : ''}><td>${mine ? `<span class="swatch" style="background:${x.color}"></span> ${esc(x.name)}（当家）` : `<button class="linkish" data-act="dip-open" data-id="${x.id}"><span class="swatch" style="background:${x.color}"></span> ${esc(x.name)}</button>${near.has(x.id) ? '' : ' <span class="hint" style="margin:0">遠方</span>'}`}</td>
+      return `<tr${mine ? ' class="me"' : x.id === dipFocus ? ' class="sel"' : ''}><td>${mine ? `<span class="swatch" style="background:${x.color}"></span> ${esc(x.name)}（当家）` : `<button class="linkish" data-act="dip-open" data-id="${x.id}"><span class="swatch" style="background:${x.color}"></span> ${esc(x.name)}</button>${near.has(x.id) ? '' : ' <span class="hint" style="margin:0">遠方</span>'}`}</td>
         <td>${x.leader ? nameLink(st.generals[x.leader]) : '—'}</td><td class="n">${clanCastles(st, x.id).length}</td><td class="n">${clanKoku(st, x.id).toFixed(1)}</td><td class="n">${fmt(clanTroops(st, x.id))}</td>
-        <td class="n">${mine ? '—' : `${(myP / Math.max(1, clanPower(st, x.id))).toFixed(1)}倍`}</td><td>${mine ? '—' : relationLabel(st, x.id)}</td>
+        <td class="n">${mine ? '—' : `${(myP / Math.max(1, clanPower(st, x.id))).toFixed(1)}倍`}</td><td class="n">${x.prestige}</td><td>${mine ? '—' : x.stance}</td><td>${!mine && x.target ? esc(clanName(st, x.target)) + (x.target === st.player ? '<span class="warn">（当家）</span>' : '') : '—'}</td><td>${mine ? '—' : relationLabel(st, x.id)}</td>
         <td class="dip-cell">${mine ? '' : `${dipButton(st, 'alliance', x.id)}${dipButton(st, 'marriage', x.id)}${dipButton(st, 'surrender', x.id)}${(() => { const t = treatyOf(st, st.player, x.id); return t ? `<button class="mini" data-act="dip-break" data-id="${x.id}" title="同盟・婚姻を破る（威信−${t.kind === 'marriage' ? DIP.BREAK_MARRIAGE : DIP.BREAK_ALLIANCE}）">手切れ</button>` : ''; })()}`}</td></tr>`;
     };
     const shown = dipAll ? others : others.filter((x) => near.has(x.id) || treatyOf(st, st.player, x.id));
     return `<p class="lede" style="margin-top:0">存続 ${others.length + 1}家。国人衆の城 ${st.castles.filter((x) => !x.owner).length}。全${domesticCount(st)}城の制圧か、ほかの家がすべて滅べば天下統一（国人衆の城は残っていてよい）。同盟・婚姻・降伏勧告はこの一覧から申し入れられる（数字は成功の見込み。押せないものは押す・触れると理由が出る）。家の名を押すと、その家の詳しい様子が開く。</p>
-    <div class="picker" style="margin:0 0 10px"><label for="sel-gift">名物を添える（成功率＋格×${R.ITEM_GIFT * 100}%。応じれば相手の家へ渡る。断られれば手元に残る）</label>
-      <select id="sel-gift"><option value="">添えない</option>${clanItems(st, st.player).map((it) => `<option value="${it.id}" ${dipGift === it.id ? 'selected' : ''}>${esc(itemLabel(it))}　+${Math.round(it.grade * R.ITEM_GIFT * 100)}%${it.holder ? `（${esc(st.generals[it.holder].name)}が所持）` : ''}</option>`).join('')}</select></div>
+    <div class="dip-cols${cardHtml ? ' has-focus' : ''}"><div class="dip-list">
     <div class="subtabs" role="group" aria-label="表示する家"><button type="button" data-act="dip-filter" data-id="near" aria-selected="${!dipAll}">近隣と盟友（${others.filter((x) => near.has(x.id) || treatyOf(st, st.player, x.id)).length}）</button><button type="button" data-act="dip-filter" data-id="all" aria-selected="${dipAll}">すべての家（${others.length}）</button></div>
-    <div class="tbl-wrap"><table class="gaike-tbl"><thead><tr><th>勢力</th><th>当主</th><th class="n">城</th><th class="n">石高</th><th class="n">兵</th><th class="n">国力比</th><th>関係</th><th>交渉</th></tr></thead><tbody>
+    <div class="tbl-wrap"><table class="gaike-tbl"><thead><tr><th>勢力</th><th>当主</th><th class="n">城</th><th class="n">石高</th><th class="n">兵</th><th class="n">国力比</th><th class="n">威信</th><th>方針</th><th>主攻</th><th>関係</th><th>交渉</th></tr></thead><tbody>
     ${row(me)}${shown.map(row).join('')}
-    </tbody></table></div>
+    </tbody></table></div></div>
+    <div class="dip-detail">${cardHtml || '<p class="hint dip-empty">家の名を押すと、ここにその家の詳しい様子と交渉が出る（名物を添えての申し入れもここから）。</p>'}</div></div>
     ${hints([
       `同盟: 金${fmt(DIP.ALLIANCE_COST)}貫。${DIP.ALLIANCE_MONTHS}か月のあいだ互いに攻められず、領内も通れる（城には入れない）。相手が狙っている家・半年以内に戦った家とは結びにくい。相手の近くに強敵がいれば結びやすい。`,
       `婚姻: 金${fmt(DIP.MARRIAGE_COST)}貫。同盟${DIP.MARRIAGE_AFTER}か月後から。期限がなく、両家の威信+${DIP.MARRIAGE_PRESTIGE}。`,
@@ -2151,8 +2147,9 @@ const TABS: Record<string, (st: GameState) => string> = {
     const tg = ninjaTargetOf(st);
     const why = ninjaBlock(st, st.player, ninjaSel.act, tg);
     const reach = ninjaReach(st, st.player);
-    const castleOpts = st.castles.filter((c) => c.owner && hostile(st, st.player, c.owner) && reach[c.hex] <= NINJA_RANGE).sort((a, b) => reach[a.hex] - reach[b.hex]).slice(0, 40);
-    const genOpts = Object.values(st.generals).filter((g) => g.clan && hostile(st, st.player, g.clan) && (g.status === 'army' || g.status === 'governor' || g.status === 'free') && (genHex(st, g) ?? -1) >= 0 && reach[genHex(st, g)!] <= NINJA_RANGE).sort((a, b) => a.rank - b.rank || b.lea - a.lea).slice(0, 60);
+    if (ninjaClan && !st.clans[ninjaClan]?.alive) ninjaClan = null;
+    const castleOpts = st.castles.filter((c) => c.owner && (!ninjaClan || c.owner === ninjaClan) && hostile(st, st.player, c.owner) && reach[c.hex] <= NINJA_RANGE).sort((a, b) => reach[a.hex] - reach[b.hex]).slice(0, 40);
+    const genOpts = Object.values(st.generals).filter((g) => g.clan && (!ninjaClan || g.clan === ninjaClan) && hostile(st, st.player, g.clan) && (g.status === 'army' || g.status === 'governor' || g.status === 'free') && (genHex(st, g) ?? -1) >= 0 && reach[genHex(st, g)!] <= NINJA_RANGE).sort((a, b) => a.rank - b.rank || b.lea - a.lea).slice(0, 60);
     const isGen = ninjaSel.act === 'assassinate' || ninjaSel.act === 'spy';
     const chajins = own.filter((g) => traitOf(g) === 'chajin' && g.status !== 'young');
     if (!teaHost || !chajins.some((g) => g.id === teaHost)) teaHost = chajins[0]?.id ?? '';
@@ -2160,7 +2157,7 @@ const TABS: Record<string, (st: GameState) => string> = {
     const fushinCs = clanCastles(st, st.player).filter((c) => govTrait(st, c) === 'chikujo');
     const roleOf2 = (g: General) => (g.id === me.ninja && head ? '忍び頭' : g.status === 'governor' ? `城主（${esc(st.castles[g.loc].name)}）` : g.status === 'army' ? `${esc(st.generals[st.armies[g.army!]?.main ?? g.id]?.name ?? '')}隊` : g.status === 'free' ? '待機' : g.status === 'bugyo' ? '奉行' : g.status === 'tsukai' ? esc(tsukaiLabel(st.player)) : g.status === 'young' ? '元服前' : g.status === 'ronin' ? '在野' : g.status);
     void chajins; void fushinCs; void roleOf2; void tw;
-    return `<h3 class="sect-h" style="margin-top:0">忍び頭</h3>
+    return `${ninjaClan ? `<div class="deleg-bar on"><span class="lbl">狙う家</span><span>${esc(clanName(st, ninjaClan))}家の城と武将だけを出している</span><button class="mini" data-act="ninja-clan-off">すべての家から選ぶ</button><button class="mini" data-act="dip-open" data-id="${ninjaClan}">${esc(clanName(st, ninjaClan))}家の札へ</button></div>` : ''}<h3 class="sect-h" style="margin-top:0">忍び頭</h3>
     <div class="picker" style="margin:0 0 8px"><label for="sel-ninja-head">待機の「忍び」から一人。部隊や役に就けると外れる</label>
       <select id="sel-ninja-head"><option value="">（置かない）</option>${ninjas.map((g) => `<option value="${g.id}" ${head?.id === g.id ? 'selected' : ''}>${esc(g.name)}　知${g.int}・武${g.bra}</option>`).join('')}</select></div>
     ${head ? `<div class="actions" style="flex-wrap:wrap;gap:6px"><select id="sel-ninja-act" aria-label="忍びの働き">${(Object.keys(NINJA_NAME) as NinjaAct[]).map((k) => `<option value="${k}" ${ninjaSel.act === k ? 'selected' : ''}>${NINJA_NAME[k]}（金${fmt(NINJA_COST[k])}貫）</option>`).join('')}</select>
@@ -2431,15 +2428,16 @@ function relationLabel(st: GameState, c: string) {
 }
 
 let dipGift: string | null = null;
+let ninjaClan: string | null = null; // 忍び: 諸大名の札から来たときは、その家だけを狙う先に出す
 const ninjaSel: { act: NinjaAct; target: string } = { act: 'rumor', target: '' }; // 忍びの働きと狙い（'g:武将id' か 'c:城の番号'）
 let teaHost = '';
 const ninjaTargetOf = (st: GameState) => (ninjaSel.target.startsWith('g:') ? { gen: st.generals[ninjaSel.target.slice(2)] } : ninjaSel.target.startsWith('c:') ? { castle: st.castles[+ninjaSel.target.slice(2)] } : {});
 let dipFocus: string | null = null; // 諸大名: 交渉を開いている家
 let dipAll = false; // 諸大名: 遠方の家も並べる
 function dipButton(st: GameState, kind: DipKind, c: string, big = false) {
-  const o = evaluate(st, kind, st.player, c, dipGift);
+  const o = evaluate(st, kind, st.player, c, big ? dipGift : null); // 名物を添えるのは家の札（big）からの申し入れだけ
   const label = `${DIP_NAME[kind]}${o.ok ? ` ${Math.round(o.p * 100)}%` : ''}`;
-  return `<button class="${big ? 'act' : 'mini'}" data-act="dip" data-kind="${kind}" data-id="${c}" ${o.ok ? '' : 'disabled'} title="${esc(o.ok ? `金${fmt(o.cost)}貫` : o.reason)}">${label}</button>`;
+  return `<button class="${big ? 'act' : 'mini'}" data-act="dip" data-kind="${kind}" data-id="${c}"${big ? ' data-gift="1"' : ''} ${o.ok ? '' : 'disabled'} title="${esc(o.ok ? `金${fmt(o.cost)}貫` : o.reason)}">${label}</button>`;
 }
 
 let askResolve: ((v: boolean) => void) | null = null;
@@ -2874,6 +2872,8 @@ function onModalClick(e: Event) {
   if (act === 'sub') { lastSub[lastTab[curMenu]] = id; openMenu(); document.querySelector('#modal .sheet')!.scrollTop = 0; return; }
   if (act === 'dip-open') { dipFocus = id; openMenu(curMenu, 'gaike'); document.querySelector('#modal .sheet')!.scrollTop = 0; return; }
   if (act === 'dip-filter') { dipAll = id === 'all'; openMenu(curMenu, 'gaike'); return; }
+  if (act === 'ninja-at') { ninjaClan = id; ninjaSel.target = ''; openMenu('gaiko', 'shinobi'); return; }
+  if (act === 'ninja-clan-off') { ninjaClan = null; openMenu(); return; }
   if (act === 'dip-back') { dipFocus = null; openMenu(curMenu, 'gaike'); return; }
   if (act === 'goto-army') { const a = st.armies[+id]; if (a) { closeModal(); view.centerOn(a.hex); select({ kind: 'army', id: a.id }); } return; }
   if (act === 'goto-castle') { const c = st.castles[+id]; if (c) { closeModal(); view.centerOn(c.hex); select({ kind: 'castle', i: c.i }); } return; }
@@ -2892,7 +2892,8 @@ function onModalClick(e: Event) {
     const kind = btn.dataset.kind as DipKind;
     const name = clanName(st, id);
     const lead = st.clans[id].leader ? st.generals[st.clans[id].leader!] : undefined;
-    const r = propose(st, kind, st.player, id, dipGift);
+    const gift = btn.dataset.gift ? dipGift : null;
+    const r = propose(st, kind, st.player, id, gift);
     if (r === 'accepted' && st.events?.length && eventsOn()) { if (dipGift && st.items[dipGift]?.clan !== st.player) dipGift = null; afterAction(); refresh(); playEvents(st, () => { toast(kind === 'surrender' ? `${name}家が降った！` : `${name}家と${DIP_NAME[kind]}を結んだ`); if (!st.over) openMenu(); }); return; } // 降伏・同盟・婚姻が成れば、その場で場面を
     if (r) cutin(st, lead, (kind === 'surrender' ? 'surrender' : kind === 'marriage' ? 'marriage' : 'alliance') + (r === 'accepted' ? 'Yes' : 'No') as Scene, { foe: name });
     if (dipGift && st.items[dipGift]?.clan !== st.player) dipGift = null;
