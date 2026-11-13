@@ -706,9 +706,10 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 /* 自分の城の画面（見るための札） */
 .cgov { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 13px; }
 .ctiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 6px 0; }
-.ctile { border: 1px solid var(--hair); border-radius: 3px; padding: 4px 6px; display: flex; flex-direction: column; min-width: 0; }
+.ctile { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--hair); border-radius: 3px; overflow: hidden; }
+.ctile .ct-l { font-size: 11px; color: var(--paper-dim); background: rgba(207, 169, 94, 0.08); border-bottom: 1px solid var(--hair); padding: 2px 6px; letter-spacing: 0.08em; }
+.ctile .ct-v { display: flex; flex-direction: column; padding: 3px 6px 4px; }
 .ctile b { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ctile span { font-size: 11px; color: var(--paper-dim); }
 .ctile small { font-size: 10.5px; color: var(--paper-dim); }
 .cpills { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
 .ckv { font-size: 12.5px; }

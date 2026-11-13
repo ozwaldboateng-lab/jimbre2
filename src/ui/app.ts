@@ -26,14 +26,14 @@ import { ANECDOTES, STAT_NAME } from '../data/anecdotes';
 import { fillNames, fireAnecdote } from '../engine/anecdote';
 import { temperOf } from '../engine/lines';
 import type { OpeningBeat } from '../data/openings';
-import { armySupply, carryOf, castleSupply, cutOff, hyoroBugyo, initStores, isPort as isCoast, storeMax, storeOf, supplyRange } from '../engine/supply';
+import { armySupply, carryOf, castleSupply, hyoroBugyo, initStores, storeOf, supplyRange } from '../engine/supply';
 import { centerOf, CHIAN_RAMP, EMBER_RAMP, FRONT_COLORS, HEX_ALPHA, MAP_MODES, MB, MapView, SUP, type MapMode } from './render';
 import { cancelOrder, orderAttack, orderFor, ordersAt } from '../engine/orders';
 import { breakTreaty, clanPower, DIP, DIP_NAME, evaluate, neighbors, propose, setProposalHook, type DipKind } from '../engine/diplomacy';
 import { getBattleStyle, openBattle, setBattleStyle, UNIT_STYLE_NAME, type UnitStyle } from './battle';
 import { setBattleHook } from '../engine/hooks';
 import { PORTRAITS } from '../data/portraits';
-import { besieged, comCap, devRate, enactRakuichi, rakuichiBlock } from '../engine/economy';
+import { besieged, enactRakuichi, rakuichiBlock } from '../engine/economy';
 import { MINE_KIND_NAME, PRODUCT_KIND_NAME } from '../data/economy';
 import { REGION_ORDER, regionOf } from '../data/regions';
 import { FORT_NAME, TAX, fortBlock, fortCost, fortMonths, fortOf, invest, investBlock, investCap, investCost, setTax, shindenBlock, shindenCost, shindenDone, startFort, startShinden, taxOf, type InvestRole, type Tax } from '../engine/invest';
@@ -43,7 +43,7 @@ import { appointShugodai, dismissShugodai, kanBlock, kanCost, kanName, kanOf, re
 import { DELEGATE_MENU, DELEGATE_NAME, delegateOf, type DelegateKey } from '../engine/delegate';
 import { ikkiBlock, ikkiSize, raiseIkki } from '../engine/ikki';
 import {
-  armGuns, bonusOf, buyGuns, buyItem, buyRice, castleCom, castleMine, minesAt, productsAt, clanMine, hasProduct, clanGuns, clanIncome, clanItems, equip, gunCap, gunPrice, hasGunSource, itemLabel, itemPrice, marketItems, migrateMoney,
+  armGuns, bonusOf, buyGuns, buyItem, buyRice, castleCom, minesAt, productsAt, clanMine, hasProduct, clanGuns, clanIncome, clanItems, equip, gunCap, gunPrice, hasGunSource, itemLabel, itemPrice, marketItems, migrateMoney,
   ricePrice, sellRice, unequip, ashiRoom, hireAshi } from '../engine/money';
 import { ageOf, migrateLife } from '../engine/life';
 import { applyShioki } from '../engine/shioki';
@@ -576,123 +576,65 @@ function freeGenerals(): General[] {
 // 身分を含めた兵数の上限
 const capOf = (g: General) => Math.round(((3000 + g.lea * 100) * troopMult(s!, g)) / 100) * 100;
 
-// 自分の城の画面: 見るための札（操作はメニューへの近道だけ。仕置だけはここで決める）
-function ownCastlePanel(c: Castle) {
-  const st = s!, me = st.clans[st.player];
+// 城の画面: 見るための札（自分の城も他家の城も同じ形。出さない・当てはまらない項目は「—」、分からない項目は「不明」）
+function castleCard(c: Castle) {
+  const st = s!, me = st.clans[st.player], mine = c.owner === st.player;
+  const owner = c.owner ? st.clans[c.owner] : null;
   const gov = c.governor ? st.generals[c.governor] : null;
   const kd = R.CASTLE_KIND[c.kind ?? 'hira'];
-  const f = frontOfCastle(st, c);
+  const f = mine ? frontOfCastle(st, c) : null;
   const sieged = besieged(st, c);
-  const d = chianDelta(st, me, c, sieged, me.food <= 0);
+  const d = owner ? chianDelta(st, owner, c, sieged, owner.food <= 0) : null;
   const sg = (v: number, k = 1) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(k)}`;
-  const tile = (label: string, val: string, sub = '') => `<div class="ctile"><b>${val}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ''}</div>`;
+  const NA = '—';
+  const tile = (label: string, val: string, sub = '') => `<div class="ctile"><span class="ct-l">${label}</span><span class="ct-v"><b>${val}</b>${sub ? `<small>${sub}</small>` : ''}</span></div>`;
   const months = c.garrison ? storeOf(c) / Math.max(1, c.garrison * R.FOOD_PER_SOLDIER) : 0;
   const tiles = `<div class="ctiles">
-    ${tile('石高', man(castleKoku(c)))}${tile('商業', `${fmt(castleCom(c))}貫`, '月')}${tile('城兵', fmt(c.garrison), `/${fmt(garrisonMax(c))}`)}${tile('城の蔵', `${months.toFixed(1)}か月`, `${fmt(storeOf(c))}石`)}
-    ${tile('治安', String(Math.round(c.chian)), `月${sg(d.total)}`)}${tile('治水', String(Math.round(c.chisui)), `収穫×${R.harvestMult(c.chisui).toFixed(2)}`)}${tile('開発', `${Math.round(c.dev * 100)}%`, `上限${Math.round(R.devCap(c.chian) * 100)}%`)}${tile('動員', `${fmt(castleKoku(c) * R.manpowerPer(c.chian))}人`, '上限')}</div>`;
+    ${tile('石高', man(castleKoku(c)))}${tile('商業', owner ? `${fmt(castleCom(c))}貫` : NA, owner ? '月' : '')}${tile('城兵', fmt(c.garrison), `/${fmt(garrisonMax(c))}`)}${tile('城の蔵', owner ? `${months.toFixed(1)}か月` : NA, owner ? `${fmt(storeOf(c))}石` : '')}
+    ${tile('治安', String(Math.round(c.chian)), d ? `月${sg(d.total)}` : '')}${tile('治水', String(Math.round(c.chisui)), `収穫×${R.harvestMult(c.chisui).toFixed(2)}`)}${tile('開発', `${Math.round(c.dev * 100)}%`, `上限${Math.round(R.devCap(c.chian) * 100)}%`)}${tile('動員', owner ? `${fmt(castleKoku(c) * R.manpowerPer(c.chian))}人` : NA, owner ? '上限' : '')}</div>`;
   const pills: string[] = [];
   if (sieged) pills.push('<span class="pill bad">包囲中</span>');
-  if (c.shinden) pills.push(`<span class="pill good">新田工事中 あと${c.shinden.until - st.turn}か月</span>`);
-  if (c.fortBuild) pills.push(`<span class="pill good">${esc(FORT_NAME[fortOf(c) + 1])}を普請中 あと${c.fortBuild.until - st.turn}か月</span>`);
+  if (c.shinden) pills.push(`<span class="pill good">新田工事中${mine ? ` あと${c.shinden.until - st.turn}か月` : ''}</span>`);
+  if (c.fortBuild) pills.push(`<span class="pill good">${esc(FORT_NAME[fortOf(c) + 1])}を普請中${mine ? ` あと${c.fortBuild.until - st.turn}か月` : ''}</span>`);
   if (c.rakuichi !== undefined) pills.push('<span class="pill">楽市楽座</span>');
-  if (me.focus === c.i) pills.push('<span class="pill warn">予算の重点</span>');
-  if (c.ember && c.ember >= 1) pills.push(`<span class="pill bad" title="治安${R.EMBER_FLARE_CHIAN}未満で燃え上がることがある">残り火 ${Math.round(c.ember)}</span>`);
-  if (castleSupply(st, c) === 'enclave') pills.push('<span class="pill warn">飛び地</span>');
+  if (mine && me.focus === c.i) pills.push('<span class="pill warn">予算の重点</span>');
+  if (c.ember && c.ember >= 1) pills.push(`<span class="pill bad" title="治安${R.EMBER_FLARE_CHIAN}未満で燃え上がることがある">残り火 ${Math.round(c.ember)}${c.oldOwner && !mine ? '' : ''}</span>`);
+  if (mine && castleSupply(st, c) === 'enclave') pills.push('<span class="pill warn">飛び地</span>');
   for (const [, n, k] of productsAt(c)) pills.push(`<span class="pill">特産 ${esc(n)}${k === 'com' ? '' : `（${esc(PRODUCT_KIND_NAME[k])}）`}</span>`);
   for (const [, n, k] of minesAt(c)) pills.push(`<span class="pill">${esc(n)}（${MINE_KIND_NAME[k]}）</span>`);
   if (isPort(st, c)) pills.push(`<span class="pill">南蛮港${(st.ships ?? []).some((x) => x.port === c.id) ? '・来航中' : ''}</span>`);
   if (isKaraPort(c)) pills.push(`<span class="pill">唐船の港${karasenAt(st, c.id) ? '・来航中' : ''}</span>`);
-  // 見通し: この城の収穫・近くの敵・縁のある家臣・城の周りの自軍
-  const harvest = Math.round(castleKoku(c) * R.harvestMult(c.chisui) * R.HARVEST_RATE * TAX[taxOf(st, st.player)].income);
+  if (c.kiri && c.kiri >= 0.5) pills.push(`<span class="pill">信者 ${Math.round(c.kiri)}%</span>`);
+  // 見通し
   const NEAR = R.hx(3);
-  const foes = Object.values(st.armies).filter((a) => a.clan !== st.player && hostile(st, st.player, a.clan) && hexDist(a.hex, c.hex) <= NEAR).sort((a, b) => hexDist(a.hex, c.hex) - hexDist(b.hex, c.hex));
-  const nearest = foes[0];
-  const kin = Object.values(st.generals).filter((g) => g.clan === st.player && g.home === c.i && g.status !== 'dead' && g.status !== 'captive');
-  const here = clanArmies(st, st.player).filter((a) => !a.ikki && (a.hex === c.hex || NEIGHBORS[c.hex].includes(a.hex)));
-  const camps = campsAt(st, c.i), waiting = freeGenerals().filter((g) => g.loc === c.i), ronin = Object.values(st.generals).filter((g) => g.status === 'ronin' && g.loc === c.i);
+  const harvest = mine ? `見込 ${fmt(Math.round(castleKoku(c) * R.harvestMult(c.chisui) * R.HARVEST_RATE * TAX[taxOf(st, st.player)].income))}石` : NA;
+  const foes = mine ? Object.values(st.armies).filter((a) => a.clan !== st.player && hostile(st, st.player, a.clan) && hexDist(a.hex, c.hex) <= NEAR).sort((a, b) => hexDist(a.hex, c.hex) - hexDist(b.hex, c.hex)) : [];
+  const nearMine = clanArmies(st, st.player).filter((a) => !a.ikki && hexDist(a.hex, c.hex) <= NEAR);
+  const here = mine ? clanArmies(st, st.player).filter((a) => !a.ikki && (a.hex === c.hex || NEIGHBORS[c.hex].includes(a.hex))) : [];
+  const camps = mine ? campsAt(st, c.i) : [];
+  const members = Object.values(st.generals).filter((g) => g.clan === c.owner && g.loc === c.i && ['free', 'governor', 'camp', 'bugyo', 'tsukai'].includes(g.status)).length;
+  const ronin = Object.values(st.generals).filter((g) => g.status === 'ronin' && g.loc === c.i);
   const outlook = `<dl class="kv ckv">
-    <dt>十月の収穫</dt><dd>見込 ${fmt(harvest)}石</dd>
-    <dt>近くの敵</dt><dd>${foes.length ? `<span class="warn">${foes.length}隊・兵${fmt(foes.reduce((t, a) => t + a.troops, 0))}</span>　いちばん近いのは${esc(clanName(st, nearest.clan))}家の${esc(st.generals[nearest.main]?.name ?? '')}隊（${hexDist(nearest.hex, c.hex)}マス）` : `${NEAR}マス以内にいない`}</dd>
-    <dt>自軍</dt><dd>${here.length ? `城と隣に${here.length}隊・兵${fmt(here.reduce((t, a) => t + a.troops, 0))}` : '城と隣にいない'}${camps.length ? `・名簿${camps.length}隊（兵${fmt(camps.reduce((t, a) => t + a.troops, 0))}）` : ''}・待機の武将${waiting.length}人</dd>
-    <dt>縁のある家臣</dt><dd>${kin.length ? kin.map((g) => nameLink(g)).join('、') : '—'}</dd>
-    ${ronin.length ? `<dt>在野</dt><dd>${ronin.map((g) => esc(g.name)).join('、')}（「人事」の人材で登用）</dd>` : ''}</dl>`;
-  const shioki = !st.over && shiokiPending(st).some((p) => p.castle === c.i) ? `<div class="est" style="margin-top:6px">仕置を決める（次の評定終了まで）</div><div class="actions">${shiokiButtons(st, c)}</div>` : '';
-  const links = st.over ? '' : `<div class="actions clinks"><button class="mini" data-act="open-tab" data-id="naisei:shiro">領内で</button><button class="mini" data-act="open-jindate" data-id="${c.i}">陣立て</button><button class="mini" data-act="open-fiefs">知行</button><button class="mini" data-act="open-tab" data-id="jinji:governors">城主</button>${ronin.length ? '<button class="mini" data-act="open-tab" data-id="jinji:jinzai">人材</button>' : ''}</div>`;
-  return `<div class="ph">${mon(c.name.replace(/城$|館$|御所$|御堂$/, ''), me.color)}<div><h2>${esc(c.name)}</h2><div class="sub">${kd.name}・${esc(FORT_NAME[fortOf(c)])}　${esc(PROVINCES[HEXES[c.hex].p].name)}　${f ? esc(frontName(st, f)) : '直轄'}</div></div></div>
-    <div class="cgov">${gov ? `${face(gov.id, 32, 'face face-sm')}城主 ${nameLink(gov)}` : '<span class="warn">城主不在（開発が半分）</span>'}</div>
+    <dt>十月の収穫</dt><dd>${harvest}</dd>
+    ${mine ? `<dt>近くの敵</dt><dd>${foes.length ? `<span class="warn">${foes.length}隊・兵${fmt(foes.reduce((t, a) => t + a.troops, 0))}</span>　いちばん近いのは${esc(clanName(st, foes[0].clan))}家の${esc(st.generals[foes[0].main]?.name ?? '')}隊（${hexDist(foes[0].hex, c.hex)}マス）` : `${NEAR}マス以内にいない`}</dd>
+    <dt>自軍</dt><dd>${here.length ? `城と隣に${here.length}隊・兵${fmt(here.reduce((t, a) => t + a.troops, 0))}` : '城と隣にいない'}${camps.length ? `・名簿${camps.length}隊（兵${fmt(camps.reduce((t, a) => t + a.troops, 0))}）` : ''}</dd>`
+      : `<dt>近くの当家の軍</dt><dd>${nearMine.length ? `${nearMine.length}隊・兵${fmt(nearMine.reduce((t, a) => t + a.troops, 0))}（${NEAR}マス以内）` : `${NEAR}マス以内にいない`}</dd>`}
+    <dt>所属武将</dt><dd>${mine ? `${members}人` : owner ? '不明' : NA}</dd>
+    ${ronin.length ? `<dt>在野</dt><dd>${ronin.map((g) => esc(g.name)).join('、')}${mine ? '（「人事」の人材で登用）' : ''}</dd>` : ''}</dl>`;
+  const shioki = mine && !st.over && shiokiPending(st).some((p) => p.castle === c.i) ? `<div class="est" style="margin-top:6px">仕置を決める（次の評定終了まで）</div><div class="actions">${shiokiButtons(st, c)}</div>` : '';
+  const links = mine && !st.over ? `<div class="actions clinks"><button class="mini" data-act="open-tab" data-id="naisei:shiro">領内で</button><button class="mini" data-act="open-jindate" data-id="${c.i}">陣立て</button><button class="mini" data-act="open-fiefs">知行</button><button class="mini" data-act="open-tab" data-id="jinji:governors">城主</button>${ronin.length ? '<button class="mini" data-act="open-tab" data-id="jinji:jinzai">人材</button>' : ''}</div>` : '';
+  const color = owner ? owner.color : '#7d735c';
+  const ownerLine = mine ? (f ? esc(frontName(st, f)) : '直轄') : `${esc(clanName(st, c.owner))}${c.owner ? '家' : '（国人衆）'}`;
+  const shugo = (() => { const h = bk(st).shugo[provName(c.hex)]; return h ? `${esc(clanName(st, h))}家が守護` : '守護は空き'; })();
+  return `<div class="ph">${mon(c.name.replace(/城$|館$|御所$|御堂$/, ''), color)}<div><h2>${esc(c.name)}</h2><div class="sub">${kd.name}・${esc(FORT_NAME[fortOf(c)])}　${esc(PROVINCES[HEXES[c.hex].p].name)}　${ownerLine}</div></div></div>
+    <div class="cgov">${gov ? `${face(gov.id, 32, 'face face-sm')}城主 ${mine ? nameLink(gov) : esc(gov.name)}` : mine ? '<span class="warn">城主不在（開発が半分）</span>' : `城主 ${NA}`}<span class="hint" style="margin:0 0 0 auto">${shugo}・守り×${castleDef(c).toFixed(1)}</span></div>
     ${tiles}${pills.length ? `<div class="cpills">${pills.join('')}</div>` : ''}${outlook}${shioki}${links}`;
 }
 
 function castlePanel(c: Castle) {
   const st = s!;
-  const mine = c.owner === st.player;
-  if (mine) return ownCastlePanel(c);
-  const color = c.owner ? st.clans[c.owner].color : '#7d735c';
-  const gov = c.governor ? st.generals[c.governor] : null;
-  const parts = [`<div class="ph">${mon(c.name.replace(/城$|館$|御所$|御堂$/, ''), color)}<div><h2>${esc(c.name)}</h2><div class="sub">${esc(clanName(st, c.owner))}${c.owner ? '家' : '（独立）'}　${esc(PROVINCES[HEXES[c.hex].p].name)}</div></div></div>`];
-  const kd = R.CASTLE_KIND[c.kind ?? 'hira'];
-  parts.push(`<dl class="kv"><dt>縄張り</dt><dd>${kd.name}${c.tsume ? `（詰城 ${esc(c.tsume)}）` : ''}　守り×${castleDef(c).toFixed(1)}・曲輪${'一二三'[kd.rings - 1]}重</dd><dt>石高</dt><dd>${man(castleKoku(c))}</dd><dt>開発</dt><dd>${Math.round(c.dev * 100)}%${c.owner ? `<span class="hint" style="margin:0">　月+${(devRate(st, c) * 100).toFixed(2)}%${c.dev >= R.devCap(c.chian) ? `（上限${Math.round(R.devCap(c.chian) * 100)}%）` : besieged(st, c) ? '（包囲中）' : !c.governor ? '（城主不在で半分）' : ''}</span>` : ''}</dd>
-    <dt>商業</dt><dd>月${fmt(castleCom(c))}貫（${Math.round(c.cdev * 100)}%${c.owner ? `　月+${(devRate(st, c, undefined, 'com') * 100).toFixed(2)}%` : ''}${c.rakuichi !== undefined ? `・上限${Math.round(comCap(c) * 100)}%` : ''}）</dd>
-    ${minesAt(c).length ? `<dt>鉱山</dt><dd>${minesAt(c).map(([, n, k, v]) => `${esc(n)}（${MINE_KIND_NAME[k]}・${fmt(v)}貫）`).join('・')}${c.owner ? `　今月 ${fmt(castleMine(st, c))}貫` : ''}<span class="hint" style="margin:0">　知行に関わらず当家に入る</span></dd>` : ''}
-    ${productsAt(c).length ? `<dt>特産</dt><dd>${productsAt(c).map(([, n, k, v]) => `${esc(n)}（${k === 'com' ? `商い+${v}貫` : esc(PRODUCT_KIND_NAME[k]) + (k === 'horse' ? '・突撃の損害減' : k === 'powder' ? '・鉄砲の維持費減' : '・鉄砲が安い')}）`).join('・')}</dd>` : ''}
-    ${c.owner === st.player ? (() => {
-      const b = (act: string, label: string, why: string | null) => `<button class="mini" data-act="${act}" data-id="${c.i}" ${why ? `disabled title="${esc(why)}"` : ''}>${label}</button>`;
-      const ib = (role: InvestRole) => b(role === 'agri' ? 'inv-agri' : 'inv-com', `${role === 'agri' ? '開発' : '商業'}+${R.INVEST_STEP * 100}%（${fmt(investCost(c, role))}貫）`, investBlock(st, st.player, c, role));
-      return `<dt>投資</dt><dd>${ib('agri')} ${ib('com')}</dd>
-        <dt>新田開発</dt><dd>${c.shinden ? `工事中（あと${c.shinden.until - st.turn}か月・成れば石高+${(c.baseKoku * R.SHINDEN_GAIN).toFixed(1)}万石）` : shindenDone(c) >= R.SHINDEN_MAX ? `${R.SHINDEN_MAX}度済み` : b('shinden', `始める（${fmt(shindenCost(c))}貫・${R.SHINDEN_MONTHS}か月・石高+${(c.baseKoku * R.SHINDEN_GAIN).toFixed(1)}万石）`, shindenBlock(st, st.player, c))}${shindenDone(c) && shindenDone(c) < R.SHINDEN_MAX ? `<span class="hint" style="margin:0">　${shindenDone(c)}度済み</span>` : ''}</dd>
-        <dt>普請</dt><dd>${esc(FORT_NAME[fortOf(c)])}${c.fortBuild ? `（${esc(FORT_NAME[fortOf(c) + 1])}を普請中・あと${c.fortBuild.until - st.turn}か月）` : fortOf(c) < FORT_NAME.length - 1 ? ` ${b('fort', `${FORT_NAME[fortOf(c) + 1]}を築く（${fmt(fortCost(c))}貫・${fortMonths(st, c)}か月）`, fortBlock(st, st.player, c))}` : ''}${fortOf(c) ? `<span class="hint" style="margin:0">　守り+${(fortOf(c) * R.FORT_DEF).toFixed(2)}・城兵+${Math.round(fortOf(c) * R.FORT_GARRISON * 100)}%・城門+${Math.round(fortOf(c) * R.FORT_GATE * 100)}%</span>` : ''}</dd>`;
-    })() : ''}
-    ${c.rakuichi !== undefined ? `<dt>楽市楽座</dt><dd>布いている${st.turn - c.rakuichi < R.RAKUICHI_MONTHS ? `（反発 あと${c.rakuichi + R.RAKUICHI_MONTHS - st.turn}か月）` : ''}</dd>` : c.owner === st.player ? `<dt>楽市楽座</dt><dd><button class="mini" data-act="rakuichi" data-id="${c.i}" title="商業の伸び×${R.RAKUICHI_GROW}・上限+${R.RAKUICHI_CAP * 100}%。${R.RAKUICHI_MONTHS}か月は治安${R.RAKUICHI_CHIAN}/月">楽市楽座を布く</button></dd>` : ''}
-    <dt>治水</dt><dd>${Math.round(c.chisui)}（収穫×${R.harvestMult(c.chisui).toFixed(2)}）</dd>
-    <dt>治安</dt><dd>${Math.round(c.chian)}（動員${Math.round(R.manpowerPer(c.chian))}人/万石・開発の上限${Math.round(R.devCap(c.chian) * 100)}%）${c.owner ? `<span class="hint" style="margin:0">　${(() => { const d = chianDelta(st, st.clans[c.owner!], c, besieged(st, c), st.clans[c.owner!].food <= 0); return `月${d.total >= 0 ? '+' : ''}${d.total.toFixed(1)}${d.parts.length ? `（${d.parts.map(([k, v]) => `${k}${v >= 0 ? '+' : ''}${v.toFixed(1)}`).join('・')}）` : ''}`; })()}</span>` : ''}</dd>
-    <dt>守護</dt><dd>${(() => { const h = bk(st).shugo[provName(c.hex)]; return h ? `${esc(clanName(st, h))}家（${esc(provName(c.hex))}守護）` : '空き'; })()}</dd>
-    ${c.ember && c.ember >= 1 ? `<dt>残り火</dt><dd>${Math.round(c.ember)}${c.oldOwner ? `（旧主 ${esc(clanName(st, c.oldOwner))}）` : ''}<span class="hint" style="margin:0">　治安${R.EMBER_FLARE_CHIAN}未満で燃え上がることがある</span></dd>` : ''}
-    ${c.owner === st.player ? (() => {
-      const f = frontOfCastle(st, c);
-      const cands = leaderCands(st).filter((g) => !grantBlock(st, g, c));
-      const sel = cands.length && (!f || f.vacant) ? `<div style="margin-top:4px"><select data-fgrantc="${c.i}" aria-label="${esc(c.name)}を与える武将"><option value="">この城を与える…</option>${genOpts(cands, (g) => `<option value="${g.id}">${esc(g.name)}（未払い${dueOf(g)}・恩${Math.round(onOf(g))}${fiefOf(st, g) ? `・${fiefOf(st, g)!.castles.length}城` : ''}）</option>`)}</select></div>` : '';
-      return `<dt>知行</dt><dd>${f ? `${esc(frontName(st, f))}${f.vacant ? '（後継ぎ待ち）' : `（${R.FRONT_POLICY_NAME[policyOf(st, f).policy]}）`} <button class="mini" data-act="open-fiefs">知行を見る</button>` : '直轄（蔵入地）'}${sel}</dd>`;
-    })() : ''}
-    ${isPort(st, c) ? `<dt>南蛮港</dt><dd>${esc(portName(c.id))}${(st.ships ?? []).some((x) => x.port === c.id) ? '　<b>南蛮船が来航中</b>' : ''}</dd>` : ''}
-    ${isKaraPort(c) ? `<dt>唐船</dt><dd>${esc(karaPortName(c.id))}（明の商人の船が来る港）${karasenAt(st, c.id) ? `　<b>唐船が来航中（月+${fmt(R.KARASEN_TRADE)}貫）</b>` : ''}</dd>` : ''}
-    ${c.kiri && c.kiri >= 0.5 ? `<dt>信者</dt><dd>${Math.round(c.kiri)}%（商業+${Math.round(c.kiri * R.KIRI_COM * 100)}%）</dd>` : ''}
-    <dt>城兵</dt><dd>${fmt(c.garrison)} / ${fmt(garrisonMax(c))}</dd>
-    ${c.owner ? `<dt>城の蔵</dt><dd>${fmt(storeOf(c))}石（城兵の${c.garrison ? (storeOf(c) / Math.max(1, c.garrison * R.FOOD_PER_SOLDIER)).toFixed(1) : '—'}か月分・満${fmt(storeMax(c))}）${(() => { const k = castleSupply(st, c); return k === 'enclave' ? '<span class="pill warn" title="本国と陸でも海でもつながらない。家の蔵から兵糧が届かず、収穫はこの城の蔵に入る">飛び地</span>' : k === 'sea' ? '<span class="pill" title="本国と陸ではつながらないが、港どうしで兵糧を運べる（1割減る）">飛び地（海路）</span>' : ''; })()}${cutOff(st, c) ? '<span class="pill warn" title="敵に囲まれ、外から兵糧を入れられない。城兵が蔵を食べ、尽きると飢えて崩れる">兵糧攻め</span>' : ''}${st.sieges?.[c.i] ? `<span class="pill warn" title="城攻めが月をまたいで続いている。盤面（門の傷・部隊の位置）は翌月に持ち越す">${esc(clanName(st, st.sieges[c.i].clan))}家の包囲${st.sieges[c.i].months}か月</span>` : ''}${isCoast(c) ? '<span class="hint" style="margin:0">　港あり</span>' : ''}</dd>` : ''}
-    <dt>城主</dt><dd>${gov ? `${face(gov.id, 32, 'face face-sm')}${esc(gov.name)}` : 'なし'}</dd></dl>`);
-  if (mine && !st.over && shiokiPending(st).some((p) => p.castle === c.i)) parts.push(`<div class="est" style="margin-top:6px">仕置を決める（次の評定終了まで）</div><div class="actions">${shiokiButtons(st, c)}</div>`);
-  if (mine && !st.over) parts.push(`<div class="actions" style="margin-top:4px"><button class="act" data-act="focus-castle">${st.clans[st.player].focus === c.i ? '重点の城を解く' : '予算の重点にする'}</button></div>`);
-  if (mine && !st.over) {
-    const capLeft = clanCapacity(st, st.player) - clanTroops(st, st.player);
-    const acts = [
-      `<button class="act primary" data-act="open-jindate">陣立て（編成・配属・主将の交代）</button>`,
-      `<button class="act" data-act="pick-form" ${capLeft < 500 ? 'disabled' : ''}>軍団を編成（名簿）</button>`,
-      `<button class="act" data-act="pick-governor">${gov ? '城主を替える' : '城主を任命'}</button>`,
-    ];
-    if (gov) acts.push(`<button class="act" data-act="drop-governor">城主を解任</button>`);
-    { const n = Object.values(st.armies).filter((x) => x.clan === st.player && !x.ikki && (x.hex === c.hex || NEIGHBORS[c.hex].includes(x.hex))).length; if (n) acts.push(`<button class="act" data-act="castle-reorg" title="城と隣にいる軍団の主将はそのまま、傘下と城の待機の武将を能力順に振り分け直す">この城の軍団を組み直す（おまかせ・${n}隊）</button>`); }
-    parts.push(`<div class="actions">${acts.join('')}</div>`);
-    if (picker === 'governor') {
-      const free = freeGenerals();
-      parts.push(`<div class="picker"><label for="sel-gov">城主（城主のいない城は開発が半分。調略への守りは城主の知略）</label>
-        <select id="sel-gov">${free.map((x) => `<option value="${x.id}">${esc(x.name)}　知${x.int} 統${x.lea}</option>`).join('')}</select>
-        <div class="row"><button class="act primary" data-act="set-governor" ${free.length ? '' : 'disabled'}>任命</button><button class="act" data-act="cancel-pick">やめる</button></div></div>`);
-    }
-    if (picker === 'form') {
-      const free = freeGenerals();
-      const maxT = Math.max(0, Math.min(capLeft, Math.floor(st.clans[st.player].food / R.RECRUIT_COST), Math.max(0, ...free.map(capOf))));
-      const steps = [500, 1000, 2000, 3000, 5000, 8000].filter((x) => x <= maxT);
-      parts.push(`<div class="picker"><label for="sel-form">大将</label>
-        <select id="sel-form">${free.map((x) => `<option value="${x.id}">${esc(x.name)}（${rankName(st, x)}）　武${x.bra} 統${x.lea}　上限${fmt(capOf(x))}</option>`).join('')}</select>
-        <label for="sel-troops">初期兵数（1人あたり兵糧${R.RECRUIT_COST}石）</label>
-        <select id="sel-troops">${steps.map((x) => `<option value="${x}" ${x === Math.min(2000, steps[steps.length - 1]) ? 'selected' : ''}>${fmt(x)}人（${fmt(x * R.RECRUIT_COST)}石）</option>`).join('')}</select>
-        <div class="row"><button class="act primary" data-act="form" ${free.length && steps.length ? '' : 'disabled'}>編成</button><button class="act" data-act="cancel-pick">やめる</button></div>
-        ${free.length ? '' : '<span class="hint">待機中の武将がいない。城主を解任するか、浪人・捕虜を登用する。</span>'}</div>`);
-    }
-    const ronin = Object.values(st.generals).filter((g) => g.status === 'ronin' && g.loc === c.i);
-    if (ronin.length) {
-      parts.push(`<h3 style="margin-top:14px">在野の武将</h3><ul class="list">${ronin.map((g) => `<li><button data-act="ronin" data-id="${g.id}" ${g.triedTurn === st.turn || st.clans[st.player].gold < R.RONIN_GOLD ? 'disabled' : ''} title="金${fmt(R.RONIN_GOLD)}貫"><span class="grow">${esc(g.name)}</span><span class="num">武${g.bra} 知${g.int} 統${g.lea} 魅${g.cha}</span><span class="num">登用${Math.round(roninChance(st, st.player) * 100)}%</span></button></li>`).join('')}</ul><p class="hint">登用には金${fmt(R.RONIN_GOLD)}貫（断られても戻らない）。</p>`);
-    }
-  } else {
+  if (c.owner === st.player) return castleCard(c);
+  const parts = [castleCard(c)];
     if (c.owner && treatyOf(st, st.player, c.owner)) parts.push(`<div><span class="pill good">${treatyOf(st, st.player, c.owner)!.kind === 'marriage' ? '婚姻' : '同盟'}を結んだ家の城</span></div>`);
     if (naioActive(st, c, st.player)) parts.push(`<div><span class="pill good">内応あり（${turnLabel(c.naio!)}まで）</span></div><p class="hint">攻城戦では外門が一つ開き、城兵の士気が${R.NAIO_MORALE}下がった状態で始まる。</p>`);
     parts.push(`<p class="hint">${c.garrison > 0 ? '城兵がいる城は、隣接して攻撃し城兵を崩すと落城する。攻城戦では火計も使える。' : '城兵がいない。隣接ヘックスから入れば占領できる。'}</p>`);
@@ -715,7 +657,6 @@ function castlePanel(c: Castle) {
           <span class="hint">${c.owner ? `成功すると翌月まで内応。失敗すると${R.PLOT_CAUGHT * 100}%で武将が捕らえられる。` : '成功すると国人衆が寝返り、城と支配域がそのまま手に入る。'}成功率＝${R.PLOT_BASE}＋(知略−城主の知略)÷100＋(威信差)÷200${c.owner ? '' : '＋0.15（国人衆）'}。</span></div>`);
       }
     }
-  }
   return parts.join('');
 }
 
