@@ -4,6 +4,7 @@
 import type { OpeningBeat } from './openings';
 import { ANECDOTES_B } from './anecdotes2';
 import { ANECDOTES_C } from './anecdotes3';
+import { ANECDOTES_D } from './anecdotes4';
 
 export type Stat = 'bra' | 'int' | 'lea' | 'cha';
 export interface Anecdote {
@@ -393,4 +394,4 @@ const ANECDOTES_A: Anecdote[] = [
   },
 ];
 
-export const ANECDOTES: Anecdote[] = [...ANECDOTES_A, ...ANECDOTES_B, ...ANECDOTES_C];
+export const ANECDOTES: Anecdote[] = [...ANECDOTES_D, ...ANECDOTES_A, ...ANECDOTES_B, ...ANECDOTES_C];

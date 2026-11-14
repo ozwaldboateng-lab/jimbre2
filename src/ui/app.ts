@@ -1111,7 +1111,7 @@ function eventBeats(st: GameState, e: BigEvent): { title: string; mood: Mood; be
     const a = ANECDOTES.find((x) => x.id === e.id)!, main = st.generals[a.who[0]];
     const loc = st.castles[main.loc], base = { at: loc?.id, zoom: 1.5, light: main.clan ? [main.clan] : [], mark: loc ? [loc.id] : [] };
     const clanOf = (id: string) => { const c = st.generals[id]?.clan; return c && st.clans[c] ? `${st.clans[c].name}家` : '在野'; };
-    const extra = (id: string) => id.startsWith('g_') || OPENING_IDS.has(id) || !!PERSONAS[id]; // 武将でない話し手（汎用の顔・序幕の人物・茶人や公家などの人物）
+    const extra = (id: string) => id.startsWith('g_') || (OPENING_IDS.has(id) && !st.generals[id]) || !!PERSONAS[id]; // 序幕の人物でも、このシナリオで武将としているならその名で // 武将でない話し手（汎用の顔・序幕の人物・茶人や公家などの人物）
     const here = (id: string) => { const g = st.generals[id]; return !!g && g.status !== 'dead'; };
     // 脇役: g_ で始まる id は汎用の顔（名は beat の name）。武将の脇役がいなければ alt の語りに置き換えるか飛ばす。need の武将がいなければ飛ばす
     const src = a.beats.flatMap((b): OpeningBeat[] => {
