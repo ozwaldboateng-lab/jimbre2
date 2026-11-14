@@ -10,7 +10,7 @@ import { attackTargets, reachable, type Target } from './move';
 import { canPlot, capital, doPlot, moveArmy, plotChance, recruitRonin } from './ops';
 import * as R from './rules';
 import { aiFeast } from './feast';
-import { castleAt, hostile, rand, seenGarrison, castleKoku, clanArmies, mobilizeCap, clanCastles, clanTroops, garrisonMax, maxTroops, occupancy, troopMult, castleDef , farmTroops } from './state';
+import { amityOf, castleAt, hostile, rand, seenGarrison, castleKoku, clanArmies, mobilizeCap, clanCastles, clanTroops, garrisonMax, maxTroops, occupancy, troopMult, castleDef , farmTroops } from './state';
 import type { Army, GameState, General } from './types';
 import { aiFillBugyo, aiFillTsukai } from './ranks';
 import { aiEconomy } from './money';
@@ -111,7 +111,8 @@ export function decideStance(s: GameState, clan: string) {
     const p = power(n);
     // 官位の高い家は狙いにくい
     const sc = p / (own + 1) / (1 + clanCastles(s, n).reduce((t, k) => t + castleKoku(k), 0) / 400) / (1 - deterOf(s, n)) / (s.clans[n].usurp ? R.USURP_TARGET : 1) * (meibun(s, clan, n).ok ? 0.75 : 1) * (n === shogunClan(s) ? 4 : 1); // 僭称した家・名分のある家を狙い、将軍家は避ける
-    if (sc < best) { best = sc; target = n; }
+    const am = amityOf(s, clan, n); const scA = sc * (am >= 55 ? 1 + (am - 50) / 50 : 1); // 親しい家は狙いにくい（親密度100で2倍見送る）
+    if (scA < best) { best = scA; target = n; }
   }
   c.target = target;
   // 自城周辺の敵兵力

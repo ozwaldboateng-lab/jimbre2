@@ -17,6 +17,7 @@ import {
   castleDef, dateLabel, garrisonMax, treatyOf, hexOwner, initialMorale, maxTroops, occupancy, troopMult,
   mobilizeCap, fieldTroops,
   knowsCastle,
+  amityOf, amityName, AMITY,
 } from '../engine/state';
 import type { Army, BattleReport, BigEvent, Castle, Front, GameState, General, Item } from '../engine/types';
 import { openingOn, openTitleScreen, setOpeningOn, titleOpen } from './title';
@@ -43,6 +44,7 @@ import { chianDelta, mobilizeDrop, mobilizeRate } from '../engine/policy';
 import { buyCourt, courtBlock, courtName, courtOf, holderOf } from '../engine/court';
 import { appointShugodai, dismissShugodai, kanBlock, kanCost, kanName, kanOf, recommendKan, shugodaiBlock, shugodaiOf, shugoProvs } from '../engine/kan';
 import { FEAST, feast, feastBlock, feastCost } from '../engine/feast';
+import { GIFT, giftBlock, giftGain, sendGift, type GiftKind } from '../engine/diplomacy';
 import { DELEGATE_MENU, DELEGATE_NAME, delegateOf, type DelegateKey } from '../engine/delegate';
 import { ikkiBlock, ikkiSize, raiseIkki } from '../engine/ikki';
 import {
@@ -1914,6 +1916,15 @@ const TABS: Record<string, (st: GameState) => string> = {
       <div class="picker" style="margin:0 0 10px"><label for="sel-gift">名物を添える（成功率＋格×${R.ITEM_GIFT * 100}%。応じれば相手の家へ渡る。断られれば手元に残る）</label>
         <select id="sel-gift"><option value="">添えない</option>${clanItems(st, st.player).map((it) => `<option value="${it.id}" ${dipGift === it.id ? 'selected' : ''}>${esc(itemLabel(it))}　+${Math.round(it.grade * R.ITEM_GIFT * 100)}%${it.holder ? `（${esc(st.generals[it.holder].name)}が所持）` : ''}</option>`).join('')}</select></div>
       <div class="actions dip-acts">${hostile(st, st.player, c.id) ? `<button class="act" data-act="ninja-at" data-id="${c.id}">この家に忍びを送る</button>` : ''}${dipButton(st, 'alliance', c.id, true)}${dipButton(st, 'marriage', c.id, true)}${dipButton(st, 'surrender', c.id, true)}${t ? `<button class="act" data-act="dip-break" data-id="${c.id}">手切れ（威信−${t.kind === 'marriage' ? DIP.BREAK_MARRIAGE : DIP.BREAK_ALLIANCE}）</button>` : ''}</div>
+      ${(() => {
+        const me2 = st.clans[st.player], am = amityOf(st, st.player, c.id), gb = giftBlock(st, st.player, c.id), rp = ricePrice(st);
+        const g = (kind: string, n: number, worth: number, label: string, can: boolean) => { const d = giftGain(st, st.player, c.id, worth); return `<button class="mini" data-act="gift-send" data-kind="${kind}" data-id="${c.id}:${n}" ${gb || !can || d <= 0 ? `disabled title="${esc(gb ?? (!can ? '足りない' : '小さすぎる'))}"` : ''}>${label}（+${d}）</button>`; };
+        const items = clanItems(st, st.player);
+        return `<h3 class="sect-h">贈り物</h3><p class="hint" style="margin-top:0">親密度 <b>${amityName(am)} ${am}</b> / 100。高いほど同盟・婚姻・降伏が通りやすく、相手は当家を狙いにくい。月に一度、金・兵糧・名物を贈れる。戦や手切れで下がり、毎月少しずつ並（${AMITY.BASE}）へ戻る。${gb ? `<span class="warn">${esc(gb)}</span>` : ''}</p>
+        <div class="actions" style="flex-wrap:wrap;gap:4px;margin:0 0 4px"><span class="hint" style="margin:0">金</span>${[500, 1000, 3000, 10000].map((n) => g('gold', n, n, `${fmt(n)}貫`, me2.gold >= n)).join('')}</div>
+        <div class="actions" style="flex-wrap:wrap;gap:4px;margin:0 0 4px"><span class="hint" style="margin:0">兵糧</span>${[1000, 5000, 20000].map((n) => g('food', n, n * rp, `${fmt(n)}石`, me2.food >= n)).join('')}</div>
+        ${items.length ? `<div class="actions" style="flex-wrap:wrap;gap:4px;margin:0"><span class="hint" style="margin:0">名物</span>${items.map((it) => `<button class="mini" data-act="gift-send" data-kind="item" data-id="${c.id}:${it.id}" ${gb ? 'disabled' : ''} title="${esc(effOf(it))}">${esc(it.name)}（+${Math.min(GIFT.MAX, Math.round(it.grade * GIFT.ITEM_PER_GRADE * (c.target === st.player ? 0.5 : 1)))}）</button>`).join('')}</div>` : ''}`;
+      })()}
       `;
     } else dipFocus = null;
     const me = st.clans[st.player];
@@ -1921,14 +1932,14 @@ const TABS: Record<string, (st: GameState) => string> = {
       const mine = x.id === st.player;
       return `<tr${mine ? ' class="me"' : x.id === dipFocus ? ' class="sel"' : ''}><td>${mine ? `<span class="swatch" style="background:${x.color}"></span> ${esc(x.name)}（当家）` : `<button class="linkish" data-act="dip-open" data-id="${x.id}"><span class="swatch" style="background:${x.color}"></span> ${esc(x.name)}</button>${near.has(x.id) ? '' : ' <span class="hint" style="margin:0">遠方</span>'}`}</td>
         <td>${x.leader ? nameLink(st.generals[x.leader]) : '—'}</td><td class="n">${clanCastles(st, x.id).length}</td><td class="n">${clanKoku(st, x.id).toFixed(1)}</td><td class="n">${fmt(clanTroops(st, x.id))}</td>
-        <td class="n">${mine ? '—' : `${(myP / Math.max(1, clanPower(st, x.id))).toFixed(1)}倍`}</td><td class="n">${x.prestige}</td><td>${mine ? '—' : x.stance}</td><td>${!mine && x.target ? esc(clanName(st, x.target)) + (x.target === st.player ? '<span class="warn">（当家）</span>' : '') : '—'}</td><td>${mine ? '—' : relationLabel(st, x.id)}</td>
+        <td class="n">${mine ? '—' : `${(myP / Math.max(1, clanPower(st, x.id))).toFixed(1)}倍`}</td><td class="n">${x.prestige}</td><td>${mine ? '—' : x.stance}</td><td>${!mine && x.target ? esc(clanName(st, x.target)) + (x.target === st.player ? '<span class="warn">（当家）</span>' : '') : '—'}</td><td>${mine ? '—' : (() => { const v = amityOf(st, st.player, x.id); return `<span class="${v >= 55 ? 'good' : v < 25 ? 'warn' : ''}" title="親密度 ${v}">${amityName(v)} ${v}</span>`; })()}</td><td>${mine ? '—' : relationLabel(st, x.id)}</td>
         <td class="dip-cell">${mine ? '' : `${dipButton(st, 'alliance', x.id)}${dipButton(st, 'marriage', x.id)}${dipButton(st, 'surrender', x.id)}${(() => { const t = treatyOf(st, st.player, x.id); return t ? `<button class="mini" data-act="dip-break" data-id="${x.id}" title="同盟・婚姻を破る（威信−${t.kind === 'marriage' ? DIP.BREAK_MARRIAGE : DIP.BREAK_ALLIANCE}）">手切れ</button>` : ''; })()}`}</td></tr>`;
     };
     const shown = dipAll ? others : others.filter((x) => near.has(x.id) || treatyOf(st, st.player, x.id));
     return `<p class="lede" style="margin-top:0">存続 ${others.length + 1}家。国人衆の城 ${st.castles.filter((x) => !x.owner).length}。全${domesticCount(st)}城の制圧か、ほかの家がすべて滅べば天下統一（国人衆の城は残っていてよい）。同盟・婚姻・降伏勧告はこの一覧から申し入れられる（数字は成功の見込み。押せないものは押す・触れると理由が出る）。家の名を押すと、その家の詳しい様子が開く。</p>
     <div class="dip-cols${cardHtml ? ' has-focus' : ''}"><div class="dip-list">
     <div class="subtabs" role="group" aria-label="表示する家"><button type="button" data-act="dip-filter" data-id="near" aria-selected="${!dipAll}">近隣と盟友（${others.filter((x) => near.has(x.id) || treatyOf(st, st.player, x.id)).length}）</button><button type="button" data-act="dip-filter" data-id="all" aria-selected="${dipAll}">すべての家（${others.length}）</button></div>
-    <div class="tbl-wrap"><table class="gaike-tbl"><thead><tr><th>勢力</th><th>当主</th><th class="n">城</th><th class="n">石高</th><th class="n">兵</th><th class="n">国力比</th><th class="n">威信</th><th>方針</th><th>主攻</th><th>関係</th><th>交渉</th></tr></thead><tbody>
+    <div class="tbl-wrap"><table class="gaike-tbl"><thead><tr><th>勢力</th><th>当主</th><th class="n">城</th><th class="n">石高</th><th class="n">兵</th><th class="n">国力比</th><th class="n">威信</th><th>方針</th><th>主攻</th><th>親密</th><th>関係</th><th>交渉</th></tr></thead><tbody>
     ${row(me)}${shown.map(row).join('')}
     </tbody></table></div></div>
     <div class="dip-detail">${cardHtml || '<p class="hint dip-empty">家の名を押すと、ここにその家の詳しい様子と交渉が出る（名物を添えての申し入れもここから）。</p>'}</div></div>
@@ -2973,6 +2984,7 @@ function onModalClick(e: Event) {
   if (act === 'log-filter') { logFilter = id; openMenu(); return; }
   if (act === 'help-go') { document.getElementById(id)?.scrollIntoView({ block: 'start' }); return; }
   if (act === 'open-tab') { const [m, t] = id.split(':'); openMenu(m as MenuKey, t); return; }
+  if (act === 'gift-send') { const [cid, v] = id.split(':'); const kind = btn.dataset.kind as GiftKind; const g = sendGift(st, st.player, cid, kind, kind === 'item' ? v : +v, (n) => n * ricePrice(st)); toast(g ? `${clanName(st, cid)}家へ贈った（親密度+${g}）` : '贈れなかった'); refresh(); openMenu(); return; }
   if (act === 'ninja-at') { ninjaClan = id; ninjaSel.target = ''; openMenu('gaiko', 'shinobi'); return; }
   if (act === 'ninja-clan-off') { ninjaClan = null; openMenu(); return; }
   if (act === 'dip-back') { dipFocus = null; openMenu(curMenu, 'gaike'); return; }

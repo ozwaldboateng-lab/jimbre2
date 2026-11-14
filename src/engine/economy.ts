@@ -1,3 +1,4 @@
+import { driftAmity } from './diplomacy';
 // 月末処理: 兵站・士気・補充・城兵・内政・収穫
 import { kyoExtraFood } from './bushi';
 import { fiefCapacity, fiefFarm, frontReinforce, frontsOf } from './fronts';
@@ -34,6 +35,7 @@ export function rakuichiBlock(s: GameState, c: Castle): string | null { if (c.ow
 export function enactRakuichi(s: GameState, c: Castle): boolean { if (rakuichiBlock(s, c)) return false; c.rakuichi = s.turn; addLog(s, `${c.name}の城下に楽市楽座を布いた。座を持つ寺社や商人は反発している。`, 'econ', true); return true; }
 
 export function monthEnd(s: GameState) {
+  driftAmity(s);
   { const P = pstats(s), n = clanTroops(s, s.player); if (n > P.peak) P.peak = n; } // 戦績: 最大の兵
   // 兵がほとんど残っていない軍団は解散（武将は帰還）
   for (const a of Object.values(s.armies)) if (!Number.isFinite(a.troops) || a.troops < R.MIN_ARMY) removeArmy(s, a);

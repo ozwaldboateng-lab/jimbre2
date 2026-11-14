@@ -5,8 +5,8 @@ import { initOn } from './on';
 import { enfeoffSurrendered } from './fronts';
 import { graphDistances } from './map';
 import { eliminateClan } from './ops';
-import { addLog, allied, clanArmies, clanCastles, clanName, noteClash, pairKey, rand, treatyOf , chron, pstats} from './state';
-import { clanItems, equip, spareItem, transferItem } from './money';
+import { addLog, allied, clanArmies, clanCastles, clanName, noteClash, pairKey, rand, treatyOf , chron, pstats, amityOf, bumpAmity, AMITY, clanKoku} from './state';
+import { clanItems, equip, spareItem, transferItem, unequip as unequipItem } from './money';
 import * as R from './rules';
 import { presOf } from './court';
 import type { GameState, Treaty } from './types';
@@ -97,6 +97,7 @@ function evaluateBase(s: GameState, kind: DipKind, from: string, to: string): Of
   }
   if (s.clans[from].usurp || s.clans[to].usurp) p -= R.USURP_DIP; // 僭称した家とは結びにくい
   p -= shisenDip(s, from) + shisenDip(s, to); // 私戦を重ねる家とも
+  p += (amityOf(s, from, to) - AMITY.BASE) / (kind === 'surrender' ? 400 : 250); // 親密度（100で同盟+0.28・降伏+0.18）
   return { p: Math.max(0.02, Math.min(kind === 'surrender' ? 0.8 : 0.9, p)), ok: true, reason: '', cost };
 }
 
@@ -173,6 +174,7 @@ export function breakTreaty(s: GameState, by: string, other: string) {
   if (!t) return;
   s.treaties = s.treaties.filter((x) => x !== t);
   s.brokenAt ??= {}; s.brokenAt[pairKey(by, other)] = s.turn;
+  bumpAmity(s, by, other, AMITY.BREAK);
   s.clans[by].prestige = Math.max(0, s.clans[by].prestige - (t.kind === 'marriage' ? DIP.BREAK_MARRIAGE : DIP.BREAK_ALLIANCE));
   noteClash(s, by, other);
   addLog(s, `${clanName(s, by)}家が${clanName(s, other)}家との${t.kind === 'marriage' ? '婚姻' : '同盟'}を破った。`, 'castle', true);
@@ -243,3 +245,39 @@ export async function aiDiplomacy(s: GameState, clan: string) {
   propose(s, 'alliance', clan, n, gift);
 }
 
+
+// ───────── 贈り物（親密度を上げる）─────────
+// 金・兵糧・名物を他家へ送る。同じ家へは月に一度。上がり方は相手の石高に比べた値打ちで決まり、戦の直後・当家を狙っている相手には半分
+export type GiftKind = 'gold' | 'food' | 'item';
+export const GIFT = { MAX: 30, ITEM_PER_GRADE: 7 };
+export function giftBlock(s: GameState, from: string, to: string): string | null {
+  const T = s.clans[to];
+  if (!T?.alive || from === to) return '相手がいない';
+  if (s.gifted?.[`${from}|${to}`] === s.turn) return 'この家へはこの月もう贈った';
+  if (amityOf(s, from, to) >= 100) return '親密度はもう満ちている';
+  return null;
+}
+// 値打ち（貫）から親密度の上がり幅を見積もる
+export function giftGain(s: GameState, from: string, to: string, worth: number): number {
+  const koku = Math.max(1, clanKoku(s, to));
+  let g = Math.min(GIFT.MAX, (worth / (40 + koku * 4)) * 2);
+  const clash = s.lastClash?.[pairKey(from, to)];
+  if ((clash !== undefined && s.turn - clash < DIP.CLASH_MONTHS) || s.clans[to].target === from) g /= 2;
+  return Math.max(0, Math.round(g));
+}
+export function sendGift(s: GameState, from: string, to: string, kind: GiftKind, amount: number | string, worthOf: (koku: number) => number): number {
+  if (giftBlock(s, from, to)) return 0;
+  const F = s.clans[from], T = s.clans[to];
+  let gain = 0;
+  if (kind === 'gold') { const n = Math.min(F.gold, +amount); if (n <= 0) return 0; F.gold -= n; T.gold += n; gain = giftGain(s, from, to, n); }
+  else if (kind === 'food') { const n = Math.min(F.food, +amount); if (n <= 0) return 0; F.food -= n; T.food += n; gain = giftGain(s, from, to, worthOf(n)); }
+  else { const it = s.items?.[amount as string]; if (!it || it.clan !== from) return 0; if (it.holder && s.generals[it.holder]) unequipItem(s, it); transferItem(s, it, to); gain = Math.min(GIFT.MAX, Math.round(it.grade * GIFT.ITEM_PER_GRADE * (s.clans[to].target === from ? 0.5 : 1))); }
+  (s.gifted ??= {})[`${from}|${to}`] = s.turn;
+  bumpAmity(s, from, to, gain);
+  if (from === s.player) addLog(s, `${T.name}家へ${kind === 'gold' ? `金${(+amount).toLocaleString()}貫` : kind === 'food' ? `兵糧${(+amount).toLocaleString()}石` : `名物「${s.items![amount as string].name}」`}を贈った（親密度+${gain}）。`, 'info', true);
+  return gain;
+}
+// 毎月: 親密度は並へ少しずつ戻る
+export function driftAmity(s: GameState) {
+  for (const k of Object.keys(s.amity ?? {})) { const v = s.amity![k]; s.amity![k] = v > AMITY.BASE ? Math.max(AMITY.BASE, v - AMITY.DRIFT) : Math.min(AMITY.BASE, v + AMITY.DRIFT); if (s.amity![k] === AMITY.BASE) delete s.amity![k]; }
+}

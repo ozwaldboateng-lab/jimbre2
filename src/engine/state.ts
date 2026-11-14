@@ -21,8 +21,13 @@ export function treatyOf(s: GameState, a: string, b: string) {
 export const allied = (s: GameState, a: string | null, b: string | null) => !!a && !!b && a !== b && !!treatyOf(s, a, b);
 // 自軍から見て敵か（国人衆の城は常に敵）
 export const hostile = (s: GameState, me: string, other: string | null) => other !== me && !allied(s, me, other);
+// 親密度（0〜100）: 贈り物で上がり、戦や手切れで下がり、毎月少しずつ並（30）へ戻る
+export const AMITY = { BASE: 30, CLASH: -12, BREAK: -40, DRIFT: 1 };
+export const amityOf = (s: GameState, a: string, b: string) => s.amity?.[pairKey(a, b)] ?? AMITY.BASE;
+export function bumpAmity(s: GameState, a: string, b: string, v: number) { (s.amity ??= {})[pairKey(a, b)] = Math.max(0, Math.min(100, amityOf(s, a, b) + v)); }
+export const amityName = (v: number) => (v >= 80 ? '昵懇' : v >= 55 ? '友好' : v >= 25 ? '普通' : v >= 12 ? '冷淡' : '険悪');
 export function noteClash(s: GameState, a: string | null, b: string | null) {
-  if (a && b) { s.lastClash ??= {}; s.lastClash[pairKey(a, b)] = s.turn; }
+  if (a && b) { const fresh = s.lastClash?.[pairKey(a, b)] !== s.turn; s.lastClash ??= {}; s.lastClash[pairKey(a, b)] = s.turn; if (fresh) bumpAmity(s, a, b, AMITY.CLASH); }
 }
 export const clanArmies = (s: GameState, clan: string) => armyList(s).filter((a) => a.clan === clan);
 export const clanCastles = (s: GameState, clan: string) => s.castles.filter((c) => c.owner === clan);

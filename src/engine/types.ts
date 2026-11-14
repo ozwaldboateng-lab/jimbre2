@@ -153,6 +153,8 @@ export interface GameState {
   revealed: string[]; // プレイヤーが交戦済みの武将
   chronicle?: { turn: number; text: string }[]; // プレイヤーの家の年代記（節目だけ。エンディングで見せる）
   stats?: PlayerStats; // プレイヤーの家の戦績
+  amity?: Record<string, number>; // 家どうしの親密度（pairKey → 0〜100。ない組は AMITY.BASE）
+  gifted?: Record<string, number>; // 贈り物を送ったターン（'送り手|相手'）
   intelAI?: Record<string, Record<number, number>>; // AIの家ごとの同じ記録
   intel?: Record<number, number>; // プレイヤーが他家の城の中身（城兵・蔵・治安など）を知っている期限（城の番号 → このターンまで）
   log: LogEntry[];
