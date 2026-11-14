@@ -119,6 +119,14 @@ export function knowsCastle(s: GameState, clan: string, c: Castle) {
 }
 // 知らない城の城兵は、満ちているものと見積もる（9割）
 export const seenGarrison = (s: GameState, clan: string, c: Castle) => (knowsCastle(s, clan, c) ? c.garrison : Math.round(garrisonMax(c) * 0.9));
+// 年代記（節目）と戦績: プレイヤーの家だけ。エンディングの年表・戦績・散った者に使う
+export function chron(s: GameState, text: string) {
+  const L = (s.chronicle ??= []);
+  if (L.some((x) => x.turn === s.turn && x.text === text)) return;
+  L.push({ turn: s.turn, text });
+  if (L.length > 300) L.splice(1, L.length - 300);
+}
+export const pstats = (s: GameState): import('./types').PlayerStats => (s.stats ??= { battles: 0, wins: 0, losses: 0, taken: 0, lost: 0, ended: [], peak: 0, fallen: [], biggest: null, last: null });
 export function addLog(s: GameState, text: string, kind: LogEntry['kind'], mine: boolean) {
   s.log.push({ turn: s.turn, text, kind, mine });
   if (s.log.length > 400) s.log.splice(0, s.log.length - 400);

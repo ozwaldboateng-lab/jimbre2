@@ -164,6 +164,7 @@ export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.n
   // 平時から始まる: 全家の軍団は陣払いの名簿（本能寺の変の直後のような、戦の最中のシナリオは地図に出たまま）
   if (camp && sc.id !== '1582') campAll(s);
   s.log.push({ turn: 1, text: `${clans[player].name}家、${year}年${month}月に起つ。`, kind: 'info', mine: true });
+  s.chronicle = [{ turn: s.turn, text: `${s.clans[s.player].name}家、起つ` }];
   return s;
 }
 

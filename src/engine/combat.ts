@@ -1,6 +1,7 @@
 // 会戦解決（v1.1）
 // 1か月の会戦を最大5ラウンドで解決する。損害は「相手の戦闘力」に比例（大軍ほど与える損害が大きく、受ける割合が小さい）。
-import { HEXES, NEIGHBORS, hexDist } from './map';
+import { HEXES, NEIGHBORS, PROVINCES, hexDist } from './map';
+const fmtN = (n: number) => Math.round(n).toLocaleString('ja-JP');
 import { awardBattle } from './ranks';
 import { hasProduct, loseGuns } from './money';
 import { ikkiCasualty } from './ikki';
@@ -8,7 +9,7 @@ import * as R from './rules';
 import { captureCastle, captureGeneral, killGeneral, naioActive, removeArmy } from './ops';
 import { membersOf } from './corps';
 import { TRAITS } from '../data/traits';
-import { castleDef, addLog, learnCastle, allied, armyCombat, armyStats, castleAt, clanName, gen, hexOwner, hostile, noteClash, occupancy, rand } from './state';
+import { castleDef, addLog, chron, pstats, learnCastle, allied, armyCombat, armyStats, castleAt, clanName, gen, hexOwner, hostile, noteClash, occupancy, rand } from './state';
 import type { Army, BattleReport, Castle, GameState } from './types';
 import type { Target } from './move';
 import type { Tactical } from './tactical';
@@ -292,6 +293,14 @@ export function battle(s: GameState, a: Army, t: Target, charge: boolean, joined
   awardBattle(s, [a.clan, defClan], winner, t.kind === 'castle' && s.castles[t.castle].owner === a.clan, [idsA, idsD]);
 
   const mine = a.clan === s.player || defClan === s.player;
+  if (mine) {
+    const P = pstats(s); P.battles++;
+    if (winner === s.player) P.wins++; else if (loser === s.player) P.losses++;
+    const total = report.aStart + report.dStart, place = t.kind === 'castle' ? s.castles[t.castle].name : PROVINCES[HEXES[t.hex].p].name;
+    const text = `${place}の戦い（${clanName(s, a.clan)}家${fmtN(report.aStart)}・${clanName(s, defClan)}家${fmtN(report.dStart)}、${winner === s.player ? '当家の勝ち' : loser === s.player ? '当家の負け' : '引き分け'}）`;
+    if (!P.biggest || total > P.biggest.troops) P.biggest = { turn: s.turn, text, troops: total };
+    if (winner === s.player && P.wins === 1) chron(s, `初めての勝ち戦: ${text}`);
+  }
   addLog(s, `${clanName(s, a.clan)}・${report.attackerName}${charge ? '（突撃）' : ''} → ${clanName(s, defClan)}・${report.defenderName}：${report.outcome}（損害 ${report.aStart - report.aEnd} / ${report.dStart - report.dEnd}）${events.length ? '　' + events.join('、') : ''}`, 'battle', mine);
   if (mine) s.reports.push(report);
   return report;

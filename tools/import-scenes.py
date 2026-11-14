@@ -3,7 +3,8 @@
 import base64, os, re, sys
 from PIL import Image
 KEYS = {1: 'fire_castle', 2: 'night_fire', 3: 'zashiki_day', 4: 'zashiki_night', 5: 'chashitsu', 6: 'hondo', 7: 'senjo', 8: 'yukimichi',
-        9: 'minato', 10: 'ichi', 11: 'ishigaki', 12: 'tsukiyo', 13: 'gosho', 14: 'mura', 15: 'jinmaku', 16: 'amemichi'}
+        9: 'minato', 10: 'ichi', 11: 'ishigaki', 12: 'tsukiyo', 13: 'gosho', 14: 'mura', 15: 'jinmaku', 16: 'amemichi',
+        101: 'kaijo', 102: 'tenshu_dawn', 103: 'utage', 104: 'kuyo'}  # 101〜: エンディングの場面（tools/import-ending.py が置く）
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out = os.path.join(root, 'assets', 'scenes')
 os.makedirs(out, exist_ok=True)

@@ -63,7 +63,7 @@ import { envoyLine, lineFor, type Scene, type SceneLine } from '../engine/lines'
 import { PERSONAS, personaActive, type EnvoyScene } from '../data/envoys';
 import { autoStance, setStanceHook, type StanceInfo } from '../engine/stance';
 import type { Stance } from '../engine/move';
-import { ENDING_ART } from '../data/ending';
+import { ENDING_ART, ENDING_FALL, ENDING_KAMPAKU, ENDING_PAPER, ENDING_SHOGUN } from '../data/ending';
 import { SCENE_LABEL } from '../data/lines';
 import { absorb as absorbClan } from '../engine/diplomacy';
 import { captureCastle, killGeneral } from '../engine/ops';
@@ -250,6 +250,7 @@ export function boot(saved?: { state?: GameState }) {
     anecdote: (id: string) => { const a = ANECDOTES.find((x) => x.id === id); if (s && a) fireAnecdote(s, a); }, // テスト用: 逸話を起こす
     playEvents: () => new Promise<void>((res) => { if (s) playEvents(s, res); else res(); }), // テスト用: たまった出来事の場面を流す
     surrender: (loser: string) => { if (s) { absorbClan(s, s.player, loser); refresh(); } }, // テスト用: 降伏勧告が通ったことにする
+    ending: (win = true) => { if (s) showEnding(s, win); }, // テスト用: エンディングを流す
     supply: (id: number) => (s && s.armies[id] ? armySupply(s, s.armies[id]) : null), neighbors: (h: number) => NEIGHBORS[h],
     // テスト用: 自軍の部隊で隣の敵部隊と合戦を開く
     battle: (armyId: number, enemyId: number) => { const st = s!; const e = st.armies[enemyId]; return openBattle(st, st.armies[armyId], { kind: 'army', hex: e.hex, army: e }).then(() => refresh()); },
@@ -2625,22 +2626,91 @@ function missionVisitBlock(st: GameState) {
 }
 
 // 天下統一のエンディング: 絵を一面に、下に言葉と記録
-function showEnding(st: GameState) {
-  mood('triumph'); sfx('win');
+// エンディング: 幕引きの場面（紙芝居）→ 最後の一枚絵に、称号・後日談・戦績・年代記・功臣録を重ねる。win=false は落日
+function showEnding(st: GameState, win = true) {
+  const me = st.clans[st.player];
+  const lord = me.leader ? st.generals[me.leader] : null;
+  const P = st.stats;
+  const vassals = Object.values(st.generals).filter((g) => g.clan === st.player && g.status !== 'dead' && g.status !== 'young' && g.id !== me.leader);
+  const heroes = [...vassals].sort((a, b) => b.merit - a.merit || (b.fame ?? 0) - (a.fame ?? 0));
+  const fallen = (P?.fallen ?? []).map((f) => ({ ...f, g: st.generals[f.id] })).filter((f) => f.g).sort((a, b) => a.g.rank - b.g.rank || b.g.merit - a.g.merit);
+  const beats: OpeningBeat[] = [];
+  if (win) {
+    const L = P?.last;
+    if (L) beats.push(L.kind === 'surrender'
+      ? { head: '最後の一手', text: `${L.name}家が降り、${L.castle ? `${L.castle}の` : ''}城門が開かれた。もはや${me.name}家に刃向かう者はいない。`, bg: 'kaijo', sound: 'gate' }
+      : { head: '最後の一手', text: `${L.castle ?? ''}${L.castle ? '、落つ。' : ''}${L.kind === 'destroy' ? `${L.name}家は滅んだ。` : ''}戦国の世に残った最後の火が、いま消えた。`, bg: 'fire_castle', sound: 'fire' });
+    if (lord) {
+      const age = ageOf(st, lord) ?? 40;
+      const line = me.court === R.SHOGUN ? '武家の棟梁として、この国に新しい秩序を敷く。もう、刀で物事を決める世ではない。'
+        : me.court === R.KAMPAKU ? '帝の御名のもと、天下に号令する。公家も武家も、ひとつの世の下に置くのだ。'
+        : age >= 60 ? '長かった……。わしの代で、ようやくここまで来た。あとは、この世を次へ渡すだけよ。'
+        : '天下はひとつになった。だが、これからが本当の仕事ぞ。';
+      beats.push({ head: '夜明け', text: '天守の高欄から、霞の向こうに国々の山並みが明けてゆく。' , bg: 'tenshu_dawn' }, { who: lord.id, name: lord.name, label: me.court ? R.COURT[me.court].name : '当主', text: line, bg: 'tenshu_dawn' });
+    }
+    const top3 = heroes.slice(0, 3);
+    if (top3.length) {
+      beats.push({ head: '祝いの宴', text: `大広間に功臣たちが集う。${top3.map((g) => g.name).join('、')}——戦い抜いた顔ぶれだ。`, bg: 'utage' });
+      const lines = ['殿のお供ができたこと、生涯の誉れにござる。', 'これで、ようやく刀を置けますな。', '次は、この世を守る戦にござる。'];
+      top3.forEach((g, k) => beats.push({ who: g.id, name: g.name, label: rankName(st, g), text: lines[k], bg: 'utage' }));
+    }
+  }
+  if (fallen.length) beats.push({ head: '散った者たちへ', text: `${fallen.slice(0, 8).map((f) => f.g.name).join('、')}${fallen.length > 8 ? `ほか${fallen.length - 8}人` : ''}。${win ? 'この天下は、志半ばで散った者たちの上にある。' : '主家に殉じた者たちの名を、ここに記す。'}`, bg: 'kuyo' });
+  else if (win) beats.push({ head: '散った者たちへ', text: '重臣のひとりも欠けることなく、この日を迎えた。散った名もなき兵たちを弔う香が、静かに立ちのぼる。', bg: 'kuyo' });
   closeModal();
+  const final = () => endingScreen(st, win, heroes, fallen.length);
+  if (!beats.length || !lord && !win) { final(); return; }
+  playScene(view, st, win ? '天下統一' : '落日', beats, (id, w) => face(id, w), final);
+}
+function endingScreen(st: GameState, win: boolean, heroes: General[], fallenN: number) {
+  mood(win ? 'triumph' : 'somber'); sfx(win ? 'win' : 'lose');
   let el = document.getElementById('ending');
   if (!el) { el = document.createElement('div'); el.id = 'ending'; document.body.appendChild(el); el.addEventListener('click', onModalClick); }
   const me = st.clans[st.player];
   const lord = me.leader ? st.generals[me.leader] : null;
-  const span = st.startYear ? (st.year - st.startYear) * 12 + st.month - (st.startMonth ?? st.month) : null; // 起ってからの月数
-  const vassals = Object.values(st.generals).filter((g) => g.clan === st.player && g.status !== 'dead' && g.status !== 'young').length;
-  el.innerHTML = `<img class="end-art" src="${ENDING_ART}" alt="天守から城下と海を見渡す当主の後ろ姿">
+  const P = st.stats;
+  const span = st.startYear ? (st.year - st.startYear) * 12 + st.month - (st.startMonth ?? st.month) : 0; // 起ってからの月数
+  const spanText = `${span >= 12 ? `${Math.floor(span / 12)}年` : ''}${span % 12 ? `${span % 12}か月` : span < 12 ? '0か月' : ''}`;
+  const cs = clanCastles(st, st.player);
+  const avgOn = heroes.length ? heroes.reduce((t, g) => t + (g.on ?? R.ON_START), 0) / heroes.length : 50;
+  const avgChian = cs.length ? cs.reduce((t, c) => t + c.chian, 0) / cs.length : 0;
+  const ended = P?.ended.length ?? 0, destroyed = (P?.ended ?? []).length - ((st.chronicle ?? []).filter((x) => x.text.endsWith('家が降った')).length);
+  // 治世の評（称号）
+  const title = !win ? (span >= 240 ? ['落日の将', '長く乱世を戦い抜いたが、最後の城を失った。'] : ['落日', '志は半ばで潰えた。'])
+    : span <= 120 ? ['覇王', `わずか${spanText}で天下を平らげた。その速さは語り草となった。`]
+    : avgOn >= 70 && avgChian >= 70 ? ['仁君', '家臣に慕われ、民に安んじられた天下人として名を残した。']
+    : ended && destroyed * 2 < ended ? ['和の天下人', '多くの家を刃でなく言葉で降し、天下をまとめた。']
+    : (P?.wins ?? 0) >= 40 ? ['武断の天下人', `${P!.wins}度の勝ち戦で、天下を切り従えた。`]
+    : ['天下人', '長い乱世を終わらせた者として、その名は残った。'];
+  // 後日談
+  const epi: string[] = [];
+  if (win) {
+    epi.push(me.court === R.SHOGUN ? `${lord ? lord.name : me.name + '家の当主'}は征夷大将軍として幕府を開いた。新しい城下には諸国の大名の屋敷が並び、街道は整えられた。`
+      : me.court === R.KAMPAKU ? `${lord ? lord.name : me.name + '家の当主'}は関白として天下に号令した。京と大城郭のあいだを、公家と武家の行列が行き交った。`
+      : `${me.name}家は官位に頼らず、自らの手で新しい世の形を定めた。`);
+    if (me.mission === 'allow') epi.push('許された南蛮の教えは港町に広まり、南蛮寺の鐘が鳴った。');
+    else if (me.mission === 'ban') epi.push('南蛮の教えは禁じられ、南蛮船の来る港は限られた。');
+    const heir = heirOf(st, me);
+    epi.push(heir ? `跡継ぎ${heir.name}のもとで、${me.name}家の世は続いてゆく。` : '跡継ぎは定まらぬまま。天下の行く末は、まだ誰にも分からない。');
+    if (clanItems(st, st.player).length >= 5) epi.push(`集めた名物${clanItems(st, st.player).length}点は、天下人の茶会を彩った。`);
+  } else epi.push(`${me.name}家の名は、乱世を戦った家のひとつとして語り継がれた。`);
+  const art = !win ? ENDING_FALL : me.court === R.SHOGUN && ENDING_SHOGUN ? ENDING_SHOGUN : me.court === R.KAMPAKU && ENDING_KAMPAKU ? ENDING_KAMPAKU : ENDING_ART;
+  const chron = (st.chronicle ?? []);
+  const big = P?.biggest;
+  el.innerHTML = `<img class="end-art" src="${art}" alt="">
     <div class="end-veil"></div>
     <div class="end-text">
-      <h1>天下統一<small>${esc(dateLabel(st))}</small></h1>
-      <p>${lord ? `${esc(lord.name)}は` : ''}${clanCastles(st, st.player).length >= domesticCount(st) ? `全国${domesticCount(st)}城を制し` : `並み居る大名家をことごとく従え`}、${esc(me.name)}家の旗のもとに戦国の世を終わらせた。</p>
-      <p class="end-sub">長き乱世は去り、城下には市が立ち、湊には船が満ちる。</p>
-      <dl class="kv end-kv">${span !== null && span >= 0 ? `<dt>年月</dt><dd>${st.startYear}年から${span >= 12 ? `${Math.floor(span / 12)}年` : ''}${span % 12 || span < 12 ? `${span % 12}か月` : ''}</dd>` : ''}<dt>石高</dt><dd>${clanKoku(st, st.player).toFixed(1)}万石</dd><dt>兵</dt><dd>${fmt(clanTroops(st, st.player))}</dd><dt>家臣</dt><dd>${vassals}人</dd><dt>官位</dt><dd>${esc(courtName(st, st.player))}</dd></dl>
+      <h1>${win ? '天下統一' : '落日'}<small>${esc(dateLabel(st))}・${esc(me.name)}家${lord ? `・${esc(lord.name)}` : ''}</small></h1>
+      <div class="end-title"><span>治世の評</span><b>${title[0]}</b><em>${esc(title[1])}</em></div>
+      ${epi.map((t, k) => `<p${k ? ' class="end-sub"' : ''}>${esc(t)}</p>`).join('')}
+      <h3 class="end-h">戦績</h3>
+      <dl class="kv end-kv"><dt>年月</dt><dd>${st.startYear}年から${spanText}</dd><dt>石高</dt><dd>${clanKoku(st, st.player).toFixed(0)}万石</dd>
+        <dt>城</dt><dd>${cs.length}</dd><dt>最大の兵</dt><dd>${fmt(Math.max(P?.peak ?? 0, clanTroops(st, st.player)))}</dd>
+        <dt>合戦</dt><dd>${P ? `${P.battles}（${P.wins}勝${P.losses}敗）` : '—'}</dd><dt>落とした城</dt><dd>${P ? P.taken : '—'}</dd>
+        <dt>滅ぼした・降した家</dt><dd>${P ? ended : '—'}</dd><dt>散った家臣</dt><dd>${P ? fallenN : '—'}</dd></dl>
+      ${big ? `<p class="end-sub end-small">最大の合戦: ${esc(turnLabel(big.turn))}　${esc(big.text)}</p>` : ''}
+      ${heroes.length ? `<h3 class="end-h">功臣録</h3><div class="end-heroes">${heroes.slice(0, 10).map((g) => `<div>${face(g.id, 44, 'face')}<b>${esc(g.name)}</b><small>${esc(rankName(st, g))}</small></div>`).join('')}</div>` : ''}
+      ${chron.length ? `<h3 class="end-h">年代記</h3><ol class="end-chron" style="background-image:url(${ENDING_PAPER})">${chron.map((c) => `<li><span>${esc(turnLabel(c.turn))}</span>${esc(c.text)}</li>`).join('')}<li><span>${esc(turnLabel(st.turn))}</span>${win ? '天下統一' : '最後の城を失う'}</li></ol>` : ''}
       <div class="actions"><button class="act primary" data-act="end-new">新しく始める</button><button class="act" data-act="end-close">地図を見る</button></div>
     </div>`;
   el.hidden = false;
@@ -2674,13 +2744,8 @@ function openSplitSheet(st: GameState, a: Army) {
 
 
 function showGameOver() {
-  mood('somber'); sfx('lose');
   const st = s!;
-  const win = st.over === 'win';
-  if (win) { showEnding(st); return; }
-  openModal(`<div class="opening"><h1 id="modal-title">${win ? '天下統一' : '落日'}<small>${esc(dateLabel(st))}</small></h1>
-    <p>${win ? `${esc(st.clans[st.player].name)}家は戦国の世を終わらせた。` : `${esc(st.clans[st.player].name)}家は最後の城を失った。`}</p>
-    <div class="actions"><button class="act primary" data-act="newgame">新しく始める</button><button class="act" data-act="close">地図を見る</button></div></div>`, true);
+  showEnding(st, st.over === 'win');
 }
 
 function onModalClick(e: Event) {

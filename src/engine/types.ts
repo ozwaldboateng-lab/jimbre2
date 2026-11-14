@@ -125,6 +125,12 @@ export interface Ship { port: string; until: number; guns: number; cannon: numbe
 
 export interface Treaty { a: string; b: string; kind: 'alliance' | 'marriage'; start: number; until: number | null; }
 
+export interface PlayerStats {
+  battles: number; wins: number; losses: number; taken: number; lost: number; ended: string[]; peak: number;
+  fallen: { id: string; turn: number; why: string }[];
+  biggest: { turn: number; text: string; troops: number } | null;
+  last: { kind: 'capture' | 'destroy' | 'surrender'; name: string; castle?: string; turn: number } | null;
+}
 export interface LogEntry { turn: number; text: string; kind: 'battle' | 'castle' | 'info' | 'death' | 'econ'; mine: boolean; }
 
 export interface BattleRound { aLoss: number; dLoss: number; aMorale: number; dMorale: number; note?: string; }
@@ -145,6 +151,8 @@ export interface GameState {
   armies: Record<number, Army>;
   castles: Castle[];
   revealed: string[]; // プレイヤーが交戦済みの武将
+  chronicle?: { turn: number; text: string }[]; // プレイヤーの家の年代記（節目だけ。エンディングで見せる）
+  stats?: PlayerStats; // プレイヤーの家の戦績
   intelAI?: Record<string, Record<number, number>>; // AIの家ごとの同じ記録
   intel?: Record<number, number>; // プレイヤーが他家の城の中身（城兵・蔵・治安など）を知っている期限（城の番号 → このターンまで）
   log: LogEntry[];

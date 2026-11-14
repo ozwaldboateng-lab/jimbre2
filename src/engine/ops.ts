@@ -7,7 +7,7 @@ import { goodwill, initOn, onOf } from './on';
 import { pushScene } from './lines';
 import { graphDistances, HEXES } from './map';
 import * as R from './rules';
-import { addLog, clanCastles, learnCastle, clanName, garrisonMax, hostile, initialMorale, occupancy, rand } from './state';
+import { addLog, clanCastles, learnCastle, clanName, garrisonMax, hostile, initialMorale, occupancy, rand , chron, pstats, castleKoku} from './state';
 import { dropItems, seizeItems } from './money';
 import { presOf } from './court';
 import { dropIkkiLeader } from './ikki';
@@ -70,7 +70,7 @@ export function succession(s: GameState, clanId: string) {
   const drop = Math.round(R.SUCCESSION_PRESTIGE * (1 + Number(!pick.kin || young)) * k);
   clan.prestige = Math.max(0, clan.prestige - drop);
   for (const c of clanCastles(s, clanId)) c.chian = Math.max(0, c.chian - R.SUCCESSION_CHIAN * k);
-  if (clanId === s.player) pushScene(s, pick, young ? 'successionYoung' : 'succession');
+  if (clanId === s.player) { pushScene(s, pick, young ? 'successionYoung' : 'succession'); chron(s, `${pick.name}が家督を継いだ`); }
   addLog(s, `${clan.name}家は${pick.name}が家督を継いだ${young ? '（急ぎ元服させた幼君）' : !pick.kin ? '（家臣からの跡目）' : ''}${named ? '（遺言の通り）' : ''}。威信−${drop}。`, 'death', clanId === s.player);
   afterSuccession(s, clan, prev, pick, !!named);
 }
@@ -90,6 +90,7 @@ export function killGeneral(s: GameState, g: General, why: string) {
   quitArmy(s, g);
   if (clanId === s.player && clanId) pushScene(s, g, why.includes('処断') ? 'execute' : why.includes('病') ? 'deathSick' : 'deathBattle');
   g.status = 'dead'; g.army = null;
+  if (clanId === s.player) pstats(s).fallen.push({ id: g.id, turn: s.turn, why });
   addLog(s, `${g.name}、${why}。`, 'death', clanId === s.player || s.revealed.includes(g.id));
   if (clanId) {
     for (const c of s.castles) if (c.governor === g.id) c.governor = null;
@@ -124,6 +125,7 @@ export function eliminateClan(s: GameState, clanId: string, by: string | null) {
     }
   }
   addLog(s, `${clan.name}家、滅亡${by ? `（${clanName(s, by)}家による）` : ''}。`, 'castle', true);
+  if (by === s.player && !pstats(s).ended.includes(clan.name)) { const P = pstats(s); P.ended.push(clan.name); P.last = { kind: 'destroy', name: clan.name, castle: P.last?.castle, turn: s.turn }; chron(s, `${clan.name}家を滅ぼした`); }
   if (clanId === s.player) s.over = 'lose';
 }
 
@@ -143,6 +145,8 @@ export function captureCastle(s: GameState, c: Castle, clan: string) {
   if (old && s.clans[old]?.focus === c.i) s.clans[old].focus = null;
   c.gMorale = 1;
   s.clans[clan].prestige = Math.min(100, s.clans[clan].prestige + R.PRESTIGE_CASTLE);
+  if (clan === s.player) { const P = pstats(s); P.taken++; P.last = { kind: 'capture', name: old ? clanName(s, old) : '国人衆', castle: c.name, turn: s.turn }; if (P.taken === 1) chron(s, `初めて城を落とした: ${c.name}（${old ? `${clanName(s, old)}家` : '国人衆'}から）`); else if (castleKoku(c) >= 20) chron(s, `大きな城を落とした: ${c.name}（${old ? `${clanName(s, old)}家` : '国人衆'}から）`); }
+  else if (old === s.player) pstats(s).lost++;
   if (old) s.clans[old].prestige = Math.max(0, s.clans[old].prestige - R.PRESTIGE_CASTLE);
   addLog(s, `${clanName(s, clan)}家が${c.name}を攻略（旧${clanName(s, old)}）。`, 'castle', clan === s.player || old === s.player);
   onCaptured(s, c, old);

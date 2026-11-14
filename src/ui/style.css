@@ -714,3 +714,21 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 .cpills { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
 .ckv { font-size: 12.5px; }
 .clinks { flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+/* エンディング: 称号・戦績・功臣録・年代記（文字の板は縦にスクロール） */
+#ending .end-text { max-height: 100%; overflow-y: auto; }
+@media (min-width: 900px) { #ending .end-text { top: 0; bottom: 0; padding-top: max(28px, 4vh); background: linear-gradient(to left, rgba(0,0,0,0.72), rgba(0,0,0,0.55) 80%, rgba(0,0,0,0)); } }
+@media (max-width: 899px) { #ending .end-text { max-height: 72%; } }
+#ending .end-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 12px; padding: 8px 12px; border: 1px solid var(--gold-soft); border-radius: 3px; background: rgba(0,0,0,0.35); }
+#ending .end-title span { font-size: 12px; color: var(--paper-dim); letter-spacing: 0.12em; }
+#ending .end-title b { font-family: var(--font-display); font-size: 26px; color: var(--gold); letter-spacing: 0.12em; font-weight: 400; }
+#ending .end-title em { font-style: normal; font-size: 14px; color: var(--paper); flex-basis: 100%; }
+#ending .end-h { font-family: var(--font-display); font-weight: 400; font-size: 17px; color: var(--gold); letter-spacing: 0.12em; margin: 14px 0 4px; border-bottom: 1px solid var(--hair); padding-bottom: 2px; }
+#ending .end-small { font-size: 13px; }
+#ending .end-heroes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 6px 0; }
+#ending .end-heroes > div { display: flex; flex-direction: column; align-items: center; text-align: center; font-size: 12px; min-width: 0; }
+#ending .end-heroes .face { width: 44px; height: 55px; border-radius: 3px; }
+#ending .end-heroes b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#ending .end-heroes small { color: var(--paper-dim); font-size: 10.5px; }
+#ending .end-chron { list-style: none; margin: 6px 0 14px; padding: 12px 16px; border-radius: 3px; background-size: 256px; color: #2b2116; font-size: 13.5px; line-height: 1.75; max-height: 40vh; overflow-y: auto; box-shadow: inset 0 0 24px rgba(80, 50, 20, 0.35); }
+#ending .end-chron li span { display: inline-block; min-width: 5.2em; color: #6b4f2e; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { #ending .end-heroes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

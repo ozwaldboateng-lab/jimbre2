@@ -1,6 +1,6 @@
 // 城ごとに金を使う: 年貢の率・内政への追加投資・新田開発・城の普請（石垣〜天守）。AIも余った金をここに回す
 import * as R from './rules';
-import { addLog, castleKoku, clanCastles, hostile } from './state';
+import { addLog, castleKoku, chron, clanCastles, hostile } from './state';
 import { hexDist } from './map';
 import { govTrait } from './traits';
 import type { Castle, Clan, GameState } from './types';
@@ -93,6 +93,7 @@ export function monthlyWorks(s: GameState) {
     if (c.fortBuild && c.owner !== c.fortBuild.clan) { if (c.fortBuild.clan === s.player) addLog(s, `${c.name}を失い、普請は止まった。`, 'castle', true); c.fortBuild = undefined; }
     if (c.fortBuild && s.turn + 1 >= c.fortBuild.until) {
       c.fort = fortOf(c) + 1; c.fortBuild = undefined;
+      if (c.owner === s.player && fortOf(c) === FORT_NAME.length - 1) chron(s, `${c.name}に天守が成った`);
       if (c.fort === FORT_NAME.length - 1 && c.owner) s.clans[c.owner].prestige = Math.min(100, s.clans[c.owner].prestige + R.TENSHU_PRESTIGE);
       if (c.owner === s.player && c.fort === FORT_NAME.length - 1) (s.events ??= []).push({ kind: 'tenshu', castle: c.id });
       if (c.owner === s.player) addLog(s, `${c.name}の${FORT_NAME[c.fort]}が成った${c.fort === FORT_NAME.length - 1 ? `（威信+${R.TENSHU_PRESTIGE}）` : ''}。`, 'castle', true);

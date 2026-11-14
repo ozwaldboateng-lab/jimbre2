@@ -5,7 +5,7 @@ import { initOn } from './on';
 import { enfeoffSurrendered } from './fronts';
 import { graphDistances } from './map';
 import { eliminateClan } from './ops';
-import { addLog, allied, clanArmies, clanCastles, clanName, noteClash, pairKey, rand, treatyOf } from './state';
+import { addLog, allied, clanArmies, clanCastles, clanName, noteClash, pairKey, rand, treatyOf , chron, pstats} from './state';
 import { clanItems, equip, spareItem, transferItem } from './money';
 import * as R from './rules';
 import { presOf } from './court';
@@ -105,6 +105,7 @@ export function sign(s: GameState, a: string, b: string, kind: 'alliance' | 'mar
   if (old) s.treaties = s.treaties.filter((t) => t !== old);
   const t: Treaty = { a, b, kind, start: kind === 'marriage' && old ? old.start : s.turn, until: kind === 'marriage' ? null : s.turn + DIP.ALLIANCE_MONTHS };
   s.treaties.push(t);
+  if (t.a === s.player || t.b === s.player) { const o = t.a === s.player ? t.b : t.a; chron(s, `${clanName(s, o)}家と${t.kind === 'marriage' ? '婚姻' : '同盟'}を結んだ`); }
   if (a === s.player || b === s.player) (s.events ??= []).push({ kind: 'treaty', treaty: kind, other: a === s.player ? b : a });
   if (kind === 'marriage') for (const c of [a, b]) s.clans[c].prestige = Math.min(100, s.clans[c].prestige + DIP.MARRIAGE_PRESTIGE);
   if (s.clans[a].target === b) s.clans[a].target = null;
@@ -115,6 +116,7 @@ export function sign(s: GameState, a: string, b: string, kind: 'alliance' | 'mar
 export function absorb(s: GameState, winner: string, loser: string) {
   const L = s.clans[loser];
   const toPlayer = winner === s.player;
+  if (toPlayer) { const P = pstats(s); P.ended.push(L.name); P.last = { kind: 'surrender', name: L.name, castle: s.castles.find((c) => c.owner === loser)?.name, turn: s.turn }; chron(s, `${L.name}家が降った`); }
   const castles = s.castles.filter((c) => c.owner === loser).map((c) => c.i);
   const gens = Object.values(s.generals).filter((g) => g.clan === loser && g.status !== 'dead');
   const leaderId = L.leader;
