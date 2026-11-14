@@ -21,7 +21,7 @@ import {
 import type { Army, BattleReport, BigEvent, Castle, Front, GameState, General, Item } from '../engine/types';
 import { openingOn, openTitleScreen, setOpeningOn, titleOpen } from './title';
 import { mood, renderPreview, setSound, sfx, soundSettings, wireSound, type Mood } from './sound';
-import { playScene } from './scene';
+import { playScene, sceneOpen } from './scene';
 import { kidachiBeats, kidachiOn, setKidachiOn } from './kidachi';
 import { OPENING_PEOPLE } from '../data/opening';
 import { ANECDOTES, STAT_NAME } from '../data/anecdotes';
@@ -852,7 +852,8 @@ function nextOrRefresh() {
 
 // ───────── ターン ─────────
 function doEndTurn() {
-  if (!s || busy || s.over) return;
+  if (s && !busy && s.over) { showGameOver(); return; } // 勝敗が決まったあとは、評定終了でエンディングを出し直す
+  if (!s || busy) return;
   busy = true;
   $('btn-end').setAttribute('disabled', '');
   sfx('turn');
@@ -2747,6 +2748,7 @@ function openSplitSheet(st: GameState, a: Army) {
 
 function showGameOver() {
   const st = s!;
+  if (sceneOpen()) { setTimeout(showGameOver, 400); return; } // ほかの場面が流れている間は、終わるのを待つ
   showEnding(st, st.over === 'win');
 }
 
@@ -2994,7 +2996,7 @@ function onModalClick(e: Event) {
     const lead = st.clans[id].leader ? st.generals[st.clans[id].leader!] : undefined;
     const gift = btn.dataset.gift ? dipGift : null;
     const r = propose(st, kind, st.player, id, gift);
-    if (r === 'accepted' && st.events?.length && eventsOn()) { if (dipGift && st.items[dipGift]?.clan !== st.player) dipGift = null; afterAction(); refresh(); playEvents(st, () => { toast(kind === 'surrender' ? `${name}家が降った！` : `${name}家と${DIP_NAME[kind]}を結んだ`); if (!st.over) openMenu(); }); return; } // 降伏・同盟・婚姻が成れば、その場で場面を
+    if (r === 'accepted' && st.events?.length && eventsOn()) { if (dipGift && st.items[dipGift]?.clan !== st.player) dipGift = null; refresh(); playEvents(st, () => { toast(kind === 'surrender' ? `${name}家が降った！` : `${name}家と${DIP_NAME[kind]}を結んだ`); afterAction(); if (!st.over) openMenu(); }); return; } // 降伏の場面を見せてから天下統一を確かめる（同時に流すとエンディングが消える） // 降伏・同盟・婚姻が成れば、その場で場面を
     if (r) cutin(st, lead, (kind === 'surrender' ? 'surrender' : kind === 'marriage' ? 'marriage' : 'alliance') + (r === 'accepted' ? 'Yes' : 'No') as Scene, { foe: name });
     if (dipGift && st.items[dipGift]?.clan !== st.player) dipGift = null;
     toast(r === 'accepted' ? (kind === 'surrender' ? `${name}家が降った！` : `${name}家と${DIP_NAME[kind]}を結んだ`) : `${name}家は${DIP_NAME[kind]}を退けた`);
