@@ -5,8 +5,8 @@ import { initOn } from './on';
 import { enfeoffSurrendered } from './fronts';
 import { graphDistances } from './map';
 import { eliminateClan } from './ops';
-import { addLog, allied, clanArmies, clanCastles, clanName, noteClash, pairKey, rand, treatyOf , chron, pstats, amityOf, bumpAmity, AMITY, clanKoku} from './state';
-import { clanItems, equip, spareItem, transferItem, unequip as unequipItem } from './money';
+import { addLog, allied, clanArmies, clanCastles, clanName, noteClash, pairKey, rand, treatyOf , chron, pstats, amityOf, bumpAmity, AMITY, clanKoku, amityName} from './state';
+import { clanIncome as clanIncomeOf, clanItems, equip, spareItem, transferItem, unequip as unequipItem } from './money';
 import * as R from './rules';
 import { presOf } from './court';
 import type { GameState, Treaty } from './types';
@@ -199,6 +199,7 @@ export function setProposalHook(f: Ask | null) { ask = f; }
 // AIの外交（毎月、勢力ごとに一度）
 export async function aiDiplomacy(s: GameState, clan: string) {
   const C = s.clans[clan];
+  if (C.alive) aiGift(s, clan); // 贈り物は交渉とは別に（月に一度まで）
   if (!C.alive || rand(s) > 0.25) return;
   const near = [...neighbors(s, clan, 6)].filter((n) => s.clans[n].alive);
   const myP = clanPower(s, clan);
@@ -280,4 +281,28 @@ export function sendGift(s: GameState, from: string, to: string, kind: GiftKind,
 // 毎月: 親密度は並へ少しずつ戻る
 export function driftAmity(s: GameState) {
   for (const k of Object.keys(s.amity ?? {})) { const v = s.amity![k]; s.amity![k] = v > AMITY.BASE ? Math.max(AMITY.BASE, v - AMITY.DRIFT) : Math.min(AMITY.BASE, v + AMITY.DRIFT); if (s.amity![k] === AMITY.BASE) delete s.amity![k]; }
+}
+
+// AIの贈り物: 余裕があれば、強い隣国（攻められたくない）・盟友（保ちたい）・結びたい家へ贈る。狙っている家には贈らない
+export function aiGift(s: GameState, clan: string) {
+  const C = s.clans[clan];
+  if (rand(s) > 0.2) return;
+  const inc = clanIncomeOf(s, clan);
+  const reserve = Math.max(3000, inc * 4);
+  if (C.gold < reserve + 500 && C.food < 30000) return;
+  const myP = clanPower(s, clan);
+  const near = [...neighbors(s, clan, 6)].filter((n) => s.clans[n]?.alive && n !== C.target && amityOf(s, clan, n) < 80);
+  const score = (n: string) => {
+    const r = clanPower(s, n) / Math.max(1, myP), tr = treatyOf(s, clan, n);
+    return (r > 1.2 ? 2 + r : 0) + (tr ? 1.5 : 0) + (s.clans[n].target === clan ? 2.5 : 0) + (n === s.player ? 0.3 : 0) - amityOf(s, clan, n) / 40;
+  };
+  const to = near.sort((a, b) => score(b) - score(a))[0];
+  if (!to || score(to) < 1 || giftBlock(s, clan, to)) return;
+  const spare = C.gold - reserve;
+  const gold = [10000, 3000, 1000, 500].find((n) => n <= spare * 0.3);
+  const before = amityOf(s, clan, to);
+  if (gold) sendGift(s, clan, to, 'gold', gold, (n) => n);
+  else if (C.food > 40000) sendGift(s, clan, to, 'food', 5000, (n) => n * R.RICE_PRICE);
+  else return;
+  if (to === s.player) addLog(s, `${C.name}家から${gold ? `金${gold.toLocaleString()}貫` : '兵糧5,000石'}が贈られてきた（親密度${amityName(before)}→${amityName(amityOf(s, clan, to))}・${amityOf(s, clan, to)}）。`, 'info', true);
 }
