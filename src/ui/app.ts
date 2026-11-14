@@ -22,6 +22,7 @@ import type { Army, BattleReport, BigEvent, Castle, Front, GameState, General, I
 import { openingOn, openTitleScreen, setOpeningOn, titleOpen } from './title';
 import { mood, renderPreview, setSound, sfx, soundSettings, wireSound, type Mood } from './sound';
 import { playScene } from './scene';
+import { kidachiBeats, kidachiOn, setKidachiOn } from './kidachi';
 import { OPENING_PEOPLE } from '../data/opening';
 import { ANECDOTES, STAT_NAME } from '../data/anecdotes';
 import { fillNames, fireAnecdote } from '../engine/anecdote';
@@ -1230,7 +1231,7 @@ function openTitle() {
   openTitleScreen({
     auto, autoLabel: auto ? `${dateLabel(auto)}・${auto.clans[auto.player].name}家` : '',
     help: (st) => TABS.help(st), face: (id, w) => face(id, w),
-    start: (clan, diff, scen) => { startWith(newGame(clan, diff, undefined, scen, campStart())); store(AUTO_KEY, JSON.stringify(s)); },
+    start: (clan, diff, scen) => { startWith(newGame(clan, diff, undefined, scen, campStart())); store(AUTO_KEY, JSON.stringify(s)); if (s && kidachiOn()) { const st = s; const b = kidachiBeats(st); if (b.length) playScene(view, st, `${st.clans[st.player].name}家、起つ`, b, (id, w) => face(id, w), () => { mapMood(st); const c = capital(st, st.player); if (c) view.centerOn(c.hex, Math.min(2.4, Math.max(1.4, view.w / 520))); refresh(); }); } },
     resume: () => { if (auto) startWith(auto); },
   });
 }
@@ -2414,6 +2415,7 @@ const TABS: Record<string, (st: GameState) => string> = {
       <div class="actions" style="align-items:center;gap:10px;flex-wrap:wrap"><button class="act" data-act="snd-sfx" aria-pressed="${so.sfx}">効果音: ${so.sfx ? '出す' : '出さない'}</button><label class="hint" style="margin:0;display:flex;align-items:center;gap:6px">音量<input type="range" min="0" max="100" value="${Math.round(so.vs * 100)}" data-vol="vs" aria-label="効果音の音量"></label></div>`; })()}
       <div class="actions"><button class="act" data-act="events-toggle" aria-pressed="${eventsOn()}">大きな出来事の場面（家督相続・滅亡・降伏・謀反・一揆・同盟と婚姻・南蛮・任官・天守など）: ${eventsOn() ? '出す' : '出さない'}</button></div>
       <div class="actions"><button class="act" data-act="opening-toggle" aria-pressed="${openingOn()}">序幕（始める前の時代の紹介）: ${openingOn() ? '出す' : '出さない'}</button></div>
+      <div class="actions"><button class="act" data-act="kidachi-toggle" aria-pressed="${kidachiOn()}">起ちの場面（家を選んだあとの、その家の紹介）: ${kidachiOn() ? '出す' : '出さない'}</button></div>
       <div class="actions"><button class="act" data-act="battle-style">合戦の部隊の印: ${UNIT_STYLE_NAME[getBattleStyle()]}</button></div>
       <div class="actions"><button class="act" data-act="army-style" aria-pressed="${view.armyStyle === 'hayashi'}">地図の部隊の印: ${view.armyStyle === 'hayashi' ? '幟の林（兵が多いほど幟が増える）' : '丸（武将名と兵数の弧）'}</button></div>
     </section></div>`;
@@ -2923,6 +2925,7 @@ function onModalClick(e: Event) {
   if (act === 'snd-music') { setSound({ music: !soundSettings().music }); reopen(); return; }
   if (act === 'snd-sfx') { setSound({ sfx: !soundSettings().sfx }); reopen(); if (soundSettings().sfx) sfx('ponn'); return; }
   if (act === 'events-toggle') { try { localStorage.setItem(EVENTS_KEY, eventsOn() ? 'off' : 'on'); } catch { /* 記録できなくても続ける */ } reopen(); return; }
+  if (act === 'kidachi-toggle') { setKidachiOn(!kidachiOn()); reopen(); return; }
   if (act === 'opening-toggle') { setOpeningOn(!openingOn()); reopen(); return; }
   if (act === 'rw-all') { rwAll = id === '1'; rwPage = 1; reopen(); return; }
   if (act === 'rw-more') { rwPage++; reopen(); return; }
