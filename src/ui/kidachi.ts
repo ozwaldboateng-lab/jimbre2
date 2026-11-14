@@ -82,7 +82,7 @@ export function kidachiBeats(st: GameState): OpeningBeat[] {
     if (foes.length > 1) parts.push(`ほかに${foes.slice(1, 4).map((id) => clanName(st, id) + '家').join('・')}が境を接する`);
     if (hunters.length) parts.push(`${hunters.slice(0, 2).map((id) => clanName(st, id) + '家').join('・')}は当家を狙っている`);
     if (allies.length) parts.push(`${allies.map((id) => clanName(st, id) + '家').join('・')}とは結んでいる`);
-    beats.push({ head: '四方の敵', text: `${parts.join('。')}。`, at: home.id, zoom: 1.1, light: [st.player, ...near], arrow: foes.slice(0, 3).map((id) => capOf(id)).filter((x): x is string => !!x).map((id) => [id, home.id] as [string, string]) });
+    beats.push({ head: '四方の敵', text: `${parts.join('。')}。`, at: home.id, zoom: 0.8, light: [st.player, ...near], arrow: foes.slice(0, 3).map((id) => capOf(id)).filter((x): x is string => !!x).map((id) => [id, home.id] as [string, string]) });
   }
   // 5. 最初の評定: 当面の目当て（弱い隣国、なければ大きな隣国に備える）
   const dist = (id: string) => { const c = capital(st, id); return c ? hexDist(c.hex, home.hex) : 99; };
