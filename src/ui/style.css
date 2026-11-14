@@ -732,3 +732,10 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 #ending .end-chron { list-style: none; margin: 6px 0 14px; padding: 12px 16px; border-radius: 3px; background-size: 256px; color: #2b2116; font-size: 13.5px; line-height: 1.75; max-height: 40vh; overflow-y: auto; box-shadow: inset 0 0 24px rgba(80, 50, 20, 0.35); }
 #ending .end-chron li span { display: inline-block; min-width: 5.2em; color: #6b4f2e; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { #ending .end-heroes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* エンディング（スマホ・狭い画面）: 文字の板に暗い地を敷き、戦績は2列に */
+@media (max-width: 899px) {
+  #ending .end-text { background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.82) 82%, rgba(0,0,0,0.5) 94%, rgba(0,0,0,0) 100%); padding-top: 36px; }
+  #ending .end-kv { grid-template-columns: auto 1fr; max-width: none; }
+  #ending h1 { font-size: clamp(34px, 11vw, 48px); }
+  #ending .end-chron { max-height: none; }
+}
