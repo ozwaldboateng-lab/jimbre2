@@ -68,7 +68,12 @@ export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.n
   for (const g of Object.values(generals)) if (g.clan && !clans[g.clan]?.alive && g.status !== 'dead') { g.formerClan = g.clan; g.clan = null; if (g.status !== 'young') g.status = 'ronin'; }
   for (const clan of Object.values(clans)) {
     const lead = sc.leaders?.[clan.id];
-    clan.leader = lead && generals[lead]?.clan === clan.id ? lead : Object.values(generals).find((g) => g.clan === clan.id)?.id ?? null;
+    const mem = Object.values(generals).filter((g) => g.clan === clan.id && g.status !== 'dead');
+    const adult = mem.filter((g) => g.status !== 'young'); // 名簿の順（当主が先頭）のまま、最初の大人
+    clan.leader = lead && generals[lead]?.clan === clan.id && generals[lead].status !== 'young' ? lead : adult[0]?.id ?? mem[0]?.id ?? null;
+    // 大人の当主がいなければ、いちばん年上の者を急ぎ元服させる
+    const L = clan.leader ? generals[clan.leader] : null;
+    if (L && L.status === 'young') { L.status = 'free'; L.genpuku = undefined; if (L.later) { L.name = L.later; L.later = undefined; } }
   }
   // 所在の城がよその家のものなら、本城（当主の城か最初の城）へ
   for (const g of Object.values(generals)) {

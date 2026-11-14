@@ -1,6 +1,7 @@
 // シナリオ: 1560年（roster.ts そのもの）と、それとの差分で書いた1552年
 import type { ClanDef, GeneralDef } from './roster';
 import { S1582 } from './s1582';
+import { S1536 } from './s1536';
 
 export interface Scenario {
   id: string; year: number; month: number; title: string; lede: string;
@@ -127,5 +128,6 @@ export const SCENARIOS: Scenario[] = [
     featured: ['oda', 'imagawa', 'saito', 'takeda', 'uesugi', 'hojo', 'mori', 'ouchi', 'amago', 'miyoshi', 'asakura', 'otomo', 'shimazu', 'chosokabe', 'date', 'honganji'],
   },
   S1582,
+  S1536,
 ];
 export const scenarioOf = (id: string | undefined) => SCENARIOS.find((x) => x.id === id) ?? SCENARIOS[0];

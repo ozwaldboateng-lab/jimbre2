@@ -31,6 +31,23 @@ const LORD_LINE: Record<string, string> = {
   azai: '北近江は小さな国だが、湖と街道を押さえておる。',
 };
 
+// この当主ならこの言葉（シナリオをまたいで当主で引く）。LORD_LINE より先に見る
+const LEADER_LINE: Record<string, string> = {
+  oda_nobuhide: '津島の湊がある限り、尾張の織田は痩せぬ。銭で兵を養い、四方の敵と渡り合ってみせよう。',
+  takeda_nobutora: '甲斐はようやく一つになった。家中の不満など、力で押さえればよい。次は信濃よ。',
+  hojo_ujitsuna: '伊勢の家は、北条を名乗って関東に根を張る。扇谷上杉を退け、武蔵をこの手に。',
+  nagao_tamekage: '主を討ち、越後を取った。悪名など恐れぬ。越後を治めるのは、力のある長尾だ。',
+  amago_tsunehisa: '一介の牢人から、十一か国の太守と呼ばれるまでになった。だが、大内だけはまだ倒れぬ。',
+  ouchi_yoshitaka: '山口を西の京とせよ。文も武も、大内が西国の要であることを忘れるな。',
+  imagawa_yoshimoto: '兄たちの死と、花倉の乱を越えて家督を継いだ。この今川を、東海一の家にしてみせる。',
+  rokkaku_sadayori: '近江は京の喉もと。将軍家を支え、天下の重しとなるのが六角の務めよ。',
+  hosokawa_harumoto: '京を押さえる者が、天下を動かす。細川京兆家の名にかけて、畿内を固める。',
+  asakura_takakage: '越前は豊かで、一乗谷は栄えておる。宗滴がいる限り、朝倉は揺るがぬ。',
+  date_tanemune: '奥州の諸家とは縁を結び、伊達の下にまとめる。陸奥守護の名は飾りではない。',
+  otomo_yoshiaki: '豊後から北九州を睨む。大内とは渡り合い、肥後にも手を伸ばす。',
+  toki_yorinori: '美濃の守護は土岐家ぞ。……あの長井規秀、頼もしいが、どこか恐ろしい男よ。',
+  mori_motonari: '大内と尼子の狭間で、毛利はまだ小さい。だが、生き延びた者が最後に勝つ。',
+};
 const homeLine = (st: GameState, clan: string) => {
   const cs = clanCastles(st, clan);
   const provs = [...new Set(cs.map((c) => PROVINCES[HEXES[c.hex].p].name))];
@@ -49,7 +66,7 @@ export function kidachiBeats(st: GameState): OpeningBeat[] {
   beats.push({ head: `${me.name}家`, text: `${provs.slice(0, 3).join('・')}${provs.length > 3 ? 'ほか' : ''}に城${cs.length}、${koku.toFixed(0)}万石、兵${clanTroops(st, st.player).toLocaleString('ja-JP')}。本拠は${home.name}。`, at: home.id, zoom: 1.8, light: [st.player], mark: [home.id] });
   // 2. 当主の言葉
   if (lord) {
-    const line = LORD_LINE[st.player]
+    const line = LEADER_LINE[lord.id] ?? (st.year >= 1550 ? LORD_LINE[st.player] : undefined)
       ?? (age !== null && age < 25 ? '若輩と侮る者もおろう。だが、この家を背負うのはわしだ。見ておれ。'
         : age !== null && age >= 55 ? '残された時は長くない。この家を、より大きくして次へ渡さねばならぬ。'
         : cs.length <= 2 ? '小さな家だ。だが、小さいからこそ、機を見て動ける。'

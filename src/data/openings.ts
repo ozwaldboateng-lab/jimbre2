@@ -18,6 +18,20 @@ export interface OpeningBeat {
 }
 
 export const OPENINGS: Record<string, OpeningBeat[]> = {
+  '1536': [
+    { head: '天文五年', text: '応仁の乱から七十年。将軍は京を追われては戻り、管領の細川家は内輪で争い、諸国では守護の家臣たちが主家を凌ぎはじめていた。', at: null },
+    { head: '駿河', text: '今川家では当主の氏輝が急死し、家督をめぐって兄弟が争った。花倉の乱である。勝ったのは、寺から還俗した十八歳の義元だった。', at: 'sunpu', zoom: 1.7, light: ['imagawa'] },
+    { who: 'taigen_sessai', name: '太原雪斎', label: '義元の師', text: '若殿、いや殿。今川の家は、これからが正念場にござる。甲斐とも相模とも、うまく渡り合わねばなりませぬ。', at: 'sunpu', zoom: 1.7, light: ['imagawa'] },
+    { head: '甲斐・相模', text: '甲斐では武田信虎が国人たちを力で抑えて国を一つにし、相模では伊勢宗瑞の子・北条氏綱が武蔵へ兵を進めている。', at: 'odawara', zoom: 1.2, light: ['takeda', 'hojo', 'ogigayatsu'] },
+    { who: 'takeda_nobutora', name: '武田信虎', label: '甲斐の守護', text: '甲斐は一つになった。だが、山の国は貧しい。ならば外から奪うまでよ。', at: 'tsutsujigasaki', zoom: 1.6, light: ['takeda'] },
+    { who: 'hojo_ujitsuna', name: '北条氏綱', label: '相模の二代目', text: '伊勢の家が北条を名乗るのは、関東を治めるためだ。扇谷上杉の時代は終わらせる。', at: 'odawara', zoom: 1.6, light: ['hojo'] },
+    { head: '尾張・美濃', text: '尾張では津島の湊を握る織田信秀が頭角を現し、美濃では守護土岐家の重臣・長井規秀が、主家を凌ぐ力を蓄えつつあった。', at: 'kiyosu', zoom: 1.6, light: ['oda', 'saito'] },
+    { who: 'saito_dosan', name: '長井規秀', label: '土岐家の重臣', text: '守護の家柄など、飾りにすぎぬ。美濃を治めるのは、治める力のある者よ。', at: 'inabayama', zoom: 1.7, light: ['saito'] },
+    { head: '京', text: '京では、細川晴元が将軍足利義晴を擁して畿内を握る。だがその足元では、三好の若き当主が、父を死に追いやった晴元への恨みを胸に秘めていた。', at: 'kyo', zoom: 1.6, light: ['hosokawa', 'ashikaga'] },
+    { head: '西国', text: '西では、周防の大内義隆と、出雲の尼子経久が、石見の銀山と安芸の国人たちをめぐって睨み合う。その狭間に、毛利元就という男がいた。', at: 'koriyama', zoom: 1.1, light: ['ouchi', 'amago', 'mori'] },
+    { who: 'amago_tsunehisa', name: '尼子経久', label: '出雲の老雄', text: '城を奪われた牢人から、ここまで来た。大内を倒すまでは、まだ死ねぬ。', at: 'gassantoda', zoom: 1.7, light: ['amago'] },
+    { head: '天文五年六月', text: '下剋上の風は止まない。この乱世から、天下を握る者は現れるのか。', at: null },
+  ],
   '1552': [
     { head: '天文二十一年', text: '応仁の乱から八十余年。将軍の威光は地に落ち、諸国では力のある者が主を倒して国を奪う。世の人はこれを「下剋上」と呼んだ。', at: null },
     { head: '美濃', text: '京の油売りから身を起こし、ついに美濃一国を手に入れた男がいると伝わる。近年では、父と子の二代がかりの国盗りだったとも言われる。', at: 'inabayama', zoom: 1.6, light: ['saito'], mark: ['inabayama'] },
