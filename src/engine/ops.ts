@@ -1,4 +1,5 @@
 // 城の占領・勢力滅亡・武将の処遇など、状態を変える操作
+import { dropFromCoalitions } from './coalition';
 import { onCastleTaken } from './bakufu';
 import { bondIn, goodBondOf, rivalIn } from './bushi';
 import { afterSuccession, heirOf } from './katoku';
@@ -114,6 +115,7 @@ export function eliminateClan(s: GameState, clanId: string, by: string | null) {
   if (!clan.alive) return;
   clan.alive = false; clan.ruinedBy = by;
   s.treaties = (s.treaties ?? []).filter((t) => t.a !== clanId && t.b !== clanId);
+  dropFromCoalitions(s, clanId);
   for (const a of Object.values(s.armies)) if (a.clan === clanId) { if (a.ikki) dropIkkiLeader(s, a); delete s.armies[a.id]; }
   for (const c of s.castles) if (c.owner === clanId) { c.owner = null; c.governor = null; }
   for (const g of Object.values(s.generals)) if (g.clan === clanId) dropItems(s, g, undefined);

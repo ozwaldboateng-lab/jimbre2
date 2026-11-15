@@ -1,4 +1,5 @@
 // 勢力AI（SPEC: 攻勢/均衡/守勢、包囲・側面・城確保の評価、不利戦闘の回避、70%ローテーション）
+import { coalitionTarget } from './coalition';
 import { meibun, shogunClan } from './bakufu';
 import { aiNinja } from './traits';
 import { aiFillCorps, attachAuto } from './corps';
@@ -107,12 +108,14 @@ export function decideStance(s: GameState, clan: string) {
   let neutralNear = false;
   for (const k of s.castles) if (hostile(s, clan, k.owner) && d[k.hex] <= R.hx(4)) { if (k.owner) neighbors.add(k.owner); else neutralNear = true; }
   let target: string | null = null, best = Infinity;
+  const coal = coalitionTarget(s, clan);
   for (const n of neighbors) {
     const p = power(n);
     // 官位の高い家は狙いにくい
     const sc = p / (own + 1) / (1 + clanCastles(s, n).reduce((t, k) => t + castleKoku(k), 0) / 400) / (1 - deterOf(s, n)) / (s.clans[n].usurp ? R.USURP_TARGET : 1) * (meibun(s, clan, n).ok ? 0.75 : 1) * (n === shogunClan(s) ? 4 : 1); // 僭称した家・名分のある家を狙い、将軍家は避ける
     const am = amityOf(s, clan, n); const scA = sc * (am >= 55 ? 1 + (am - 50) / 50 : 1); // 親しい家は狙いにくい（親密度100で2倍見送る）
-    if (scA < best) { best = scA; target = n; }
+    const scC = scA * (n === coal ? 0.35 : 1); // 連合の標的は最優先
+    if (scC < best) { best = scC; target = n; }
   }
   c.target = target;
   // 自城周辺の敵兵力
@@ -123,7 +126,7 @@ export function decideStance(s: GameState, clan: string) {
   }
   const localOwn = clanArmies(s, clan).reduce((t, a) => t + a.troops * a.morale, 0);
   if (threat > localOwn * 1.5) c.stance = '守勢';
-  else if ((target && own >= power(target) * 1.2) || (!target && neutralNear)) c.stance = '攻勢';
+  else if ((target && own * (target === coal ? 1.6 : 1) >= power(target) * 1.2) || (!target && neutralNear)) c.stance = '攻勢'; // 連合の標的には味方を頼んで強気に
   else c.stance = '均衡';
   // 1年以上戦がなく、主攻勢力と互角以上なら攻勢に転じる（膠着の打開）
   if (c.stance === '均衡' && target && s.turn - (c.lastWar ?? 0) >= 12 && own >= power(target) * 0.8) c.stance = '攻勢';

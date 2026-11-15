@@ -1,4 +1,5 @@
 // 画面の組み立てと操作
+import { coalitionAgainst, GEKI, gekiBlock, gekiCandidates, gekiChance, issueGeki, leaveCoalition, sameCoalition, setGekiHook } from '../engine/coalition';
 import { defenderSupports, estimate, supportArmies } from '../engine/combat';
 import { endTurn } from '../engine/game';
 import { HEXES, PROVINCES, NEIGHBORS, TERRAIN_NAME, hexDist, rangeName } from '../engine/map';
@@ -125,6 +126,7 @@ export function boot(saved?: { state?: GameState }) {
   $('btn-todo').onclick = () => openTodo();
   $('stats').addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-tip]') as HTMLElement | null; if (d && statTip(d.dataset.tip!)) toast(`${d.dataset.tip}: ${statTip(d.dataset.tip!)}`); });
   setProposalHook((st, from, kind) => askPlayer(st, from, kind));
+  setGekiHook((from, target) => (s ? askGeki(s, from, target) : Promise.resolve(false)));
   // 自動テストの間は尋ねずに自動で決める（localStorage 'sengoku-stance'='ask' で尋ねる）
   { let ask = true; try { ask = !navigator.webdriver || localStorage.getItem('sengoku-stance') === 'ask'; } catch { /* 読めなくても続ける */ } if (ask) setStanceHook((st, info) => askStance(st, info)); }
   $('zin').onclick = () => view.zoomBy(1.3);
@@ -254,7 +256,7 @@ export function boot(saved?: { state?: GameState }) {
     playEvents: () => new Promise<void>((res) => { if (s) playEvents(s, res); else res(); }), // テスト用: たまった出来事の場面を流す
     surrender: (loser: string) => { if (s) { absorbClan(s, s.player, loser); refresh(); } }, // テスト用: 降伏勧告が通ったことにする
     ending: (win = true) => { if (s) showEnding(s, win); }, // テスト用: エンディングを流す
-    supply: (id: number) => (s && s.armies[id] ? armySupply(s, s.armies[id]) : null), neighbors: (h: number) => NEIGHBORS[h],
+    supply: (id: number) => (s && s.armies[id] ? armySupply(s, s.armies[id]) : null), neighbors: (h: number) => NEIGHBORS[h], geki: (from: string, target: string) => (s ? issueGeki(s, from, target, (f, t) => askGeki(s!, f, t)) : null),
     // テスト用: 自軍の部隊で隣の敵部隊と合戦を開く
     battle: (armyId: number, enemyId: number) => { const st = s!; const e = st.armies[enemyId]; return openBattle(st, st.armies[armyId], { kind: 'army', hex: e.hex, army: e }).then(() => refresh()); },
     siege: (armyId: number, castle: number) => { const st = s!; return openBattle(st, st.armies[armyId], { kind: 'castle', hex: st.castles[castle].hex, castle }).then(() => refresh()); },
@@ -1246,7 +1248,7 @@ const MENUS: { key: MenuKey; name: string; tabs: [string, string][] }[] = [
   { key: 'naisei', name: '内政', tabs: [['shiro', '領内'], ['yosan', '予算と動員'], ['deleg', '委任']] },
   { key: 'gunji', name: '軍事', tabs: [['jindate', '陣立て'], ['butai', '部隊']] },
   { key: 'jinji', name: '人事', tabs: [['vassals', '家臣団'], ['rewards', '恩賞'], ['fronts', '知行'], ['governors', '城主'], ['yaku', '奉行と使番'], ['katoku', '家督'], ['jinzai', '人材']] },
-  { key: 'gaiko', name: '外交', tabs: [['gaike', '諸大名'], ['shinobi', '忍び'], ['bakufu', '幕府'], ['court', '朝廷'], ['mission', '布教']] },
+  { key: 'gaiko', name: '外交', tabs: [['gaike', '諸大名'], ['rengo', '連合'], ['shinobi', '忍び'], ['bakufu', '幕府'], ['court', '朝廷'], ['mission', '布教']] },
   { key: 'akinai', name: '商い', tabs: [['ichiba', '市場']] },
   { key: 'kiroku', name: '記録', tabs: [['log', '全記録'], ['save', '保存と設定'], ['help', '遊び方']] },
 ];
@@ -1562,6 +1564,7 @@ function openGeneral(id: string, back: boolean) {
 }
 
 const TABS: Record<string, (st: GameState) => string> = {
+  rengo: (st) => rengoTab(st),
   // ── 内政 ──
   // 内政 › 予算と動員: 左に決めること（年貢・治水・施し・重点・動員目標）、右にその結果（金の収支・治安の増減・兵と兵糧の見通し）
   yosan: (st) => {
@@ -1916,6 +1919,7 @@ const TABS: Record<string, (st: GameState) => string> = {
       <div class="picker" style="margin:0 0 10px"><label for="sel-gift">名物を添える（成功率＋格×${R.ITEM_GIFT * 100}%。応じれば相手の家へ渡る。断られれば手元に残る）</label>
         <select id="sel-gift"><option value="">添えない</option>${clanItems(st, st.player).map((it) => `<option value="${it.id}" ${dipGift === it.id ? 'selected' : ''}>${esc(itemLabel(it))}　+${Math.round(it.grade * R.ITEM_GIFT * 100)}%${it.holder ? `（${esc(st.generals[it.holder].name)}が所持）` : ''}</option>`).join('')}</select></div>
       <div class="actions dip-acts">${hostile(st, st.player, c.id) ? `<button class="act" data-act="ninja-at" data-id="${c.id}">この家に忍びを送る</button>` : ''}${dipButton(st, 'alliance', c.id, true)}${dipButton(st, 'marriage', c.id, true)}${dipButton(st, 'surrender', c.id, true)}${t ? `<button class="act" data-act="dip-break" data-id="${c.id}">手切れ（威信−${t.kind === 'marriage' ? DIP.BREAK_MARRIAGE : DIP.BREAK_ALLIANCE}）</button>` : ''}</div>
+      ${gekiSection(st, c.id)}
       ${(() => {
         const me2 = st.clans[st.player], am = amityOf(st, st.player, c.id), gb = giftBlock(st, st.player, c.id), rp = ricePrice(st);
         const g = (kind: string, n: number, worth: number, label: string, can: boolean) => { const d = giftGain(st, st.player, c.id, worth); return `<button class="mini" data-act="gift-send" data-kind="${kind}" data-id="${c.id}:${n}" ${gb || !can || d <= 0 ? `disabled title="${esc(gb ?? (!can ? '足りない' : '小さすぎる'))}"` : ''}>${label}（+${d}）</button>`; };
@@ -2465,8 +2469,40 @@ const TABS: Record<string, (st: GameState) => string> = {
 // ───────── 外交 ─────────
 function relationLabel(st: GameState, c: string) {
   const t = treatyOf(st, st.player, c);
-  if (!t) return '—';
-  return t.kind === 'marriage' ? '<span class="pill good">婚姻</span>' : `<span class="pill good">同盟 残り${(t.until ?? 0) - st.turn}か月</span>`;
+  const tags: string[] = [];
+  if (t) tags.push(t.kind === 'marriage' ? '<span class="pill good">婚姻</span>' : `<span class="pill good">同盟 残り${(t.until ?? 0) - st.turn}か月</span>`);
+  if (sameCoalition(st, st.player, c)) tags.push('<span class="pill good">連合</span>');
+  if (coalitionAgainst(st, c).some((k) => k.members.includes(st.player))) tags.push('<span class="pill warn">連合の敵</span>');
+  if (coalitionAgainst(st, st.player).some((k) => k.members.includes(c))) tags.push('<span class="pill warn">当家を討つ連合</span>');
+  return tags.join(' ') || '—';
+}
+// 檄: 諸大名の札に出す（出せるか・応じそうな家）
+function gekiSection(st: GameState, c: string) {
+  const b = gekiBlock(st, st.player, c);
+  const cands = gekiCandidates(st, st.player, c).map((x) => ({ x, p: gekiChance(st, x, st.player, c) })).sort((a, b2) => b2.p - a.p).slice(0, GEKI.MAX_SEND);
+  const exp = cands.reduce((t2, k) => t2 + k.p, 0);
+  return `<h3 class="sect-h">檄</h3><p class="hint" style="margin-top:0">近隣の家々へ「${esc(clanName(st, c))}家を討て」と呼びかける。${GEKI.MIN_JOIN - 1}家以上が応じれば連合が成り、${esc(clanName(st, c))}家が倒れるまで互いに攻めず領内を通れる（各家は独立のまま）。威信${GEKI.PRESTIGE}以上か官位が${esc(R.COURT[GEKI.COURT].name)}以上の家だけが出せる。金${fmt(GEKI.GOLD)}貫・威信−${GEKI.COST_PRESTIGE}。応じなくても同じ家には${GEKI.COOLDOWN}か月出せない。</p>
+    ${cands.length ? `<p class="hint" style="margin:0 0 4px">届く家（応じる見込み）: ${cands.map((k) => `${esc(clanName(st, k.x))} ${Math.round(k.p * 100)}%`).join('・')}　…およそ${exp.toFixed(1)}家</p>` : '<p class="hint" style="margin:0 0 4px">檄を届ける家が近くにない。</p>'}
+    <div class="actions" style="margin:0"><button class="act" data-act="geki-issue" data-id="${c}" ${b || !cands.length ? `disabled title="${esc(b ?? '届く家がない')}"` : ''}>この家を討つ檄を出す</button>${b ? ` <span class="hint" style="margin:0">${esc(b)}</span>` : ''}</div>`;
+}
+// 外交 › 連合
+function rengoTab(st: GameState) {
+  const ks = st.coalitions ?? [];
+  const mine = ks.filter((k) => k.members.includes(st.player) || k.target === st.player);
+  const others = ks.filter((k) => !mine.includes(k));
+  const row = (k: (typeof ks)[number]) => {
+    const T = st.clans[k.target];
+    const me = k.members.includes(st.player);
+    return `<tr${k.target === st.player ? ' class="me"' : ''}><td><span class="swatch" style="background:${T.color}"></span> ${esc(T.name)}${k.target === st.player ? '<span class="warn">（当家）</span>' : ''}</td><td>${esc(clanName(st, k.leader))}</td>
+      <td>${k.members.map((m) => (m === st.player ? '<b>当家</b>' : esc(clanName(st, m)))).join('・')}</td><td class="n">${k.members.length}</td>
+      <td class="n">${fmt(k.members.reduce((t2, m) => t2 + clanTroops(st, m), 0))} / ${fmt(clanTroops(st, k.target))}</td><td class="n">${st.turn - k.since}か月</td>
+      <td>${me ? `<button class="mini" data-act="geki-leave" data-id="${k.id}">抜ける（威信−5）</button>` : ''}</td></tr>`;
+  };
+  const head = '<thead><tr><th>討つ相手</th><th>盟主</th><th>加わる家</th><th class="n">家数</th><th class="n">兵（連合／相手）</th><th class="n">経過</th><th></th></tr></thead>';
+  return `<p class="lede">檄によって成った連合。連合の家どうしは攻め合わず、領内を通れる。討つ相手が倒れれば解ける。檄は「諸大名」の各家の札から出す。</p>
+    <h3 class="sect-h">当家に関わる連合</h3>${mine.length ? `<div class="tbl-wrap"><table>${head}<tbody>${mine.map(row).join('')}</tbody></table></div>` : '<p class="hint">ない。</p>'}
+    <h3 class="sect-h">諸国の連合</h3>${others.length ? `<div class="tbl-wrap"><table>${head}<tbody>${others.map(row).join('')}</tbody></table></div>` : '<p class="hint">ない。</p>'}
+    ${hints(['全国の石高の2割を超えた家には、周りの大きな家が檄を出しやすい（包囲網）。大きな家に攻められている家も、近隣へ助けを求めることがある。', '応じる見込みは、盟主との親密度・相手の強さと近さ・相手に狙われているか・将軍の御内書・盟主の威信と官位で決まり、相手と親しいほど下がる。', '盟主が倒れれば最も強い家が継ぐ。盟主の威信が衰えたり、相手と親しくなったりした家は抜けることがある。'])}`;
 }
 
 let dipGift: string | null = null;
@@ -2503,6 +2539,22 @@ function askStance(st: GameState, info: StanceInfo): Promise<Stance> {
         <button class="il-opt" data-act="stance" data-id="rojo"><b>籠城する　守り勝つ見込み ${pct(info.rojoWin)}${rec === 'rojo' ? '（おすすめ）' : ''}</b><span>城に籠もって守る。城の守りと城兵がすべて加わる。城攻めは月をまたいで続くことがある。後詰め（援軍）を待つ構え。</span></button>
       </div>
       <p class="hint">委任している城（領の城、軍事の委任）は、見込みで自動に決める（野戦の見込みが${pct(R.FIELD_PICK)}以上で、籠城の見込みと大きく変わらなければ野戦）。</p>`, false);
+  });
+}
+// 檄が届いたとき
+function askGeki(st: GameState, from: string, target: string): Promise<boolean> {
+  $('toast').hidden = true;
+  const c = st.clans[from], T = st.clans[target];
+  const leader = c.leader ? st.generals[c.leader].name : '';
+  const hunted = T.target === st.player;
+  return new Promise((resolve) => {
+    askResolve = resolve;
+    openModal(`<h2 id="modal-title">${esc(c.name)}家より檄</h2>
+      ${face(c.leader, 120, 'face face-lg')}<p class="pitch-big">「${esc(T.name)}家の専横、もはや見過ごせぬ。諸家ともに兵を挙げ、これを討たん」</p>
+      <p class="lede">${esc(leader)}が近隣の家々へ${esc(T.name)}家を討つ檄を飛ばした。応じれば、${esc(T.name)}家が倒れるまで連合の家とは攻め合わず、領内を通れる。${esc(T.name)}家との親密度は下がる。</p>
+      <dl class="kv"><dt>${esc(T.name)}家</dt><dd>${clanCastles(st, target).length}城・${clanKoku(st, target).toFixed(1)}万石・国力は当家の${(clanPower(st, target) / Math.max(1, clanPower(st, st.player))).toFixed(1)}倍${hunted ? '<span class="warn">（当家を狙っている）</span>' : ''}</dd>
+      <dt>盟主</dt><dd>${esc(c.name)}家（威信${c.prestige}・親密度${amityOf(st, st.player, from)}）</dd>${treatyOf(st, st.player, target) ? '' : ''}</dl>
+      <div class="actions"><button class="act primary" data-act="ask-yes">応じる</button><button class="act" data-act="ask-no">応じない</button></div>`, false);
   });
 }
 function askPlayer(st: GameState, from: string, kind: DipKind): Promise<boolean> {
@@ -3016,6 +3068,11 @@ function onModalClick(e: Event) {
     if (!st.over) openMenu();
     return;
   }
+  if (act === 'geki-issue') {
+    void issueGeki(st, st.player, id).then((r) => { toast(r.ok ? `連合が成った（${r.joined.map((x) => clanName(st, x)).join('・')}）` : `応じる家が足りなかった${r.joined.length ? `（${r.joined.map((x) => clanName(st, x)).join('・')}）` : ''}`); refresh(); openMenu(); });
+    return;
+  }
+  if (act === 'geki-leave') { leaveCoalition(st, st.player, +id); refresh(); openMenu(); return; }
   if (act === 'dip-break') { breakTreaty(st, st.player, id); refresh(); openMenu(); return; }
   if (act === 'save') { const n = +id || 1; toast(store(slotKey(n), JSON.stringify(st)) ? `保存先${n}に保存した` : '保存できなかった（ブラウザの保存領域が使えない）'); openMenu(); return; }
   if (act === 'load') { const sv = load(id === 'auto' ? AUTO_KEY : slotKey(+id || 1)); if (sv) { startWith(sv); toast('読み込んだ'); } return; }

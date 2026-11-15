@@ -1,4 +1,5 @@
 // ターン進行
+import { monthlyCoalitions } from './coalition';
 import { monthlyBakufu } from './bakufu';
 import { monthlyBushi } from './bushi';
 import { runClanAI } from './ai';
@@ -45,6 +46,7 @@ export async function endTurn(s: GameState) {
   const order = Object.keys(s.clans).filter((c) => c !== s.player && s.clans[c].alive);
   for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rand(s) * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
   for (const c of order) { if (s.over) break; await aiDiplomacy(s, c); }
+  await monthlyCoalitions(s); // 檄と連合（包囲網）
   for (const c of order) { if (s.over) break; await runClanAI(s, c); }
   monthEnd(s);
   monthlyWorks(s); // 新田開発・城の普請の進み

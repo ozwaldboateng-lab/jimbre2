@@ -155,6 +155,10 @@ export interface GameState {
   stats?: PlayerStats; // プレイヤーの家の戦績
   amity?: Record<string, number>; // 家どうしの親密度（pairKey → 0〜100。ない組は AMITY.BASE）
   gifted?: Record<string, number>; // 贈り物を送ったターン（'送り手|相手'）
+  coalitions?: { id: number; leader: string; target: string; members: string[]; since: number }[]; // 檄で成った連合
+  coalitionSeq?: number;
+  gekiTried?: Record<string, number>; // 檄を出したターン（'盟主|標的'）
+  gekiTurn?: Record<string, number>; // 家ごとに最後に檄を出したターン
   intelAI?: Record<string, Record<number, number>>; // AIの家ごとの同じ記録
   intel?: Record<number, number>; // プレイヤーが他家の城の中身（城兵・蔵・治安など）を知っている期限（城の番号 → このターンまで）
   log: LogEntry[];

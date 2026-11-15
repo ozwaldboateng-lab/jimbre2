@@ -18,7 +18,8 @@ export const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${
 export function treatyOf(s: GameState, a: string, b: string) {
   return s.treaties?.find((t) => (t.a === a && t.b === b) || (t.a === b && t.b === a)) ?? null;
 }
-export const allied = (s: GameState, a: string | null, b: string | null) => !!a && !!b && a !== b && !!treatyOf(s, a, b);
+// 連合（檄で結んだ家）どうしも同盟と同じく攻め合わず、領内を通れる
+export const allied = (s: GameState, a: string | null, b: string | null) => !!a && !!b && a !== b && (!!treatyOf(s, a, b) || !!s.coalitions?.some((c) => c.members.includes(a) && c.members.includes(b)));
 // 自軍から見て敵か（国人衆の城は常に敵）
 export const hostile = (s: GameState, me: string, other: string | null) => other !== me && !allied(s, me, other);
 // 親密度（0〜100）: 贈り物で上がり、戦や手切れで下がり、毎月少しずつ並（30）へ戻る
