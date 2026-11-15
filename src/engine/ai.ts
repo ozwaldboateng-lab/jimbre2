@@ -1,5 +1,5 @@
 // 勢力AI（SPEC: 攻勢/均衡/守勢、包囲・側面・城確保の評価、不利戦闘の回避、70%ローテーション）
-import { coalitionFoes, coalitionTarget } from './coalition';
+import { atWar, coalitionFoes, coalitionTarget } from './coalition';
 import { meibun, shogunClan } from './bakufu';
 import { aiNinja } from './traits';
 import { aiFillCorps, attachAuto } from './corps';
@@ -123,7 +123,7 @@ export function decideStance(s: GameState, clan: string) {
   const counted = new Set<number>();
   for (const k of clanCastles(s, clan)) for (const a of Object.values(s.armies)) {
     // 戦時から始まるシナリオの始めは、自分の領で構えているだけの隣の軍勢は脅威に数えない（みなが守りに入って動かなくなるのを防ぐ）
-    const posed = (s.warUntil ?? 0) < s.turn || a.ikki || hexOwner(s, a.hex) !== a.clan || s.clans[a.clan]?.target === clan;
+    const posed = !atWar(s, clan) || a.ikki || hexOwner(s, a.hex) !== a.clan || s.clans[a.clan]?.target === clan;
     if (posed && hostile(s, clan, a.clan) && !counted.has(a.id) && hexDist(a.hex, k.hex) <= R.hx(3)) { counted.add(a.id); threat += a.troops * a.morale; }
   }
   const localOwn = clanArmies(s, clan).reduce((t, a) => t + a.troops * a.morale, 0);
@@ -297,7 +297,7 @@ export async function runClanAI(s: GameState, clan: string) {
   { const C = s.clans[clan];
     // 攻勢に転じた月を覚え、しばらく様子を見てから攻めの陣触を出す（ゲームの始まりの数か月も平時のまま）
     if (stance === '攻勢') C.offensiveSince ??= s.turn; else C.offensiveSince = undefined;
-    const ready = stance === '攻勢' && ((s.warUntil ?? 0) >= s.turn || (s.turn - (C.offensiveSince ?? s.turn) >= AUTO.WAIT && s.turn > AUTO.GRACE));
+    const ready = stance === '攻勢' && (atWar(s, clan) || (s.turn - (C.offensiveSince ?? s.turn) >= AUTO.WAIT && s.turn > AUTO.GRACE));
     autoJinbure(s, clan, { policy: ready ? 'attack' : 'defend', camps: campsOf(s, clan), field: clanArmies(s, clan).filter((a) => !a.ikki && a.front === undefined), targetHexes: C.target ? clanCastles(s, C.target).map((k) => k.hex) : [] }); }
   const armies = clanArmies(s, clan).filter((a) => !a.ikki).sort((x, y) => y.troops - x.troops);
   const d = R.DIFFICULTY[s.difficulty];

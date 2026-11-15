@@ -15,6 +15,8 @@ export const OFFICE_START: Record<string, Partial<Record<OfficeId, string>>> = {
   '1552': { kanrei: 'miyoshi', kanreidai: 'rokkaku', kanto: 'uesugi', kubo: 'hojo', oshu: 'osaki', ushu: 'mogami' },
   // 1582: 将軍義昭は鞆にあって幕府は名ばかり。関東は信長が滝川一益を「関東の取次」に置いた
   '1582': { kanto: 'takigawa', kubo: 'hojo', oshu: 'date', ushu: 'mogami', kyushu: 'otomo' },
+  // 1572: 将軍義昭の幕府。関東管領は上杉謙信、古河公方は北条が擁する
+  '1572': { kanto: 'uesugi', kubo: 'hojo', oshu: 'date', ushu: 'mogami', kyushu: 'otomo' },
 };
 // 守護職（国 → 家）
 const SHUGO_1560: Record<string, string> = {
@@ -35,12 +37,15 @@ export const SHOBAN_START: Record<string, string[]> = {
   '1560': ['otomo', 'miyoshi', 'saito', 'amago'],
   '1552': ['amago', 'rokkaku'],
   '1582': ['mori', 'otomo', 'uesugi'],
+  '1572': ['otomo', 'uesugi', 'takeda'],
 };
 // 幕府の信任（0〜100）。書いていない家は30
 export const TRUST_START: Record<string, Record<string, number>> = {
   '1560': { otomo: 70, uesugi: 75, miyoshi: 45, saito: 55, amago: 55, imagawa: 50, takeda: 50, oda: 50, mori: 50, hojo: 40, rokkaku: 60, asakura: 55, date: 50, mogami: 45, kitabatake: 50, hatakeyama_k: 50, wakasa_takeda: 55, isshiki: 45, akamatsu: 40, yamana: 40, satomi: 35, shimazu: 40, ashikaga: 100 },
   '1552': { rokkaku: 75, amago: 60, uesugi: 65, miyoshi: 35, otomo: 55, imagawa: 50, takeda: 45, hojo: 40, ouchi: 30, osaki: 45, mogami: 45, asakura: 55, ashikaga: 100 },
   // 1582: 義昭を庇う毛利の信任が厚い。主を討った明智は低い
+  // 1572: 義昭は信長を疎み、信玄・朝倉・本願寺を頼る
+  '1572': { takeda: 80, asakura: 75, azai: 65, honganji: 65, miyoshi: 40, matsunaga: 45, oda: 30, matsudaira: 35, uesugi: 60, mori: 60, otomo: 55, hojo: 45, ashikaga: 100 },
   '1582': { mori: 80, uesugi: 55, otomo: 45, shimazu: 45, takeda: 0, akechi: 15, oda: 25, hashiba: 25, shibata: 25, matsudaira: 30, hojo: 40, date: 45, mogami: 45, satake: 40, ashikaga: 100 },
 };
 // 将軍に立てられる足利一門（擁立の候補）

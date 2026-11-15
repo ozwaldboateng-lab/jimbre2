@@ -31,6 +31,8 @@ export function coalitionFoes(s: GameState, clan: string): Set<string> {
   out.delete(clan);
   return out;
 }
+// 戦時から始まるシナリオの始め（s.warUntil まで）に、連合に関わる家（加わっているか、狙われている）は戦時として動く
+export const atWar = (s: GameState, clan: string) => (s.warUntil ?? 0) >= s.turn && (coalitionsOf(s, clan).length > 0 || coalitionAgainst(s, clan).length > 0);
 // 檄を出せるか
 export function gekiBlock(s: GameState, from: string, target: string): string | null {
   const F = s.clans[from], T = s.clans[target];

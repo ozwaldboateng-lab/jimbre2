@@ -3,6 +3,7 @@ import type { ClanDef, GeneralDef } from './roster';
 import { S1582 } from './s1582';
 import { S1536 } from './s1536';
 import { S1600 } from './s1600';
+import { S1572 } from './s1572';
 
 export interface Scenario {
   id: string; year: number; month: number; title: string; lede: string;
@@ -137,6 +138,7 @@ export const SCENARIOS: Scenario[] = [
   },
   S1582,
   S1536,
+  S1572,
   S1600,
 ];
 export const scenarioOf = (id: string | undefined) => SCENARIOS.find((x) => x.id === id) ?? SCENARIOS[0];

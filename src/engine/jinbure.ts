@@ -1,6 +1,7 @@
 // 陣触と陣払い: 平時の軍団は城の名簿（s.camps）として地図に出ず、兵糧もかからない。陣触で集まって地図に現れる
 // 陣触: 翌月に名簿の兵がそろって現れる。急ぎの陣触: その月のうちに名簿の半分が現れ、残りは翌月に追いつく
 // 陣払い: 本国の自分の城か、その隣にいる軍団を名簿に戻す（その月の行動を使う）
+import { atWar } from './coalition';
 import { membersOf, staffOf, treeOf, attachAuto, levelOf } from './corps';
 import { HEXES, NEIGHBORS, graphDistances, hexDist } from './map';
 import { nearestOwnCastle } from './ops';
@@ -237,7 +238,7 @@ export function autoJinbure(s: GameState, clan: string, o: AutoOpts) {
     }
   }
   // 平時の陣払い（戦時から始まるシナリオの始めはしない）
-  if ((s.warUntil ?? 0) < s.turn) for (const a of o.field) {
+  if (!atWar(s, clan)) for (const a of o.field) {
     if (!s.armies[a.id] || campBlock(s, a)) continue;
     if (s.turn - (a.musterTurn ?? -99) < AUTO.IDLE || s.turn - (a.fought ?? -99) < AUTO.IDLE) continue;
     if (near(a.hex, AUTO.CALM) > 0) continue;
