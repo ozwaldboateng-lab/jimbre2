@@ -7,8 +7,8 @@ import * as R from './rules';
 import { addLog, chron, amityOf, bumpAmity, clanKoku, clanName, rand, treatyOf } from './state';
 import type { GameState } from './types';
 
-export interface Coalition { id: number; leader: string; target: string; members: string[]; since: number }
-export const GEKI = { PRESTIGE: 50, COURT: 3, GOLD: 3000, COST_PRESTIGE: 3, COOLDOWN: 12, MIN_JOIN: 2, HEGEMON: 0.2, AI_CHANCE: 0.3, LEAVE_BASE: 0.01, MAX_SEND: 8 };
+export interface Coalition { id: number; leader: string; target: string; members: string[]; since: number; chief?: string }
+export const GEKI = { PRESTIGE: 50, COURT: 3, GOLD: 3000, COST_PRESTIGE: 3, COOLDOWN: 12, MIN_JOIN: 2, HEGEMON: 0.2, AI_CHANCE: 0.3, LEAVE_BASE: 0.003, MAX_SEND: 8 };
 
 const list = (s: GameState) => (s.coalitions ??= []);
 export const coalitionsOf = (s: GameState, clan: string) => list(s).filter((c) => c.members.includes(clan));
@@ -19,6 +19,17 @@ export const sameCoalition = (s: GameState, a: string, b: string) => !!s.coaliti
 export function coalitionTarget(s: GameState, clan: string): string | null {
   const ts = coalitionsOf(s, clan).map((c) => c.target).filter((t) => s.clans[t]?.alive);
   return ts.sort((a, b) => clanPower(s, b) - clanPower(s, a))[0] ?? null;
+}
+// 敵方: 自分の連合の標的と、自分の連合の家を討つ連合に加わっている家
+export function coalitionFoes(s: GameState, clan: string): Set<string> {
+  const out = new Set<string>();
+  for (const k of coalitionsOf(s, clan)) {
+    out.add(k.target);
+    for (const x of list(s)) if (k.members.includes(x.target) || x.target === clan) for (const m of x.members) if (!k.members.includes(m)) out.add(m);
+  }
+  for (const x of coalitionAgainst(s, clan)) for (const m of x.members) out.add(m);
+  out.delete(clan);
+  return out;
 }
 // 檄を出せるか
 export function gekiBlock(s: GameState, from: string, target: string): string | null {
@@ -93,6 +104,7 @@ export function leaveCoalition(s: GameState, clan: string, id: number, why = '')
 function settle(s: GameState, k: Coalition) {
   k.members = k.members.filter((m) => s.clans[m]?.alive);
   if (!k.members.includes(k.leader)) k.leader = [...k.members].sort((a, b) => clanPower(s, b) - clanPower(s, a))[0] ?? k.leader;
+  if (k.chief && (!s.generals[k.chief] || !k.members.includes(s.generals[k.chief].clan ?? '') || s.generals[k.chief].status === 'dead')) k.chief = undefined;
   if (k.members.length < 2 || !s.clans[k.target]?.alive) {
     s.coalitions = list(s).filter((x) => x !== k);
     if (s.clans[k.target]?.alive) addLog(s, `${clanName(s, k.target)}家を討つ連合は解けた。`, 'castle', k.members.includes(s.player) || k.target === s.player);
@@ -109,10 +121,16 @@ export async function monthlyCoalitions(s: GameState, ask: GekiAsk | undefined =
     settle(s, k);
     if (!list(s).includes(k)) continue;
     for (const m of [...k.members]) {
-      if (m === s.player) continue;
+      if (m === s.player || m === k.leader) continue; // 盟主は抜けない
       const leaderWeak = s.clans[k.leader].prestige < 25 ? 0.03 : 0;
       const p = GEKI.LEAVE_BASE + leaderWeak + Math.max(0, amityOf(s, m, k.target) - 55) / 400 + Math.max(0, 20 - amityOf(s, m, k.leader)) / 400;
-      if (rand(s) < p) leaveCoalition(s, m, k.id, amityOf(s, m, k.target) >= 55 ? '離れ、寝返った' : '離れた');
+      if (rand(s) < p) {
+        const turn = amityOf(s, m, k.target) >= 55;
+        leaveCoalition(s, m, k.id, turn ? '離れ、寝返った' : '離れた');
+        // 寝返り: 討つはずだった家の側の連合へ加わる
+        const other = turn ? list(s).find((x) => x.members.includes(k.target) && x.target !== m && !x.members.includes(m)) : undefined;
+        if (other) { other.members.push(m); bumpAmity(s, m, other.leader, 10); addLog(s, `${clanName(s, m)}家は${clanName(s, other.target)}家を討つ連合に加わった。`, 'castle', other.members.includes(s.player) || other.target === s.player); }
+      }
       if (!list(s).includes(k)) break;
     }
   }

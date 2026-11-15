@@ -47,6 +47,24 @@ const LEADER_LINE: Record<string, string> = {
   otomo_yoshiaki: '豊後から北九州を睨む。大内とは渡り合い、肥後にも手を伸ばす。',
   toki_yorinori: '美濃の守護は土岐家ぞ。……あの長井規秀、頼もしいが、どこか恐ろしい男よ。',
   mori_motonari: '大内と尼子の狭間で、毛利はまだ小さい。だが、生き延びた者が最後に勝つ。',
+  // 慶長五年
+  tokugawa_ieyasu: '鳴くまで待った。太閤は去り、天下は空いた。三成めが起ったのは、むしろ好都合よ。',
+  toyotomi_hideyori: '……母上、皆はなぜ戦をするのです。秀頼のためだと、治部は申しますが。',
+  ishida_mitsunari: '大一大万大吉。秀頼様の天下を守るため、内府を討つ。勝ち負けではない、義の戦だ。',
+  mori_terumoto: '総大将として大坂城に入った。だが毛利の家を傾けてはならぬ。祖父の遺した戒めを忘れるな。',
+  ukita_hideie: '太閤殿下には、わが子のように育てていただいた。その御恩を返すときが来た。',
+  nagao_akikage: '家康め、来るなら来い。上杉は謙信公以来、義に背いたことはない。',
+  kobayakawa_hideaki: '西につくか、東につくか……。皆が、わしの顔色を窺っておる。',
+  otani_yoshitsugu: '目はもう見えぬ。だが、戦の行方は見える。……それでも、友のために起つ。',
+  sanada_masayuki: '徳川の大軍など、上田で一度追い返しておる。二度目も同じこと。',
+  shimazu_yoshihisa: '上方の争いに、薩摩の兵をむやみに出すことはない。だが島津を侮る者は、痛い目を見よう。',
+  date_masamune: '百万石のお墨付きをもろうた。上杉の地を切り取るのは、今よ。',
+  maeda_toshinaga: '母上は江戸におられる。前田は、内府殿に従うほかない。',
+  fukushima_masanori: '三成だけは許せぬ。あやつを討つためなら、誰とでも組もう。',
+  kuroda_nagamasa: '父上は九州で何かを企んでおられる。わしは内府殿のそばで、東軍をまとめる。',
+  kato_kiyomasa: '上方の戦には遅れた。だが九州の西軍は、この清正が平らげてくれる。',
+  satake_yoshinobu: '治部には恩がある。上杉とも約がある。だが内府に逆らえば、家が残らぬ。',
+  mogami_yoshiaki: '上杉の大軍が来る。持ちこたえれば、伊達も内府も動く。',
 };
 const homeLine = (st: GameState, clan: string) => {
   const cs = clanCastles(st, clan);

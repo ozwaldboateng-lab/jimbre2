@@ -2,6 +2,7 @@
 import type { ClanDef, GeneralDef } from './roster';
 import { S1582 } from './s1582';
 import { S1536 } from './s1536';
+import { S1600 } from './s1600';
 
 export interface Scenario {
   id: string; year: number; month: number; title: string; lede: string;
@@ -22,6 +23,12 @@ export interface Scenario {
   treaties?: [string, string, number][]; // 開始時の同盟 [家, 家, 月数]
   foes?: [string, string][]; // 仇（主・一門を討たれた家, 討った家）
   castleState?: Record<string, { ember?: number; chian?: number; oldOwner?: string }>; // 開始時の城の残り火・治安
+  cast?: boolean; // 名簿の武将のうち moves に書いた者だけを出す（ほかはこの年にはもう亡い者）
+  castleNames?: Record<string, string>; // この年の城の名
+  coalitions?: { leader: string; target: string; members: string[]; chief?: string }[]; // 始めから成っている連合（chief は総大将の武将）
+  amity?: [string, string, number][]; // 開始時の親密度
+  noCamp?: boolean; // 戦の最中から始まる（軍団は陣払いの名簿に入れず、地図に出たまま）
+  war?: number; // 始まりからこの月数は戦時: AIは様子見をせずに攻めの陣触を出し、平時の陣払いをしない
 }
 
 export const SCENARIOS: Scenario[] = [
@@ -129,5 +136,6 @@ export const SCENARIOS: Scenario[] = [
   },
   S1582,
   S1536,
+  S1600,
 ];
 export const scenarioOf = (id: string | undefined) => SCENARIOS.find((x) => x.id === id) ?? SCENARIOS[0];

@@ -2493,8 +2493,8 @@ function rengoTab(st: GameState) {
   const row = (k: (typeof ks)[number]) => {
     const T = st.clans[k.target];
     const me = k.members.includes(st.player);
-    return `<tr${k.target === st.player ? ' class="me"' : ''}><td><span class="swatch" style="background:${T.color}"></span> ${esc(T.name)}${k.target === st.player ? '<span class="warn">（当家）</span>' : ''}</td><td>${esc(clanName(st, k.leader))}</td>
-      <td>${k.members.map((m) => (m === st.player ? '<b>当家</b>' : esc(clanName(st, m)))).join('・')}</td><td class="n">${k.members.length}</td>
+    return `<tr${k.target === st.player ? ' class="me"' : ''}><td><span class="swatch" style="background:${T.color}"></span> ${esc(T.name)}${k.target === st.player ? '<span class="warn">（当家）</span>' : ''}</td><td>${esc(clanName(st, k.leader))}${k.chief && st.generals[k.chief] ? `<br><span class="hint" style="margin:0">総大将 ${esc(st.generals[k.chief].name)}</span>` : ''}</td>
+      <td style="white-space:normal;min-width:14em;line-height:1.5">${k.members.map((m) => (m === st.player ? '<b>当家</b>' : esc(clanName(st, m)))).join('・')}</td><td class="n">${k.members.length}</td>
       <td class="n">${fmt(k.members.reduce((t2, m) => t2 + clanTroops(st, m), 0))} / ${fmt(clanTroops(st, k.target))}</td><td class="n">${st.turn - k.since}か月</td>
       <td>${me ? `<button class="mini" data-act="geki-leave" data-id="${k.id}">抜ける（威信−5）</button>` : ''}</td></tr>`;
   };

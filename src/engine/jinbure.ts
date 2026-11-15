@@ -236,8 +236,8 @@ export function autoJinbure(s: GameState, clan: string, o: AutoOpts) {
       if (attackN < AUTO.ATTACK_PER_MONTH && C.food > upkeep * 4 && muster(s, a, false)) attackN++;
     }
   }
-  // 平時の陣払い
-  for (const a of o.field) {
+  // 平時の陣払い（戦時から始まるシナリオの始めはしない）
+  if ((s.warUntil ?? 0) < s.turn) for (const a of o.field) {
     if (!s.armies[a.id] || campBlock(s, a)) continue;
     if (s.turn - (a.musterTurn ?? -99) < AUTO.IDLE || s.turn - (a.fought ?? -99) < AUTO.IDLE) continue;
     if (near(a.hex, AUTO.CALM) > 0) continue;

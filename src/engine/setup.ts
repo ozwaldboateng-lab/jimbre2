@@ -38,6 +38,7 @@ export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.n
   const sc = scenarioOf(scenario);
   const year = sc.year, month = sc.month;
   const castles: Castle[] = CASTLE_DEFS.map((c, i) => makeCastle(i, sc.owners && c.id in sc.owners ? sc.owners[c.id] : c.owner));
+  for (const c of castles) if (sc.castleNames?.[c.id]) c.name = sc.castleNames[c.id];
   for (const c of castles) { const cs = sc.castleState?.[c.id]; if (cs) { if (cs.ember !== undefined) c.ember = cs.ember; if (cs.chian !== undefined) c.chian = cs.chian; if (cs.oldOwner) c.oldOwner = cs.oldOwner; } }
   castles.forEach((c) => (c.garrison = garrisonMax(c)));
   const castleIdx = new Map(castles.map((c) => [c.id, c.i]));
@@ -63,6 +64,7 @@ export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.n
     generals[id] = g;
   }
   // この年にはもう亡い者
+  if (sc.cast) { const listed = new Set([...Object.keys(sc.moves ?? {}), ...born.keys()]); for (const [id] of GENERALS) if (!listed.has(id)) sc.dead = [...(sc.dead ?? []), id]; }
   for (const id of sc.dead ?? []) { const g = generals[id]; if (g) { g.status = 'dead'; g.formerClan = g.clan; g.clan = null; } }
   // 家が城を失っていれば浪人に
   for (const g of Object.values(generals)) if (g.clan && !clans[g.clan]?.alive && g.status !== 'dead') { g.formerClan = g.clan; g.clan = null; if (g.status !== 'young') g.status = 'ronin'; }
@@ -97,6 +99,14 @@ export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.n
   initStores(s);
   for (const [a, b] of sc.foes ?? []) if (clans[a]?.alive && clans[b]?.alive) s.bakufu!.foes[`${a}|${b}`] = s.turn;
   for (const [a, b, n] of sc.treaties ?? []) if (clans[a]?.alive && clans[b]?.alive) s.treaties.push({ a, b, kind: 'alliance', start: s.turn, until: s.turn + n });
+  for (const k of sc.coalitions ?? []) {
+    const members = k.members.filter((m) => clans[m]?.alive);
+    if (!clans[k.target]?.alive || members.length < 2) continue;
+    (s.coalitions ??= []).push({ id: (s.coalitionSeq = (s.coalitionSeq ?? 0) + 1), leader: k.leader, target: k.target, members, since: s.turn, chief: k.chief });
+    (s.gekiTried ??= {})[`${k.leader}|${k.target}`] = s.turn;
+  }
+  if (sc.war) s.warUntil = s.turn + sc.war;
+  for (const [a, b, v] of sc.amity ?? []) (s.amity ??= {})[a < b ? `${a}|${b}` : `${b}|${a}`] = v;
   for (const [id, [clan, holder]] of Object.entries(sc.items ?? {})) {
     const it = s.items[id];
     if (!it) continue;
@@ -167,7 +177,7 @@ export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.n
     clan.food = Math.round(owned.reduce((t, c) => t + castleKoku(c), 0) * 1500 + clanUpkeep(s, clan.id) * 6);
   }
   // 平時から始まる: 全家の軍団は陣払いの名簿（本能寺の変の直後のような、戦の最中のシナリオは地図に出たまま）
-  if (camp && sc.id !== '1582') campAll(s);
+  if (camp && sc.id !== '1582' && !sc.noCamp) campAll(s);
   s.log.push({ turn: 1, text: `${clans[player].name}家、${year}年${month}月に起つ。`, kind: 'info', mine: true });
   s.chronicle = [{ turn: s.turn, text: `${s.clans[s.player].name}家、起つ` }];
   return s;

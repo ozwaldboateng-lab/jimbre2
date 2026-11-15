@@ -1,5 +1,5 @@
 // 勢力AI（SPEC: 攻勢/均衡/守勢、包囲・側面・城確保の評価、不利戦闘の回避、70%ローテーション）
-import { coalitionTarget } from './coalition';
+import { coalitionFoes, coalitionTarget } from './coalition';
 import { meibun, shogunClan } from './bakufu';
 import { aiNinja } from './traits';
 import { aiFillCorps, attachAuto } from './corps';
@@ -11,7 +11,7 @@ import { attackTargets, reachable, type Target } from './move';
 import { canPlot, capital, doPlot, moveArmy, plotChance, recruitRonin } from './ops';
 import * as R from './rules';
 import { aiFeast } from './feast';
-import { amityOf, castleAt, hostile, rand, seenGarrison, castleKoku, clanArmies, mobilizeCap, clanCastles, clanTroops, garrisonMax, maxTroops, occupancy, troopMult, castleDef , farmTroops } from './state';
+import { amityOf, castleAt, hexOwner, hostile, rand, seenGarrison, castleKoku, clanArmies, mobilizeCap, clanCastles, clanTroops, garrisonMax, maxTroops, occupancy, troopMult, castleDef , farmTroops } from './state';
 import type { Army, GameState, General } from './types';
 import { aiFillBugyo, aiFillTsukai } from './ranks';
 import { aiEconomy } from './money';
@@ -108,13 +108,13 @@ export function decideStance(s: GameState, clan: string) {
   let neutralNear = false;
   for (const k of s.castles) if (hostile(s, clan, k.owner) && d[k.hex] <= R.hx(4)) { if (k.owner) neighbors.add(k.owner); else neutralNear = true; }
   let target: string | null = null, best = Infinity;
-  const coal = coalitionTarget(s, clan);
+  const coal = coalitionTarget(s, clan), foes = coalitionFoes(s, clan);
   for (const n of neighbors) {
     const p = power(n);
     // 官位の高い家は狙いにくい
     const sc = p / (own + 1) / (1 + clanCastles(s, n).reduce((t, k) => t + castleKoku(k), 0) / 400) / (1 - deterOf(s, n)) / (s.clans[n].usurp ? R.USURP_TARGET : 1) * (meibun(s, clan, n).ok ? 0.75 : 1) * (n === shogunClan(s) ? 4 : 1); // 僭称した家・名分のある家を狙い、将軍家は避ける
     const am = amityOf(s, clan, n); const scA = sc * (am >= 55 ? 1 + (am - 50) / 50 : 1); // 親しい家は狙いにくい（親密度100で2倍見送る）
-    const scC = scA * (n === coal ? 0.35 : 1); // 連合の標的は最優先
+    const scC = scA * (n === coal ? 0.35 : foes.has(n) ? 0.6 : 1); // 連合の標的は最優先、敵方の連合の家もその次に
     if (scC < best) { best = scC; target = n; }
   }
   c.target = target;
@@ -122,7 +122,9 @@ export function decideStance(s: GameState, clan: string) {
   let threat = 0;
   const counted = new Set<number>();
   for (const k of clanCastles(s, clan)) for (const a of Object.values(s.armies)) {
-    if (hostile(s, clan, a.clan) && !counted.has(a.id) && hexDist(a.hex, k.hex) <= R.hx(3)) { counted.add(a.id); threat += a.troops * a.morale; }
+    // 戦時から始まるシナリオの始めは、自分の領で構えているだけの隣の軍勢は脅威に数えない（みなが守りに入って動かなくなるのを防ぐ）
+    const posed = (s.warUntil ?? 0) < s.turn || a.ikki || hexOwner(s, a.hex) !== a.clan || s.clans[a.clan]?.target === clan;
+    if (posed && hostile(s, clan, a.clan) && !counted.has(a.id) && hexDist(a.hex, k.hex) <= R.hx(3)) { counted.add(a.id); threat += a.troops * a.morale; }
   }
   const localOwn = clanArmies(s, clan).reduce((t, a) => t + a.troops * a.morale, 0);
   if (threat > localOwn * 1.5) c.stance = '守勢';
@@ -295,7 +297,7 @@ export async function runClanAI(s: GameState, clan: string) {
   { const C = s.clans[clan];
     // 攻勢に転じた月を覚え、しばらく様子を見てから攻めの陣触を出す（ゲームの始まりの数か月も平時のまま）
     if (stance === '攻勢') C.offensiveSince ??= s.turn; else C.offensiveSince = undefined;
-    const ready = stance === '攻勢' && s.turn - (C.offensiveSince ?? s.turn) >= AUTO.WAIT && s.turn > AUTO.GRACE;
+    const ready = stance === '攻勢' && ((s.warUntil ?? 0) >= s.turn || (s.turn - (C.offensiveSince ?? s.turn) >= AUTO.WAIT && s.turn > AUTO.GRACE));
     autoJinbure(s, clan, { policy: ready ? 'attack' : 'defend', camps: campsOf(s, clan), field: clanArmies(s, clan).filter((a) => !a.ikki && a.front === undefined), targetHexes: C.target ? clanCastles(s, C.target).map((k) => k.hex) : [] }); }
   const armies = clanArmies(s, clan).filter((a) => !a.ikki).sort((x, y) => y.troops - x.troops);
   const d = R.DIFFICULTY[s.difficulty];

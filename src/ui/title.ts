@@ -25,7 +25,7 @@ const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const fmt = (n: number) => Math.round(n).toLocaleString('ja-JP');
 const man = (k: number) => `${k.toFixed(1)}万石`; // clanKoku は万石
 const kanjiNum = (n: number) => [...String(n)].map((d) => '〇一二三四五六七八九'[+d]).join('');
-const ERA_KANJI: Record<string, string> = { '1536': '天文五年', '1552': '天文二十一年', '1560': '永禄三年', '1582': '天正十年' };
+const ERA_KANJI: Record<string, string> = { '1536': '天文五年', '1552': '天文二十一年', '1560': '永禄三年', '1582': '天正十年', '1600': '慶長五年' };
 const DIFF_NOTE: Record<R.Difficulty, string> = { easy: 'AIは慎重に攻め、動員も控えめ。', normal: '標準。', hard: 'AIは攻め気が強く、囲みを狙う。', veryhard: 'AIの見積もりが鋭く、隙を見逃さない。' };
 
 type Screen = 'top' | 'era' | 'clan' | 'help' | 'opening';
@@ -75,7 +75,8 @@ export function closeTitleScreen() { $('title').hidden = true; }
 let openAnim = 0; // 序幕の地図のアニメーションの番号
 function setPreview() {
   preview = newGame('oda', 'normal', 1, scen);
-  if (!preview.clans[pick]?.alive) pick = 'oda';
+  const featured0 = scenarioOf(scen).featured?.[0];
+  if (!preview.clans[pick]?.alive || (pick === 'oda' && featured0 && scenarioOf(scen).cast)) pick = preview.clans.oda?.alive && !scenarioOf(scen).cast ? 'oda' : featured0 ?? 'oda'; // 関ヶ原のように名簿を絞ったシナリオは、主役の家から
   view!.state = preview;
   view!.highlight = null;
 }
