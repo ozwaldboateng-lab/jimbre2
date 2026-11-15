@@ -28,6 +28,7 @@ export interface Scenario {
   coalitions?: { leader: string; target: string; members: string[]; chief?: string }[]; // 始めから成っている連合（chief は総大将の武将）
   amity?: [string, string, number][]; // 開始時の親密度
   noCamp?: boolean; // 戦の最中から始まる（軍団は陣払いの名簿に入れず、地図に出たまま）
+  childLords?: string[]; // 幼くても当主に立てる者（元服を早めて当主にする。豊臣秀頼など）
   war?: number; // 始まりからこの月数は戦時: AIは様子見をせずに攻めの陣触を出し、平時の陣払いをしない
 }
 

@@ -70,6 +70,7 @@ export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.n
   for (const g of Object.values(generals)) if (g.clan && !clans[g.clan]?.alive && g.status !== 'dead') { g.formerClan = g.clan; g.clan = null; if (g.status !== 'young') g.status = 'ronin'; }
   for (const clan of Object.values(clans)) {
     const lead = sc.leaders?.[clan.id];
+    if (lead && sc.childLords?.includes(lead) && generals[lead]?.clan === clan.id && generals[lead].status === 'young') { const L0 = generals[lead]; L0.status = 'free'; L0.genpuku = undefined; if (L0.later) { L0.name = L0.later; L0.later = undefined; } }
     const mem = Object.values(generals).filter((g) => g.clan === clan.id && g.status !== 'dead');
     const adult = mem.filter((g) => g.status !== 'young'); // 名簿の順（当主が先頭）のまま、最初の大人
     clan.leader = lead && generals[lead]?.clan === clan.id && generals[lead].status !== 'young' ? lead : adult[0]?.id ?? mem[0]?.id ?? null;

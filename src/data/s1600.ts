@@ -115,6 +115,7 @@ export const S1600: Scenario = {
   cast: true,
   noCamp: true,
   war: 12,
+  childLords: ['toyotomi_hideyori'], // 八歳の秀頼を豊臣家の当主に
   castleNames: {
     ishiyama: '大坂城', kyo: '伏見城', inabayama: '岐阜城', kurokawa: '若松城', sunpu: '駿府城', hikuma: '浜松城', tsutsujigasaki: '甲府城', fukashi: '松本城',
     komoro: '上田城', kannonji: '大津城', tenjinyama: '岡山城', tachibana: '名島城', kawaradake: '中津城', kumamoto: '熊本城', ichijodani: '北ノ庄城',

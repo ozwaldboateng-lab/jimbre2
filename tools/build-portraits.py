@@ -3,7 +3,7 @@ import base64, glob, io, os, re, sys
 from PIL import Image
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-roster = ''.join(open(os.path.join(root, f), encoding='utf-8').read() for f in ('src/data/roster.ts', 'src/data/scenarios.ts', 'src/data/s1582.ts', 'src/data/s1536.ts', 'src/data/nanban.ts', 'src/data/envoys.ts', 'src/data/opening.ts'))
+roster = ''.join(open(os.path.join(root, f), encoding='utf-8').read() for f in ('src/data/roster.ts', 'src/data/scenarios.ts', 'src/data/s1582.ts', 'src/data/s1536.ts', 'src/data/s1600.ts', 'src/data/nanban.ts', 'src/data/envoys.ts', 'src/data/opening.ts'))
 ids = {name: gid for gid, name in re.findall(r"\['([a-z0-9_]+)', '([^']+)', '[a-z_]*', \d+", roster)}
 ids.update({name: gid for gid, name in re.findall(r"G\('([a-z0-9_]+)', '([^']+)', '[a-z_]*', \d+", roster) if name not in ids})  # 天文五年のシナリオ（G(...) で書いた武将）
 out, missing = [], []
