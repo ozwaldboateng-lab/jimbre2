@@ -1,0 +1,261 @@
+// 武将プレイ（試作）の画面: 城下の一枚絵・行ける所・人と旅の一覧・言葉の窓・日記。地図は使わず、画面一枚で遊ぶ
+import { SCENE_ART } from '../data/sceneArt';
+import { MINATO_ART } from '../data/scenes';
+import { runClanAI } from '../engine/ai';
+import { endTurn } from '../engine/game';
+import * as H from '../engine/hero';
+import { hexDist } from '../engine/map';
+import * as R from '../engine/rules';
+import { newGame } from '../engine/setup';
+import { clanCastles, clanName } from '../engine/state';
+import type { GameState, General } from '../engine/types';
+
+const KEY = 'sengoku-hero-auto';
+const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+const ART = (k: string) => SCENE_ART[k] ?? (k === 'minato' ? MINATO_ART : undefined);
+const BG: Record<string, string> = { town: 'ichi', tojo: 'zashiki_day', yashiki: 'zashiki_night', chaya: 'chashitsu', ichi: 'ichi', dojo: 'jinmaku', tera: 'hondo', tabi: 'yukimichi', nanban: 'minato', fushin: 'ishigaki', teisatsu: 'tsukiyo', choryaku: 'zashiki_night', month: 'tsukiyo' };
+
+type Face = (id: string | null | undefined, w: number) => string;
+let s: GameState | null = null;
+let face: Face = () => '';
+let onQuit: () => void = () => {};
+let root: HTMLElement | null = null;
+let pane: 'spots' | 'yashiki' | 'tabi' | 'diary' = 'spots';
+let bg = 'town';
+let say: { who?: string; line?: string; text: string } | null = null;
+let busy = false;
+let report: string[] | null = null;
+
+export function heroSaved(): boolean { try { return !!localStorage.getItem(KEY); } catch { return false; } }
+function save() { try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 保存できなくても続ける */ } }
+
+// 入り口: 主人公を選ぶ画面から
+export function openHero(f: Face, quit: () => void) {
+  face = f; onQuit = quit;
+  mount();
+  s = null; pane = 'spots'; say = null; report = null;
+  renderPick();
+}
+function mount() {
+  if (!document.getElementById('hero-style')) { const st = document.createElement('style'); st.id = 'hero-style'; st.textContent = CSS; document.head.appendChild(st); }
+  root = document.getElementById('hero');
+  if (!root) { root = document.createElement('div'); root.id = 'hero'; document.body.appendChild(root); root.addEventListener('click', onClick); }
+  root.hidden = false;
+}
+function close() { if (root) root.hidden = true; onQuit(); }
+
+// ───────── 主人公を選ぶ（試作は1560年の織田家） ─────────
+let pickState: GameState | null = null;
+const PICKS = ['kinoshita_tokichiro', 'maeda_toshiie', 'takigawa_kazumasu', 'sassa_narimasa', 'kawajiri_hidetaka', 'ikeda_tsuneoki', 'niwa_nagahide', 'shibata_katsuie'];
+function renderPick() {
+  pickState = newGame('oda', 'normal', undefined, '1560');
+  const gs = PICKS.map((id) => pickState!.generals[id]).filter((g): g is General => !!g && g.clan === 'oda' && g.status !== 'young' && g.status !== 'dead');
+  root!.innerHTML = `<div class="hr-pick">
+    <div class="hr-top"><button class="hr-btn ghost" data-h="quit">← タイトルへ</button><span class="hr-tag">武将で遊ぶ（試作）</span></div>
+    <h2>永禄三年 尾張 ― 織田家の家臣として生きる</h2>
+    <p class="hr-lede">桶狭間の勝ちから間もない清洲。大名の織田家は信長（AI）が動かす。あなたは家臣の一人として城下を歩き、主命を果たし、人と交わって出世を目指す。1か月は上旬・中旬・下旬の3旬。1旬に一つ行う。</p>
+    ${heroSaved() ? '<div class="hr-cont"><button class="hr-btn primary" data-h="continue">続きから</button></div>' : ''}
+    <div class="hr-grid">${gs.map((g) => `<button class="hr-card" data-h="pick" data-id="${g.id}">${face(g.id, 96) || `<span class="hr-noface">${esc(g.name.slice(0, 2))}</span>`}
+      <b>${esc(g.name)}</b><span>${R.RANK_NAME[g.rank]}・${pickState!.year - (g.born ?? pickState!.year)}歳</span><span class="hr-st">武${g.bra} 知${g.int} 統${g.lea} 魅${g.cha}</span></button>`).join('')}</div>
+  </div>`;
+}
+
+// ───────── 本体 ─────────
+function begin(id: string) {
+  s = pickState ?? newGame('oda', 'normal', undefined, '1560');
+  H.startHero(s, id);
+  bg = 'town'; pane = 'spots';
+  const me = H.heroOf(s)!, L = H.lordOf(s);
+  say = { who: L?.id, line: `${me.name}か。この清洲の城下で励め。主命は登城して受けよ。`, text: `${me.name}として、${s.castles[s.hero!.town].name}の城下に立った。` };
+  save(); render();
+}
+function render() {
+  if (!s || !root) return;
+  const st = s, Hh = st.hero!, me = H.heroOf(st)!, c = st.castles[Hh.town], L = H.lordOf(st);
+  const q = Hh.quest;
+  const next = me.rank > 0 ? R.MERIT_AT[me.rank - 1] : null;
+  const art = ART(BG[bg] ?? 'ichi');
+  root.innerHTML = `<div class="hr-main">
+    <header class="hr-head">
+      <div class="hr-id">${face(me.id, 56)}<div><b>${esc(me.name)}</b><span>${clanName(st, me.clan!)}家・${R.RANK_NAME[me.rank]}</span></div></div>
+      <div class="hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div>
+      <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd><dt>進物</dt><dd>${Hh.goods}</dd><dt>主君の覚え</dt><dd>${Hh.favor}</dd><dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
+      <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd></dl>
+      <button class="hr-btn ghost" data-h="quit" title="保存してタイトルへ">中断</button>
+    </header>
+    <div class="hr-quest">${q ? `<b>主命</b> ${esc(H.QUEST_NAME[q.kind])}：${esc(H.questText(st, q))} <span>${q.done >= q.need ? '<em>果たした。登城して報告せよ</em>' : `期日まで${Math.max(0, q.until - st.turn)}か月`}</span>` : `<b>主命</b> なし。${L ? `主君${esc(L.name)}は${esc(st.castles[L.loc].name)}にいる。登城すれば主命を受けられる。` : ''}`}</div>
+    <div class="hr-body">
+      <section class="hr-scene" style="${art ? `background-image:url(${art})` : ''}">
+        <div class="hr-town"><b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span></div>
+        ${say ? `<div class="hr-say">${say.who && say.line ? `<div class="hr-who">${face(say.who, 72) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p></div>` : ''}
+      </section>
+      <aside class="hr-side">
+        <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
+        <div class="hr-pane">${pane === 'spots' ? spotsHtml(st) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : diaryHtml(st)}</div>
+      </aside>
+    </div>
+    ${report ? `<div class="hr-modal"><div class="hr-report"><h3>${st.year}年${st.month}月を迎えた</h3><ul>${report.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><button class="hr-btn primary" data-h="report-ok">城下へ</button></div></div>` : ''}
+    ${busy ? '<div class="hr-modal"><div class="hr-busy">諸国の動き……</div></div>' : ''}
+  </div>`;
+}
+function spotsHtml(st: GameState) {
+  const c = st.castles[st.hero!.town];
+  const spots = H.spotsOf(st, c);
+  const work = H.canWork(st) ? `<button class="hr-spot main" data-h="work"><b>主命を果たす</b><span>${esc(H.QUEST_NAME[st.hero!.quest!.kind])}（1旬）</span></button>` : '';
+  const desc: Record<H.Spot, string> = { tojo: '主命を受ける・報告する', yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
+  return `${work}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
+    <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>`;
+}
+function peopleHtml(st: GameState) {
+  const me = H.heroOf(st)!;
+  const ps = H.townsfolk(st, st.hero!.town).sort((a, b) => (st.hero!.rel[b.id] ?? 0) - (st.hero!.rel[a.id] ?? 0) || Number(b.clan === me.clan) - Number(a.clan === me.clan) || a.rank - b.rank);
+  if (!ps.length) return '<p class="hr-none">この町に訪ねられる武将はいない。</p>';
+  return `<p class="hr-note">訪ねる・進物を贈ると親しくなる（1旬）。親しさ${H.HERO.FRIEND}で「友」の縁を結ぶ。</p>${ps.map((g) => {
+    const v = st.hero!.rel[g.id] ?? 0;
+    return `<div class="hr-person">${face(g.id, 44) || `<span class="hr-noface sm">${esc(g.name.slice(0, 1))}</span>`}<div class="hr-pi"><b>${esc(g.name)}</b><span>${g.clan ? `${esc(clanName(st, g.clan))}・${R.RANK_NAME[g.rank]}` : '浪人'}${g.status === 'governor' ? '・城主' : ''}</span><span class="hr-rel">${H.RELNAME(v)} ${v}</span></div>
+      <div class="hr-pa"><button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button></div></div>`;
+  }).join('')}`;
+}
+function travelHtml(st: GameState) {
+  const Hh = st.hero!, me = H.heroOf(st)!, here = st.castles[Hh.town];
+  const ids = new Set<number>();
+  for (const c of clanCastles(st, me.clan!)) ids.add(c.i);
+  if (Hh.quest) ids.add(Hh.quest.castle);
+  for (const c of st.castles) if (hexDist(c.hex, here.hex) <= R.hx(10)) ids.add(c.i);
+  ids.delete(Hh.town);
+  const L = H.lordOf(st);
+  const list = [...ids].map((i) => st.castles[i]).sort((a, b) => hexDist(a.hex, here.hex) - hexDist(b.hex, here.hex));
+  return `<p class="hr-note">道のりに応じて旬を使う。他国の城下にも入れる（主命の偵察・調略に）。</p>${list.map((c) => {
+    const tags = [c.i === L?.loc ? '主君' : '', Hh.quest?.castle === c.i ? '主命' : ''].filter(Boolean);
+    return `<button class="hr-town-row" data-h="travel" data-id="${c.i}"><b>${esc(c.name)}</b><span>${c.owner ? esc(clanName(st, c.owner)) : '国人'}${c.owner === me.clan ? '' : '（他国）'}</span>${tags.map((t) => `<em>${t}</em>`).join('')}<i>${H.travelJun(st, Hh.town, c.i)}旬</i></button>`;
+  }).join('')}`;
+}
+function diaryHtml(st: GameState) {
+  const d = [...st.hero!.diary].reverse().slice(0, 80);
+  return `<ol class="hr-diary">${d.map((x) => `<li><small>${dateOf(st, x.turn)}${H.JUN_NAME[Math.min(2, x.jun)]}</small>${esc(x.text)}</li>`).join('')}</ol>`;
+}
+const dateOf = (st: GameState, turn: number) => { const m0 = (st.startMonth ?? 6) - 1 + turn - 1; return `${(st.startYear ?? 1560) + Math.floor(m0 / 12)}年${(m0 % 12) + 1}月`; };
+
+// ───────── 行い ─────────
+async function act(fn: () => H.Act, scene?: string) {
+  if (!s || busy) return;
+  const r = fn();
+  if (!r.ok) { say = { text: r.text }; render(); return; }
+  if (scene) bg = scene;
+  say = { who: r.who, line: r.line, text: r.text };
+  await advance();
+}
+// 3旬が過ぎたら1か月を進める。月をまたぐ旅は続ける
+async function advance() {
+  const st = s!;
+  const lines: string[] = [];
+  while (st.hero!.jun >= H.HERO.JUN || st.hero!.travel) {
+    if (st.hero!.jun >= H.HERO.JUN) {
+      busy = true; render();
+      lines.push(...H.heroMonth(st));
+      const n0 = st.log.length;
+      await runClanAI(st, st.player);
+      await endTurn(st);
+      st.over = null; st.scenes = []; st.events = [];
+      lines.push(...st.log.slice(n0).filter((l) => l.mine && (l.kind === 'battle' || l.kind === 'castle' || l.kind === 'death')).map((l) => l.text).slice(-10));
+      busy = false;
+      const end = H.heroEnd(st);
+      if (end) { report = [...lines, end, '試作はここまで。']; render(); try { localStorage.removeItem(KEY); } catch { /* 続ける */ } return; }
+    }
+    if (st.hero!.travel && st.hero!.jun < H.HERO.JUN) H.stepTravel(st);
+  }
+  if (lines.length) report = [...new Set(lines)];
+  if (!st.hero!.travel) bg = bg === 'tabi' ? 'town' : bg;
+  save(); render();
+}
+
+function onClick(e: Event) {
+  const b = (e.target as HTMLElement).closest('[data-h]') as HTMLElement | null;
+  if (!b || busy) return;
+  const h = b.dataset.h!, id = b.dataset.id ?? '';
+  if (h === 'quit') { save(); s = null; close(); return; }
+  if (h === 'pick') { begin(id); return; }
+  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { bg = 'town'; pane = 'spots'; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; render(); } return; }
+  if (!s) return;
+  if (h === 'pane') { pane = id as typeof pane; render(); return; }
+  if (h === 'report-ok') { report = null; render(); return; }
+  if (h === 'rest') { void act(() => H.rest(s!), 'town'); return; }
+  if (h === 'work') { const k = s.hero!.quest!.kind; void act(() => H.work(s!), k); return; }
+  if (h === 'visit') { void act(() => H.visit(s!, id), 'yashiki'); return; }
+  if (h === 'gift') { void act(() => H.giveGift(s!, id), 'yashiki'); return; }
+  if (h === 'travel') { void act(() => H.travel(s!, +id), 'tabi'); pane = 'spots'; return; }
+  if (h === 'spot') {
+    const k = id as H.Spot;
+    if (k === 'yashiki') { pane = 'yashiki'; render(); return; }
+    if (k === 'tabi') { pane = 'tabi'; render(); return; }
+    const f: Record<string, () => H.Act> = { tojo: () => H.tojo(s!), chaya: () => H.rumor(s!), nanban: () => H.rumor(s!), ichi: () => H.buyGoods(s!), dojo: () => H.train(s!, 'dojo'), tera: () => H.train(s!, 'tera') };
+    void act(f[k], k);
+  }
+}
+
+const CSS = `
+#hero{position:fixed;inset:0;z-index:60;background:#0c0c0d;color:var(--paper,#ece2cc);overflow:auto;font-family:var(--font-body,serif)}
+#hero .hr-btn{border:1px solid rgba(207,169,94,.45);background:#1d1a16;color:inherit;padding:7px 14px;border-radius:3px;font-family:var(--font-ui,sans-serif);font-size:13px}
+#hero .hr-btn:hover:not(:disabled){border-color:#cfa95e;background:#2a231b}
+#hero .hr-btn:disabled{opacity:.4;cursor:default}
+#hero .hr-btn.primary{background:#c4432a;border-color:#dc5a3e;color:#fff}
+#hero .hr-btn.ghost{background:transparent}
+#hero .hr-btn.sm{padding:4px 9px;font-size:12px}
+.hr-pick{max-width:980px;margin:0 auto;padding:18px 16px 40px}
+.hr-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.hr-tag{color:#cfa95e;font-size:12px;letter-spacing:.1em}
+.hr-pick h2{font-family:var(--font-display,serif);font-weight:400;font-size:26px;margin:6px 0 8px}
+.hr-lede{color:#b8ab92;line-height:1.8;margin:0 0 14px;font-size:14px}
+.hr-cont{margin:0 0 14px}
+.hr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.hr-card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:1px solid rgba(207,169,94,.28);background:#151517;border-radius:4px}
+.hr-card:hover{border-color:#cfa95e}
+.hr-card img{border-radius:3px}
+.hr-card b{font-size:16px}.hr-card span{font-size:12px;color:#b8ab92}.hr-card .hr-st{font-family:var(--font-ui,sans-serif);font-size:11.5px}
+.hr-noface{display:grid;place-items:center;width:96px;height:120px;background:#202023;color:#cfa95e;font-size:24px;border-radius:3px}
+.hr-noface.sm{width:44px;height:55px;font-size:16px}
+.hr-main{min-height:100%;display:flex;flex-direction:column}
+.hr-head{display:flex;align-items:center;gap:16px;padding:8px 14px;border-bottom:1px solid rgba(207,169,94,.28);background:#151517;flex-wrap:wrap}
+.hr-id{display:flex;align-items:center;gap:10px}.hr-id img{border-radius:3px}.hr-id b{display:block;font-size:17px}.hr-id span{font-size:12px;color:#b8ab92}
+.hr-date{font-family:var(--font-display,serif);font-size:22px;color:#cfa95e;display:flex;flex-direction:column;line-height:1.1}.hr-date small{font-size:12px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}
+.hr-stats{display:grid;grid-auto-flow:column;grid-template-rows:auto auto;gap:0 14px;margin:0;flex:1;min-width:0}
+.hr-stats dt{font-size:10.5px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}.hr-stats dd{margin:0;font-family:var(--font-ui,sans-serif);font-size:14px;white-space:nowrap}.hr-stats small{color:#b8ab92;font-size:11px}
+.hr-quest{padding:8px 14px;background:#1a1712;border-bottom:1px solid rgba(207,169,94,.18);font-size:13.5px;line-height:1.6}
+.hr-quest b{color:#cfa95e;margin-right:6px}.hr-quest span{color:#b8ab92;margin-left:6px}.hr-quest em{color:#8fb36a;font-style:normal}
+.hr-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}
+.hr-scene{position:relative;background:#202023 center/cover no-repeat;min-height:420px;display:flex;flex-direction:column;justify-content:space-between}
+.hr-town{margin:12px;align-self:flex-start;background:rgba(10,10,10,.72);padding:6px 12px;border-left:3px solid #cfa95e}
+.hr-town b{font-family:var(--font-display,serif);font-size:20px;font-weight:400;display:block}.hr-town span{font-size:12px;color:#b8ab92}
+.hr-say{margin:12px;background:rgba(10,10,10,.82);border:1px solid rgba(207,169,94,.3);padding:12px 14px;border-radius:3px}
+.hr-who{display:flex;gap:12px;align-items:flex-start;margin-bottom:6px}.hr-who img{border-radius:3px;flex:none}
+.hr-who b{color:#cfa95e}.hr-who p{margin:4px 0 0;font-size:16px;line-height:1.7}
+.hr-text{margin:0;color:#ddd2ba;font-size:14px;line-height:1.75}
+.hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}
+.hr-tabs{display:flex;border-bottom:1px solid rgba(207,169,94,.2)}
+.hr-tabs button{flex:1;background:none;border:0;padding:10px 0;color:#b8ab92;font-family:var(--font-ui,sans-serif);font-size:13px;border-bottom:2px solid transparent}
+.hr-tabs button.on{color:#ece2cc;border-bottom-color:#cfa95e}
+.hr-pane{padding:10px;overflow:auto;flex:1}
+.hr-spot{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;background:#1a1816;border:1px solid rgba(207,169,94,.22);padding:9px 12px;margin-bottom:6px;border-radius:3px}
+.hr-spot:hover{border-color:#cfa95e}.hr-spot b{font-size:15px}.hr-spot span{font-size:12px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}
+.hr-spot.main{background:#3a1f16;border-color:#dc5a3e}.hr-spot.dim{opacity:.75}
+.hr-note{font-size:12px;color:#b8ab92;margin:0 0 8px;line-height:1.6;font-family:var(--font-ui,sans-serif)}
+.hr-none{color:#b8ab92}
+.hr-person{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(207,169,94,.12)}
+.hr-person img{border-radius:2px;flex:none}.hr-pi{flex:1;display:flex;flex-direction:column;min-width:0}.hr-pi b{font-size:14px}.hr-pi span{font-size:11.5px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}
+.hr-pi .hr-rel{color:#cfa95e}.hr-pa{display:flex;flex-direction:column;gap:4px}
+.hr-town-row{display:grid;grid-template-columns:1fr auto auto;grid-template-areas:"n t j" "o t j";align-items:center;gap:0 8px;width:100%;text-align:left;background:#1a1816;border:1px solid rgba(207,169,94,.18);padding:7px 10px;margin-bottom:5px;border-radius:3px}
+.hr-town-row:hover{border-color:#cfa95e}.hr-town-row b{grid-area:n}.hr-town-row span{grid-area:o;font-size:11.5px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}
+.hr-town-row em{grid-area:t;font-style:normal;font-size:11px;color:#1a1410;background:#cfa95e;padding:1px 6px;border-radius:2px}.hr-town-row i{grid-area:j;font-style:normal;color:#cfa95e;font-family:var(--font-ui,sans-serif)}
+.hr-diary{list-style:none;margin:0;padding:0}.hr-diary li{padding:6px 0;border-bottom:1px solid rgba(207,169,94,.1);font-size:13px;line-height:1.6}.hr-diary small{display:block;color:#cfa95e;font-family:var(--font-ui,sans-serif);font-size:11px}
+.hr-modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:61;padding:16px}
+.hr-report{background:#151517;border:1px solid #cfa95e;padding:18px 20px;max-width:560px;width:100%;max-height:80vh;overflow:auto;border-radius:4px}
+.hr-report h3{font-family:var(--font-display,serif);font-weight:400;margin:0 0 10px;font-size:22px;color:#cfa95e}
+.hr-report ul{margin:0 0 14px;padding-left:18px;line-height:1.75;font-size:14px}
+.hr-busy{font-family:var(--font-display,serif);font-size:22px;color:#cfa95e}
+@media (min-width:821px){.hr-main{height:100vh}.hr-body{overflow:hidden}.hr-side{overflow:hidden}.hr-scene{min-height:0}}
+@media (max-width:820px){
+  .hr-body{grid-template-columns:1fr}.hr-scene{min-height:300px}.hr-side{border-left:0;border-top:1px solid rgba(207,169,94,.2)}
+  .hr-head{gap:10px}.hr-stats{grid-auto-flow:row;grid-template-columns:repeat(5,auto);grid-template-rows:auto;order:3;flex-basis:100%}
+  .hr-stats dt{grid-row:1}.hr-stats dd{grid-row:2;font-size:12.5px}
+}
+`;

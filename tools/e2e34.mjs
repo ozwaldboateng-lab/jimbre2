@@ -1,11 +1,11 @@
 // 天正十年（1582）本能寺の変: 時代の札、明智・羽柴で始める、名分（主殺しの仇）、将軍の空位、亡い者が出ない
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2];
 const mobile = process.argv[3] === 'mobile';
 const sfx = mobile ? '-m' : '';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const res = {};
 const errors = [];
 for (const clan of ['hashiba', 'akechi']) {

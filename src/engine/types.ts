@@ -26,7 +26,7 @@ export interface Castle {
   store?: number; // 城の蔵（籠城の備えの兵糧、石）。飛び地では収穫もここに入る
 }
 
-export type GeneralStatus = 'free' | 'army' | 'camp' | 'governor' | 'captive' | 'dead' | 'ronin' | 'young' | 'tsukai' | 'bugyo'; // camp: 陣払い中の軍団（名簿）に属し、城にいる
+export type GeneralStatus = 'free' | 'army' | 'camp' | 'governor' | 'captive' | 'dead' | 'ronin' | 'young' | 'tsukai' | 'bugyo' | 'hero'; // hero: 武将プレイの主人公（AIの編成・城主・奉行に使わない） // camp: 陣払い中の軍団（名簿）に属し、城にいる
 export interface General {
   id: string; name: string; clan: string | null;
   bra: number; int: number; lea: number; cha: number;
@@ -157,6 +157,7 @@ export interface GameState {
   gifted?: Record<string, number>; // 贈り物を送ったターン（'送り手|相手'）
   coalitions?: { id: number; leader: string; target: string; members: string[]; since: number; chief?: string }[]; // 檄で成った連合
   coalitionSeq?: number;
+  hero?: import('./hero').Hero; // 武将プレイ（試作）の主人公
   warUntil?: number; // このターンまでは戦時（シナリオの始まり）。AIは様子見せず、平時の陣払いをしない
   gekiTried?: Record<string, number>; // 檄を出したターン（'盟主|標的'）
   gekiTurn?: Record<string, number>; // 家ごとに最後に檄を出したターン

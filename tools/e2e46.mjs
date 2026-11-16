@@ -1,9 +1,9 @@
 // 降った家の本領安堵: 当主が城持ち（外様）に、家臣は陪臣に、蔵は領の蔵に。引き抜きで主の恩が1.5倍下がる
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2], mobile = process.argv[3] === 'mobile', sfx = mobile ? '-m' : '';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: mobile ? { width: 390, height: 844 } : { width: 1360, height: 820 } });
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror ' + e.message));

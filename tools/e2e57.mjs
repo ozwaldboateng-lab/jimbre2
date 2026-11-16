@@ -1,9 +1,9 @@
 // 大きな出来事の場面: 家督相続（当主の死）・降伏（降伏勧告が通る）・謀反（城持ちの領）・滅亡（最後の城を落とす）
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2], mobile = process.argv[3] === 'mobile', sfx = mobile ? '-m' : '';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1360, height: 820 } });
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror ' + e.message));

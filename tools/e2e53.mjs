@@ -1,10 +1,10 @@
 // 序幕: 時代（シナリオ）を選ぶと、家選びの前に暗い地図の上で背景を語る。押すと次へ、最後で家選びへ。飛ばせる
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2], mobile = process.argv[3] === 'mobile', sfx = mobile ? '-m' : '';
 const scen = process.argv[4] ?? '1560';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1360, height: 820 } });
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror ' + e.message));

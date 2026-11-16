@@ -1,4 +1,5 @@
 // 画面の組み立てと操作
+import { openHero } from './hero';
 import { coalitionAgainst, GEKI, gekiBlock, gekiCandidates, gekiChance, issueGeki, leaveCoalition, sameCoalition, setGekiHook } from '../engine/coalition';
 import { defenderSupports, estimate, supportArmies } from '../engine/combat';
 import { endTurn } from '../engine/game';
@@ -1238,6 +1239,7 @@ function openTitle() {
     help: (st) => TABS.help(st), face: (id, w) => face(id, w),
     start: (clan, diff, scen) => { startWith(newGame(clan, diff, undefined, scen, campStart())); store(AUTO_KEY, JSON.stringify(s)); if (s && kidachiOn()) { const st = s; const b = kidachiBeats(st); if (b.length) playScene(view, st, `${st.clans[st.player].name}家、起つ`, b, (id, w) => face(id, w), () => { mapMood(st); const c = capital(st, st.player); if (c) view.centerOn(c.hex, Math.min(2.4, Math.max(1.4, view.w / 520))); refresh(); }); } },
     resume: () => { if (auto) startWith(auto); },
+    hero: () => openHero((id, w) => face(id, w), () => openTitle()),
   });
 }
 

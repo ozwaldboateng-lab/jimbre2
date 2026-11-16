@@ -1,7 +1,7 @@
 // 音: 自動テストの印（webdriver）を隠して実際に鳴らし、タイトル・地図・評定終了・合戦・設定でエラーが出ないか
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2];
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--autoplay-policy=no-user-gesture-required'] });
 const p = await b.newPage({ viewport: { width: 1360, height: 820 } });

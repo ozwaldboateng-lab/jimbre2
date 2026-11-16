@@ -1,9 +1,9 @@
 // 幕府・南蛮とのやり取りの顔見せ（献金・御内書・南蛮船の商い・来航・布教の願い出）
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2];
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1360, height: 820 } });
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror ' + e.message));

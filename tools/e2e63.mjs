@@ -1,14 +1,14 @@
 // 険山: 地図の表示（山脈の峰・名・峠の札）、マスの説明、移動範囲に入らないこと
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 import { readFileSync } from 'node:fs';
 const MAP = JSON.parse(readFileSync(new URL('../src/data/map.json', import.meta.url)));
 const HIDA = MAP.hexes.findIndex((h) => h.x === MAP.ranges.findIndex((r) => r.name === '飛騨山脈'));
 const FUJI = MAP.hexes.findIndex((h) => h.x === MAP.ranges.findIndex((r) => r.name === '富士山'));
 const BLOCKED = MAP.hexes.flatMap((h, i) => (h.x !== undefined ? [i] : []));
 const out = process.argv[2], mobile = process.argv[3] === 'mobile', sfx = mobile ? '-m' : '';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1360, height: 820 }, deviceScaleFactor: 2 });
 p.setDefaultTimeout(10000);
 const errors = [];

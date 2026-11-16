@@ -1,11 +1,11 @@
 // タイトル「陣触」: 最初の画面・時代を選ぶ・家を選ぶ（地図で選ぶ・札で選ぶ）・遊び方・続きから
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2];
 const mobile = process.argv[3] === 'mobile';
 const sfx = mobile ? '-m' : '';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const ctx = await b.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1360, height: 820 } });
 const p = await ctx.newPage();
 const errors = [];

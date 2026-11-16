@@ -75,7 +75,7 @@ export async function issueGeki(s: GameState, from: string, target: string, ask?
   const cands = gekiCandidates(s, from, target).sort((a, b) => gekiChance(s, b, from, target) - gekiChance(s, a, from, target));
   const sent = [...new Set([...cands.slice(0, GEKI.MAX_SEND), ...cands.filter((c) => c === s.player)])];
   for (const c of sent) {
-    const yes = c === s.player ? (ask ? await ask(from, target) : false) : rand(s) < gekiChance(s, c, from, target);
+    const yes = c === s.player && !s.hero ? (ask ? await ask(from, target) : false) : rand(s) < gekiChance(s, c, from, target);
     (yes ? joined : refused).push(c);
   }
   const ok = joined.length >= GEKI.MIN_JOIN || (joined.length >= 1 && (from === s.player || joined.includes(s.player)) && joined.length + 1 >= GEKI.MIN_JOIN);

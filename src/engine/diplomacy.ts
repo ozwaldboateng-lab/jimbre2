@@ -235,7 +235,7 @@ export async function aiDiplomacy(s: GameState, clan: string) {
   const sp = spareItem(s, clan);
   if (o.ok && o.p < 0.4 && sp) { const o2 = evaluate(s, 'alliance', clan, n, sp.id); if (o2.p >= 0.25) { o = o2; gift = sp.id; } }
   if (!o.ok || o.p < 0.25) return;
-  if (n === s.player) {
+  if (n === s.player && !s.hero) { // 武将プレイでは当家の大名もAIなので、AIどうしの申し入れとして扱う
     s.clans[clan].gold -= o.cost;
     s.dipTried[`${clan}|${n}`] = s.turn;
     const yes = ask ? await ask(s, clan, 'alliance') : false;

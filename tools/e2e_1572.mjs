@@ -1,9 +1,9 @@
 // 元亀三年（信長包囲網）のシナリオ: 始まり・連合の画面・数か月進める
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2];
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const errors = [];
 for (const [vp, clan] of [[{ width: 1360, height: 820, tag: 'pc' }, 'ashikaga'], [{ width: 390, height: 844, tag: 'sp' }, 'oda']]) {
   const p = await b.newPage({ viewport: { width: vp.width, height: vp.height } });

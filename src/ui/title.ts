@@ -19,6 +19,7 @@ export interface TitleDeps {
   face: (id: string | null | undefined, w: number) => string;
   start: (clan: string, diff: R.Difficulty, scen: string) => void;
   resume: () => void;
+  hero: () => void; // 武将で遊ぶ（試作）
 }
 
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -125,6 +126,7 @@ function onClick(e: Event) {
   if (!btn || !deps) return;
   const act = btn.dataset.act!, id = btn.dataset.id ?? '';
   if (act === 't-new') go('era');
+  else if (act === 't-hero') { closeTitleScreen(); deps.hero(); }
   else if (act === 't-continue') { closeTitleScreen(); deps.resume(); }
   else if (act === 't-help') go('help');
   else if (act === 't-back') back();
@@ -158,6 +160,7 @@ function topHtml() {
   return `${brand()}
   <nav class="ttl-menu" aria-label="タイトル">
     <button type="button" class="ttl-item" data-act="t-new"><b>新しく始める</b><span>時代と家を選んで出陣する</span></button>
+    <button type="button" class="ttl-item" data-act="t-hero"><b>武将で遊ぶ<small>（試作）</small></b><span>織田家の家臣として城下を歩き、出世を目指す</span></button>
     ${d.auto ? `<button type="button" class="ttl-item" data-act="t-continue"><b>続きから</b><span>${esc(d.autoLabel)}</span></button>` : ''}
     <button type="button" class="ttl-item" data-act="t-help"><b>遊び方</b><span>操作・用語・仕組み</span></button>
   </nav>

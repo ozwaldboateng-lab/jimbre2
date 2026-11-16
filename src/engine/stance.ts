@@ -33,6 +33,6 @@ export async function decideStance(s: GameState, attackers: Army[], t: Target): 
   if (t.army.rojo !== undefined && s.turn - t.army.rojo <= 1) return 'rojo'; // 野戦に敗れて籠城したばかり
   if (attackers.some((a) => s.sieges?.[c.i]?.clan === a.clan)) return 'rojo'; // 月をまたいで囲まれている城は、囲みの続き（城攻め）として戦う
   const { fieldWin, rojoWin } = stanceOdds(s, attackers, t);
-  if (t.army.clan === s.player && stanceHook && !delegatedCastle(s, c)) return stanceHook(s, { castle: c, defender: t.army, attackers, fieldWin, rojoWin });
+  if (t.army.clan === s.player && stanceHook && !s.hero && !delegatedCastle(s, c)) return stanceHook(s, { castle: c, defender: t.army, attackers, fieldWin, rojoWin });
   return autoStance(fieldWin, rojoWin);
 }

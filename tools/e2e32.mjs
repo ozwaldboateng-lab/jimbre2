@@ -1,8 +1,8 @@
 // 人事が開かなくなる不具合の再発防止: 一揆の頭など消えた武将が「判明した敵将」に残っていても、人事（人材）が開く
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const { chromium } = require('playwright');
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1360, height: 820 } });
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));

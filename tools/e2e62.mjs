@@ -1,9 +1,9 @@
 // 陣触と陣払い: 名簿（陣払い）から始まる新しいゲーム、陣立ての陣触・急ぎの陣触、評定終了で現れる、陣払いで名簿に戻る、部隊の一覧、兵糧
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2], mobile = process.argv[3] === 'mobile', sfx = mobile ? '-m' : '';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1360, height: 820 } });
 p.setDefaultTimeout(10000);
 const errors = [];

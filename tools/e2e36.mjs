@@ -1,11 +1,11 @@
 // 兵站（第一段）: 補給の地図表示、部隊の補給の札（補給下・遠征・補給切れ・兵糧尽き）、城の蔵と飛び地、兵站奉行、包囲された城の蔵、月末の兵糧
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const out = process.argv[2];
 const mobile = process.argv[3] === 'mobile';
 const sfx = mobile ? '-m' : '';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: mobile ? { width: 390, height: 844 } : { width: 1360, height: 820 } });
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror ' + e.message));

@@ -1,0 +1,333 @@
+// 武将プレイ（試作）: 大名ではなく一人の武将として生きる。家は大名のAIが動かし、プレイヤーは城下を歩き、主命を果たし、人と交わる。
+// 時は旬（10日）で刻む。1か月は3旬。3旬が過ぎると、裏で大名たちの1か月が進む（ゲームの endTurn）。
+// 武将は status 'hero' にして、AIの編成・城主・奉行に使われないようにする（主命・合戦はこちらで扱う）。
+import { hexDist } from './map';
+import { storeOf } from './supply';
+import { delegateOf } from './delegate';
+import { addMerit } from './ranks';
+import * as R from './rules';
+import { addLog, castleKoku, clanCastles, clanName, garrisonMax, hostile, learnCastle, rand } from './state';
+import type { Castle, GameState, General } from './types';
+
+export type QuestKind = 'fushin' | 'teisatsu' | 'choryaku';
+export interface Quest { kind: QuestKind; castle: number; need: number; done: number; until: number; ok?: boolean; note?: string }
+export interface Hero {
+  id: string; town: number; jun: number; gold: number; favor: number; goods: number;
+  rel: Record<string, number>; met: Record<string, number>; // 親しさ（0〜100）と、最後に会った旬（turn*3+jun）
+  quest: Quest | null; travel: { to: number; left: number } | null;
+  diary: { turn: number; jun: number; text: string }[]; done: number; failed: number; trained: number; lastQuest?: number;
+}
+export const HERO = {
+  JUN: 3, PAY: [400, 200, 100, 50], // 身分ごとの月の俸禄（宿老・侍大将・足軽大将・足軽組頭）
+  QUEST_MONTHS: 3, FAVOR_OK: { fushin: 6, teisatsu: 5, choryaku: 10 }, FAVOR_NG: 8,
+  MERIT: { fushin: 15, teisatsu: 12, choryaku: 25 }, PAYOUT: { fushin: 100, teisatsu: 80, choryaku: 200 },
+  VISIT: 8, GIFT_COST: 50, GIFT_REL: 12, GOODS_COST: 50, FRIEND: 70, TRAIN_COST: 30, TRAIN_P: 0.35, STAT_CAP: 95,
+  TRAVEL_HEX: R.hx(12), // 1旬で進めるおよその道のり
+};
+export const QUEST_NAME: Record<QuestKind, string> = { fushin: '普請', teisatsu: '偵察', choryaku: '調略' };
+
+export const heroOf = (s: GameState) => (s.hero ? s.generals[s.hero.id] : null);
+export const lordOf = (s: GameState) => { const g = heroOf(s); const l = g?.clan ? s.clans[g.clan].leader : null; return l ? s.generals[l] : null; };
+export const nowJun = (s: GameState) => s.turn * 3 + (s.hero?.jun ?? 0);
+export const JUN_NAME = ['上旬', '中旬', '下旬'];
+
+export function startHero(s: GameState, id: string) {
+  const g = s.generals[id];
+  s.player = g.clan!;
+  // 家の政はみな大名（AI）が行う
+  const d = delegateOf(s); for (const k of Object.keys(d) as (keyof typeof d)[]) d[k] = true;
+  // 部隊・城主・奉行から外し、城下に立つ
+  for (const a of Object.values(s.armies)) { if (a.main === id) { const st = (a.staff ?? []).shift(); if (st) a.main = st; } a.staff = (a.staff ?? []).filter((x) => x !== id); }
+  for (const a of Object.values(s.camps ?? {})) { a.staff = (a.staff ?? []).filter((x) => x !== id); }
+  for (const c of s.castles) if (c.governor === id) c.governor = null;
+  g.status = 'hero'; g.army = null;
+  s.hero = { id, town: g.loc, jun: 0, gold: 200, favor: 30, goods: 0, rel: {}, met: {}, quest: null, travel: null, diary: [], done: 0, failed: 0, trained: 0 };
+  note(s, `${g.name}、${s.castles[g.loc].name}の城下にあり。主君${lordOf(s)?.name ?? ''}に仕える${R.RANK_NAME[g.rank]}。`);
+}
+export function note(s: GameState, text: string) { const H = s.hero!; H.diary.push({ turn: s.turn, jun: H.jun, text }); if (H.diary.length > 300) H.diary.shift(); }
+
+// 城下にあるもの（城の大きさと土地柄で決まる）
+export type Spot = 'tojo' | 'yashiki' | 'chaya' | 'ichi' | 'dojo' | 'tera' | 'tabi' | 'nanban';
+export const SPOT_NAME: Record<Spot, string> = { tojo: '登城', yashiki: '屋敷を訪ねる', chaya: '茶屋', ichi: '市', dojo: '道場', tera: '寺', tabi: '旅に出る', nanban: '南蛮屋' };
+export function spotsOf(s: GameState, c: Castle): Spot[] {
+  const big = castleKoku(c) >= 12;
+  const out: Spot[] = [];
+  if (lordOf(s)?.loc === c.i) out.push('tojo');
+  out.push('yashiki', 'chaya');
+  if (big || c.id === 'kyo' || c.id === 'kishiwada') out.push('ichi');
+  if (big) out.push('dojo');
+  if (big || ['kyo', 'ishiyama', 'kanazawa', 'shigisan'].includes(c.id)) out.push('tera');
+  if (['funai', 'hirado', 'kishiwada', 'kyo'].includes(c.id)) out.push('nanban');
+  out.push('tabi');
+  return out;
+}
+// この町にいる武将（会える者）
+export function townsfolk(s: GameState, ci: number): General[] {
+  const H = s.hero!;
+  return Object.values(s.generals).filter((g) => g.id !== H.id && g.loc === ci && (g.status === 'free' || g.status === 'governor' || g.status === 'bugyo' || g.status === 'tsukai' || g.status === 'camp' || g.status === 'ronin'));
+}
+const relOf = (s: GameState, id: string) => s.hero!.rel[id] ?? 0;
+export const RELNAME = (v: number) => (v >= 80 ? '刎頸の交わり' : v >= HERO.FRIEND ? '友' : v >= 40 ? '親しい' : v >= 15 ? '顔見知り' : '初対面');
+const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
+
+// ───────── 旬ごとの行い（どれも1旬を使う。戻り値は画面に出す言葉） ─────────
+export interface Act { ok: boolean; text: string; who?: string; line?: string }
+const used = (s: GameState) => { s.hero!.jun++; };
+
+export function visit(s: GameState, gid: string): Act {
+  const H = s.hero!, me = heroOf(s)!, g = s.generals[gid];
+  if (g.loc !== H.town) return { ok: false, text: 'その人はこの町にいない' };
+  const first = !H.rel[gid];
+  const same = g.clan === me.clan;
+  const gain = Math.round(HERO.VISIT + me.cha / 15 + (same ? 2 : 0) + rand(s) * 6 - (H.met[gid] !== undefined && nowJun(s) - H.met[gid] < 3 ? 6 : 0)); // 続けて訪ねると少ない
+  H.rel[gid] = clamp(relOf(s, gid) + Math.max(1, gain));
+  H.met[gid] = nowJun(s);
+  const line = talk(s, g, first);
+  bondUp(s, g);
+  used(s);
+  return { ok: true, who: gid, line, text: `${g.name}の屋敷を訪ねた。（${RELNAME(H.rel[gid])} ${H.rel[gid]}）` };
+}
+export function giveGift(s: GameState, gid: string): Act {
+  const H = s.hero!, g = s.generals[gid];
+  if (g.loc !== H.town) return { ok: false, text: 'その人はこの町にいない' };
+  if (H.goods < 1 && H.gold < HERO.GIFT_COST) return { ok: false, text: `進物がなく、金も${HERO.GIFT_COST}貫に足りない` };
+  if (H.goods > 0) H.goods--; else H.gold -= HERO.GIFT_COST;
+  H.rel[gid] = clamp(relOf(s, gid) + HERO.GIFT_REL + Math.round(rand(s) * 6));
+  H.met[gid] = nowJun(s);
+  bondUp(s, g);
+  used(s);
+  return { ok: true, who: gid, line: pickLine(s, GIFT_LINE), text: `${g.name}に進物を贈った。（${RELNAME(H.rel[gid])} ${H.rel[gid]}）` };
+}
+function bondUp(s: GameState, g: General) {
+  const me = heroOf(s)!, v = relOf(s, g.id);
+  if (v < HERO.FRIEND || (me.bonds ?? []).some((b) => b.id === g.id)) return;
+  (me.bonds ??= []).push({ id: g.id, kind: 'friend' });
+  (g.bonds ??= []).push({ id: me.id, kind: 'friend' });
+  note(s, `${g.name}と友の契りを結んだ。`);
+}
+export function buyGoods(s: GameState): Act {
+  const H = s.hero!;
+  if (H.gold < HERO.GOODS_COST) return { ok: false, text: `金が${HERO.GOODS_COST}貫に足りない` };
+  H.gold -= HERO.GOODS_COST; H.goods++;
+  used(s);
+  return { ok: true, text: `市で進物（反物と酒）を買い求めた。手元の進物 ${H.goods}。` };
+}
+export function train(s: GameState, kind: 'dojo' | 'tera'): Act {
+  const H = s.hero!, me = heroOf(s)!;
+  if (H.gold < HERO.TRAIN_COST) return { ok: false, text: `謝礼の${HERO.TRAIN_COST}貫が足りない` };
+  H.gold -= HERO.TRAIN_COST; used(s);
+  const stats: ('bra' | 'lea' | 'int' | 'cha')[] = kind === 'dojo' ? ['bra', 'lea'] : ['int', 'cha'];
+  const st = stats[rand(s) < 0.5 ? 0 : 1];
+  const NAME = { bra: '武勇', lea: '統率', int: '知略', cha: '魅力' };
+  if (me[st] < HERO.STAT_CAP && rand(s) < HERO.TRAIN_P) { me[st]++; H.trained++; return { ok: true, text: `${kind === 'dojo' ? '道場で汗を流した' : '寺で書を読み、僧と語らった'}。${NAME[st]}が上がった（${me[st]}）。` }; }
+  return { ok: true, text: `${kind === 'dojo' ? '道場で汗を流した' : '寺で書を読んだ'}が、手応えはまだない。` };
+}
+export function rumor(s: GameState): Act {
+  const H = s.hero!, me = heroOf(s)!, c = s.castles[H.town];
+  used(s);
+  const parts: string[] = [];
+  if (c.owner && c.owner !== me.clan) { learnCastle(s, c.i, me.clan!); parts.push(`この${c.name}には兵がおよそ${Math.round(c.garrison / 100) * 100}、蔵の米は${storeOf(c) >= 1000 ? Math.round(storeOf(c) / 1000) + '千石ほど' : '乏しい'}らしい`); }
+  const near = Object.values(s.clans).filter((x) => x.alive && x.id !== me.clan && clanCastles(s, x.id).some((k) => hexDist(k.hex, c.hex) <= R.hx(8)));
+  const x = near[Math.floor(rand(s) * near.length)];
+  if (x) parts.push(`${x.name}家は${x.stance === '攻勢' ? '戦支度を急いでいる' : x.stance === '守勢' ? '守りを固めている' : '静かにしている'}${x.target ? `。${clanName(s, x.target)}家を狙っているとか` : ''}`);
+  const news = s.log.filter((l) => l.turn >= s.turn - 1 && (l.kind === 'battle' || l.kind === 'castle')).slice(-6);
+  const n = news[Math.floor(rand(s) * news.length)];
+  if (n) parts.push(`噂では、${n.text.replace(/。$/, '')}`);
+  return { ok: true, text: `茶屋で旅人の話に耳を傾けた。${parts.length ? parts.map((p) => `「${p}」`).join('') : '目ぼしい話はなかった。'}` };
+}
+export function rest(s: GameState): Act { used(s); return { ok: true, text: '長屋で体を休めた。' }; }
+
+// 旅: 町から町へ。道のりに応じて旬を使う（着くまでは何もできない）
+export const travelJun = (s: GameState, from: number, to: number) => Math.max(1, Math.ceil(hexDist(s.castles[from].hex, s.castles[to].hex) / HERO.TRAVEL_HEX));
+export function travel(s: GameState, to: number): Act {
+  const H = s.hero!;
+  if (to === H.town) return { ok: false, text: 'すでにこの町にいる' };
+  const n = travelJun(s, H.town, to);
+  H.travel = { to, left: n };
+  stepTravel(s);
+  return { ok: true, text: `${s.castles[to].name}の城下へ旅立った（${n}旬の道のり）。` };
+}
+// 旅の1旬を進める（月をまたぐ旅は、月の処理のあとで続きを進める）
+export function stepTravel(s: GameState) {
+  const H = s.hero!;
+  if (!H.travel) return;
+  H.travel.left--; used(s);
+  if (H.travel.left <= 0) { H.town = H.travel.to; heroOf(s)!.loc = H.town; H.travel = null; note(s, `${s.castles[H.town].name}の城下に着いた。`); }
+}
+
+// ───────── 主命 ─────────
+export function questBlock(s: GameState): string | null {
+  const H = s.hero!, L = lordOf(s);
+  if (!L) return '主君がいない';
+  if (L.loc !== H.town) return `主君${L.name}は${s.castles[L.loc].name}にいる`;
+  return null;
+}
+// 登城: 主命を受けるか、果たした主命を報告する
+export function tojo(s: GameState): Act {
+  const H = s.hero!, me = heroOf(s)!, L = lordOf(s)!;
+  const b = questBlock(s); if (b) return { ok: false, text: b };
+  used(s);
+  const q = H.quest;
+  if (q && q.done >= q.need) {
+    // 報告
+    const ok = q.ok !== false;
+    if (ok) {
+      addMerit(s, me.id, HERO.MERIT[q.kind]); H.favor = clamp(H.favor + HERO.FAVOR_OK[q.kind]); H.gold += HERO.PAYOUT[q.kind]; H.done++;
+      note(s, `主命（${QUEST_NAME[q.kind]}・${s.castles[q.castle].name}）を果たし、${L.name}に報告した。褒美に金${HERO.PAYOUT[q.kind]}貫。`);
+      H.quest = null;
+      return { ok: true, who: L.id, line: pickLine(s, PRAISE[q.kind]), text: `主命の首尾を申し上げた。功績+${HERO.MERIT[q.kind]}、主君の覚え+${HERO.FAVOR_OK[q.kind]}、金+${HERO.PAYOUT[q.kind]}貫。${q.note ?? ''}` };
+    }
+    H.favor = clamp(H.favor - 3); H.failed++; H.quest = null;
+    note(s, `主命（${QUEST_NAME[q.kind]}）は不首尾に終わったと報告した。`);
+    return { ok: true, who: L.id, line: pickLine(s, SCOLD), text: `不首尾を報告した。主君の覚え−3。${q.note ?? ''}` };
+  }
+  if (q) return { ok: true, who: L.id, line: `${QUEST_NAME[q.kind]}の件、${s.castles[q.castle].name}の首尾はいかがした。期日は${monthsLeft(s, q)}か月のうちぞ。`, text: '主君に目通りした。' };
+  const nq = makeQuest(s);
+  if (!nq) return { ok: true, who: L.id, line: '今は申し付けることはない。腕を磨いておけ。', text: '主君に目通りした。' };
+  H.quest = nq;
+  note(s, `主命を受けた: ${questText(s, nq)}`);
+  return { ok: true, who: L.id, line: ORDER_LINE[nq.kind].replace('{castle}', s.castles[nq.castle].name), text: `主命を受けた。${questText(s, nq)}` };
+}
+const monthsLeft = (s: GameState, q: Quest) => Math.max(0, q.until - s.turn);
+export function questText(s: GameState, q: Quest) {
+  const c = s.castles[q.castle];
+  const own = c.owner ? `${clanName(s, c.owner)}家の` : '';
+  return q.kind === 'fushin' ? `${c.name}へ出向き、普請を差配せよ（${q.need}旬）。` : q.kind === 'teisatsu' ? `${own}${c.name}の城下に入り、城の様子を探れ。` : `${own}${c.name}に入り込み、城兵を切り崩せ。`;
+}
+function makeQuest(s: GameState): Quest | null {
+  const me = heroOf(s)!, clan = me.clan!, C = s.clans[clan];
+  const mine = clanCastles(s, clan);
+  const foes = s.castles.filter((c) => c.owner && hostile(s, clan, c.owner) && mine.some((m) => hexDist(m.hex, c.hex) <= R.hx(6)));
+  const tgt = foes.filter((c) => c.owner === C.target);
+  const pool: Quest[] = [];
+  const until = s.turn + HERO.QUEST_MONTHS;
+  const weak = mine.filter((c) => c.i !== lordOf(s)?.loc).sort((a, b) => a.chian - b.chian || a.garrison / garrisonMax(a) - b.garrison / garrisonMax(b));
+  const last = s.hero!.lastQuest;
+  const fw = weak.filter((c) => c.i !== last).slice(0, 3);
+  if (fw.length) pool.push({ kind: 'fushin', castle: fw[Math.floor(rand(s) * fw.length)].i, need: 2, done: 0, until });
+  const near = (tgt.length ? tgt : foes).sort((a, b) => Math.min(...mine.map((m) => hexDist(m.hex, a.hex))) - Math.min(...mine.map((m) => hexDist(m.hex, b.hex))));
+  if (near[0]) pool.push({ kind: 'teisatsu', castle: near[0].i, need: 1, done: 0, until });
+  if (near[0] && R.RANK_NAME[me.rank] && me.rank <= 2) pool.push({ kind: 'choryaku', castle: near[Math.min(near.length - 1, 1)].i, need: 1, done: 0, until });
+  if (!pool.length) return null;
+  const pick = pool[Math.floor(rand(s) * pool.length)];
+  s.hero!.lastQuest = pick.castle;
+  return pick;
+}
+export const canWork = (s: GameState) => { const H = s.hero!; return !!H.quest && H.quest.done < H.quest.need && H.quest.castle === H.town; };
+// 主命を果たす（その町で1旬）
+export function work(s: GameState): Act {
+  const H = s.hero!, me = heroOf(s)!, q = H.quest!;
+  if (!canWork(s)) return { ok: false, text: 'ここでできる主命はない' };
+  const c = s.castles[q.castle];
+  used(s);
+  if (q.kind === 'fushin') {
+    if (c.owner !== me.clan) { q.done = q.need; q.ok = false; q.note = '城が人手に渡り、普請はかなわなかった。'; return { ok: true, text: q.note }; }
+    q.done++;
+    const lea = me.lea + me.int;
+    c.chian = clamp(c.chian + 3 + lea / 60); c.garrison = Math.min(garrisonMax(c), c.garrison + Math.round(garrisonMax(c) * 0.05));
+    if (q.done >= q.need) { q.note = `${c.name}の石垣と堀を手直しし、城下の治安も上がった。`; return { ok: true, text: `普請を差配した。${q.note}登城して報告せよ。` }; }
+    return { ok: true, text: `人足を集め、普請を差配した（${q.done}/${q.need}旬）。` };
+  }
+  if (q.kind === 'teisatsu') {
+    const p = 0.55 + me.int / 200;
+    if (rand(s) < p) {
+      learnCastle(s, c.i, me.clan!); q.done = q.need; q.ok = true;
+      q.note = `${c.name}の兵はおよそ${Math.round(c.garrison / 100) * 100}、${c.governor ? `城主は${s.generals[c.governor].name}` : '城主はいない'}。`;
+      return { ok: true, text: `商人に身をやつして城下を探った。${q.note}登城して報告せよ。` };
+    }
+    return chased(s, '城下を探ったが、怪しまれて引き上げた。');
+  }
+  // 調略
+  const gov = c.governor ? s.generals[c.governor] : null;
+  const p = 0.25 + (me.int + me.cha) / 400 - (gov ? gov.int / 400 : 0) + (gov ? relOf(s, gov.id) / 300 : 0);
+  if (rand(s) < p) {
+    c.gMorale = Math.max(0.3, c.gMorale - 0.2); c.chian = clamp(c.chian - 15); c.garrison = Math.max(0, Math.round(c.garrison * 0.85));
+    learnCastle(s, c.i, me.clan!); q.done = q.need; q.ok = true;
+    q.note = `${c.name}の侍たちに金と言葉を撒き、城兵の一部を逃散させた。`;
+    addLog(s, `${c.name}で城兵の逃散が相次いでいるという。`, 'info', true);
+    return { ok: true, text: `${q.note}登城して報告せよ。` };
+  }
+  return chased(s, '調略の手を伸ばしたが、相手は乗ってこなかった。');
+}
+// 不首尾: 3割で追われて一つ前の町へ（期日に余裕があれば、また試せる）
+function chased(s: GameState, text: string): Act {
+  const H = s.hero!;
+  if (rand(s) < 0.3) {
+    const me = heroOf(s)!, home = clanCastles(s, me.clan!).sort((a, b) => hexDist(a.hex, s.castles[H.town].hex) - hexDist(b.hex, s.castles[H.town].hex))[0];
+    if (home) { H.town = home.i; me.loc = home.i; }
+    return { ok: true, text: `${text}追っ手がかかり、${home?.name ?? '味方の城'}まで逃げ帰った。` };
+  }
+  return { ok: true, text: `${text}日を改めて、また試すこともできる。` };
+}
+
+// ───────── 月の終わり（3旬が過ぎたら、大名たちの1か月の前に） ─────────
+export function heroMonth(s: GameState): string[] {
+  const H = s.hero!, me = heroOf(s)!;
+  const out: string[] = [];
+  if (!me || me.status === 'dead') return out;
+  const pay = HERO.PAY[me.rank] ?? 50;
+  H.gold += pay; out.push(`俸禄 ${pay}貫を受け取った（手元 ${H.gold}貫）。`);
+  const q = H.quest;
+  if (q && q.done < q.need && s.turn >= q.until) { H.favor = clamp(H.favor - HERO.FAVOR_NG); H.failed++; H.quest = null; out.push(`主命（${QUEST_NAME[q.kind]}）の期日が過ぎた。主君の覚え−${HERO.FAVOR_NG}。`); note(s, `主命（${QUEST_NAME[q.kind]}）の期日を過ぎてしまった。`); }
+  // 取り立て（功績が満ちて、主君の覚えがよければ）
+  while (me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10) {
+    me.rank--; H.favor = clamp(H.favor - 10);
+    out.push(`${R.RANK_NAME[me.rank]}に取り立てられた！`); note(s, `${R.RANK_NAME[me.rank]}に取り立てられた。`);
+    addLog(s, `${me.name}が${R.RANK_NAME[me.rank]}に取り立てられた。`, 'info', true);
+  }
+  H.jun = 0;
+  return out;
+}
+// 武将が生きて家にいるか（いなければ試作はそこで終わり）
+export function heroEnd(s: GameState): string | null {
+  const me = heroOf(s);
+  if (!me || me.status === 'dead') return `${me?.name ?? '主人公'}は世を去った。`;
+  if (!me.clan || !s.clans[me.clan]?.alive) return `${clanName(s, s.player)}家は滅んだ。`;
+  if (me.status !== 'hero') { me.status = 'hero'; me.army = null; }
+  for (const c of s.castles) if (c.governor === me.id) c.governor = null;
+  if (me.loc !== s.hero!.town && !s.hero!.travel) me.loc = s.hero!.town;
+  return null;
+}
+
+// ───────── 言葉 ─────────
+const pickLine = (s: GameState, xs: string[]) => xs[Math.floor(rand(s) * xs.length)];
+function talk(s: GameState, g: General, first: boolean): string {
+  const v = relOf(s, g.id), me = heroOf(s)!;
+  const T = g.bra >= Math.max(g.int, g.cha, g.lea) ? 'bold' : g.int >= Math.max(g.cha, g.lea) ? 'wise' : g.cha >= g.lea ? 'gentle' : 'steady';
+  const other = g.clan && g.clan !== me.clan;
+  if (first) return pickLine(s, other ? FIRST_OTHER : g.status === 'ronin' ? FIRST_RONIN : FIRST[T]);
+  if (v >= HERO.FRIEND) return pickLine(s, CLOSE[T]);
+  return pickLine(s, MID[T]);
+}
+const FIRST: Record<string, string[]> = {
+  bold: ['おぬしが噂の新参か。腕は立つのか、見せてもらおう。', 'ふむ、槍の持ち方は悪くない。戦場で会おうぞ。'],
+  wise: ['ようこそ。茶でも飲んでいかれよ。……世の動きをどう見ておられる。', '名は聞いておる。なかなか目端が利くそうな。'],
+  gentle: ['よう参られた。遠慮はいらぬ、ゆるりとしていかれよ。', 'これからは同じ家中。困ったことがあれば言うてくれ。'],
+  steady: ['お役目ご苦労。まずは家中の決まりを覚えることだ。', '挨拶とは殊勝な。励まれよ。'],
+};
+const MID: Record<string, string[]> = {
+  bold: ['次の戦では、どちらが先に一番槍をつけるか、勝負じゃ。', '酒はいける口か。ならば飲め、飲め！'],
+  wise: ['近ごろの殿のお考え、そなたはどう読む。', '隣国の動き、気になるな。茶屋の噂も馬鹿にはできぬ。'],
+  gentle: ['また来てくれたか。妻も喜んでおる。', '城下の民の暮らし向きは、少しは良くなったかの。'],
+  steady: ['主命は期日を守るのが肝要。遅れれば、殿の覚えも悪うなる。', '帳面はつけておるか。武士も算用ができねばならぬ時代よ。'],
+};
+const CLOSE: Record<string, string[]> = {
+  bold: ['おぬしとなら、どんな死地でも背中を預けられる。', 'おぬしが困っておるなら、この槍、いつでも貸そう。'],
+  wise: ['そなたにだけ申すが……家中にも、いろいろと思惑がある。', '天下の行方、いつかそなたと語り明かしたいものだ。'],
+  gentle: ['そなたは、もう身内も同然。何でも頼ってくれ。', '殿に取りなしが要るときは、言うてくれ。わしからも申し上げよう。'],
+  steady: ['そなたの働きぶり、殿もよう見ておられるぞ。', '長い付き合いになりそうだ。よろしく頼む。'],
+};
+const FIRST_OTHER = ['……よその家の者が、何の用だ。', '敵か味方か、今は問うまい。話くらいは聞こう。'];
+const FIRST_RONIN = ['浪々の身に何の用かな。……ほう、酒を持ってきたか。', '仕官の口でもあるのか。話を聞こう。'];
+const GIFT_LINE = ['これは、かたじけない。ありがたく頂戴する。', '気を遣わせたな。この礼はいずれ。'];
+const PRAISE: Record<QuestKind, string[]> = {
+  fushin: ['うむ、手際がよい。城が固くなれば、民も安心する。', '早かったな。次も頼むぞ。'],
+  teisatsu: ['よう探った。これで次の手が打てる。', 'ほう、そこまで調べたか。褒めてつかわす。'],
+  choryaku: ['でかした！ 城を落とす前に、城の心を落としたな。', '舌先三寸で城兵を崩すとは。そなた、なかなかの曲者よ。'],
+};
+const SCOLD = ['……そうか。次はしくじるなよ。', '不首尾か。言い訳は聞かぬ。次で取り返せ。'];
+const ORDER_LINE: Record<QuestKind, string> = {
+  fushin: '{castle}の守りが心もとない。出向いて普請を差配せよ。',
+  teisatsu: '{castle}の様子を探ってまいれ。兵の数、城主の顔ぶれ、何でもよい。',
+  choryaku: '{castle}の侍どもに手を回し、城の守りを内から崩してまいれ。',
+};

@@ -101,6 +101,7 @@ export function killGeneral(s: GameState, g: General, why: string) {
 
 // 出奔: 家を去って在野になる
 export function desert(s: GameState, g: General, why: string) {
+  if (s.hero?.id === g.id) return; // 武将プレイの主人公は、自分で決めない限り家を去らない
   const clanId = g.clan;
   dropItems(s, g, undefined);
   quitArmy(s, g);
