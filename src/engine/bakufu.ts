@@ -223,7 +223,7 @@ export function sponsor(s: GameState, clan: string): boolean {
   const kyo = s.castles.find((c) => c.id === R.SHOGUN_CASTLE)!;
   if (kyo.governor) { s.generals[kyo.governor].status = 'free'; kyo.governor = null; }
   kyo.owner = 'ashikaga';
-  A.alive = true; A.leader = g.id; A.court = R.SHOGUN; A.gold = 3000; A.food = 20000; A.prestige = Math.max(A.prestige, 60);
+  A.alive = true; A.leader = g.id; g.rank = 0; A.court = R.SHOGUN; A.gold = 3000; A.food = 20000; A.prestige = Math.max(A.prestige, 60);
   g.clan = 'ashikaga'; g.status = 'governor'; g.captor = null; g.formerClan = null; g.loc = kyo.i; kyo.governor = g.id; g.kin = true;
   if (clan === s.player) (s.events ??= []).push({ kind: 'sponsor', gen: g.id });
   for (const C of Object.values(s.clans)) if (C.id !== 'ashikaga' && (C.court ?? 0) >= R.SHOGUN) C.court = R.DEPOSED_COURT;

@@ -62,7 +62,7 @@ export function succession(s: GameState, clanId: string) {
     ?? grown.filter((g) => g.kin).sort((a, b) => worth(b) - worth(a))[0]
     ?? all.filter((g) => g.status === 'young' && g.kin).sort((a, b) => (a.born ?? 0) - (b.born ?? 0))[0]
     ?? grown.sort((a, b) => worth(b) - worth(a))[0] ?? all[0];
-  clan.leader = pick.id;
+  clan.leader = pick.id; pick.rank = 0; // 当主の身分の値は宿老にそろえる（名目）
   const young = pick.status === 'young';
   if (young) { pick.status = 'free'; pick.genpuku = undefined; if (pick.later) { pick.name = pick.later; pick.later = undefined; } }
   if (pick.status === 'tsukai' || pick.status === 'bugyo') pick.status = 'free';

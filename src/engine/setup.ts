@@ -86,6 +86,7 @@ export function newGame(player: string, difficulty: R.Difficulty, seed = (Date.n
     if (home !== undefined) g.loc = home;
   }
   assignRanks(clans, generals, castles, sc.ranks ?? {}, !!sc.ranksFresh);
+  for (const c of Object.values(clans)) if (c.alive && c.leader) generals[c.leader].rank = 0; // 当主の身分の値は宿老にそろえる（名目）
 
   const s: GameState = {
     version: 1, year, month, turn: 1, player, difficulty, seed, scenario: sc.id, startYear: year, startMonth: month,

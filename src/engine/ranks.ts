@@ -93,8 +93,13 @@ export function awardBattle(s: GameState, clans: [string | null, string | null],
   noteFoes(s, clans, ids);
 }
 
+// 当主の身分の値は名目だけ（当主の扱いは家の当主の座で決まる）。座を降りたとき（降伏して他家に仕えるなど）に宿老から始まるよう、宿老にそろえておく
+export function leaderRanks(s: GameState) {
+  for (const c of Object.values(s.clans)) { const g = c.alive && c.leader ? s.generals[c.leader] : null; if (g) g.rank = 0; }
+}
 // 月末: 元服・城主と使番の功績・昇進
 export function monthlyRanks(s: GameState) {
+  leaderRanks(s);
   for (const g of Object.values(s.generals)) {
     if (g.status !== 'young' || (g.genpuku ?? 0) > s.year) continue;
     g.genpuku = undefined;
