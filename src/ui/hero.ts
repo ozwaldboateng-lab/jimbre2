@@ -6,6 +6,7 @@ import { endTurn } from '../engine/game';
 import * as H from '../engine/hero';
 import { hexDist } from '../engine/map';
 import * as R from '../engine/rules';
+import { rankName } from '../engine/ranks';
 import { newGame } from '../engine/setup';
 import { clanCastles, clanName } from '../engine/state';
 import type { GameState, General } from '../engine/types';
@@ -112,7 +113,7 @@ function peopleHtml(st: GameState) {
   if (!ps.length) return '<p class="hr-none">この町に訪ねられる武将はいない。</p>';
   return `<p class="hr-note">訪ねる・進物を贈ると親しくなる（1旬）。親しさ${H.HERO.FRIEND}で「友」の縁を結ぶ。</p>${ps.map((g) => {
     const v = st.hero!.rel[g.id] ?? 0;
-    return `<div class="hr-person">${face(g.id, 44) || `<span class="hr-noface sm">${esc(g.name.slice(0, 1))}</span>`}<div class="hr-pi"><b>${esc(g.name)}</b><span>${g.clan ? `${esc(clanName(st, g.clan))}・${R.RANK_NAME[g.rank]}` : '浪人'}${g.status === 'governor' ? '・城主' : ''}</span><span class="hr-rel">${H.RELNAME(v)} ${v}</span></div>
+    return `<div class="hr-person">${face(g.id, 44) || `<span class="hr-noface sm">${esc(g.name.slice(0, 1))}</span>`}<div class="hr-pi"><b>${esc(g.name)}</b><span>${g.clan ? `${esc(clanName(st, g.clan))}・${rankName(st, g)}` : '浪人'}${g.status === 'governor' ? '・城主' : ''}</span><span class="hr-rel">${H.RELNAME(v)} ${v}</span></div>
       <div class="hr-pa"><button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button></div></div>`;
   }).join('')}`;
 }
