@@ -88,7 +88,7 @@ function render() {
     <div class="hr-body">
       <section class="hr-scene" style="${art ? `background-image:url(${art})` : ''}">
         <div class="hr-town"><b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span></div>
-        ${say ? `<div class="hr-say">${say.who && say.line ? `<div class="hr-who">${face(say.who, 72) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p></div>` : ''}
+        ${say ? `<div class="hr-say">${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p></div>` : ''}
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
@@ -224,13 +224,13 @@ const CSS = `
 .hr-quest{padding:8px 14px;background:#1a1712;border-bottom:1px solid rgba(207,169,94,.18);font-size:13.5px;line-height:1.6}
 .hr-quest b{color:#cfa95e;margin-right:6px}.hr-quest span{color:#b8ab92;margin-left:6px}.hr-quest em{color:#8fb36a;font-style:normal}
 .hr-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}
-.hr-scene{position:relative;background:#202023 center/cover no-repeat;min-height:420px;display:flex;flex-direction:column;justify-content:space-between}
+.hr-scene{position:relative;background:#202023 center/cover no-repeat;min-height:420px;display:flex;flex-direction:column;justify-content:flex-start}
 .hr-town{margin:12px;align-self:flex-start;background:rgba(10,10,10,.72);padding:6px 12px;border-left:3px solid #cfa95e}
 .hr-town b{font-family:var(--font-display,serif);font-size:20px;font-weight:400;display:block}.hr-town span{font-size:12px;color:#b8ab92}
-.hr-say{margin:12px;background:rgba(10,10,10,.82);border:1px solid rgba(207,169,94,.3);padding:12px 14px;border-radius:3px}
-.hr-who{display:flex;gap:12px;align-items:flex-start;margin-bottom:6px}.hr-who img{border-radius:3px;flex:none}
-.hr-who b{color:#cfa95e}.hr-who p{margin:4px 0 0;font-size:16px;line-height:1.7}
-.hr-text{margin:0;color:#ddd2ba;font-size:14px;line-height:1.75}
+.hr-say{box-sizing:border-box;margin:auto;align-self:center;width:min(780px,calc(100% - 32px));background:rgba(10,10,10,.84);border:1px solid rgba(207,169,94,.45);padding:20px 24px;border-radius:4px;box-shadow:0 12px 40px rgba(0,0,0,.55)}
+.hr-who{display:flex;gap:20px;align-items:center;margin-bottom:12px}.hr-who img{border-radius:3px;flex:none;border:1px solid rgba(207,169,94,.4)}
+.hr-who b{color:#cfa95e;font-size:15px;letter-spacing:.06em}.hr-who p{margin:6px 0 0;font-size:21px;line-height:1.75;font-family:var(--font-display,serif)}
+.hr-text{margin:0;color:#ddd2ba;font-size:15.5px;line-height:1.8}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}
 .hr-tabs{display:flex;border-bottom:1px solid rgba(207,169,94,.2)}
 .hr-tabs button{flex:1;background:none;border:0;padding:10px 0;color:#b8ab92;font-family:var(--font-ui,sans-serif);font-size:13px;border-bottom:2px solid transparent}
@@ -255,7 +255,7 @@ const CSS = `
 .hr-busy{font-family:var(--font-display,serif);font-size:22px;color:#cfa95e}
 @media (min-width:821px){.hr-main{height:100vh}.hr-body{overflow:hidden}.hr-side{overflow:hidden}.hr-scene{min-height:0}}
 @media (max-width:820px){
-  .hr-body{grid-template-columns:1fr}.hr-scene{min-height:300px}.hr-side{border-left:0;border-top:1px solid rgba(207,169,94,.2)}
+  .hr-body{grid-template-columns:1fr}.hr-scene{min-height:360px}.hr-say{padding:14px 14px;width:calc(100% - 20px)}.hr-who{gap:12px}.hr-who img{width:80px;height:100px}.hr-who p{font-size:17px}.hr-text{font-size:14px}.hr-side{border-left:0;border-top:1px solid rgba(207,169,94,.2)}
   .hr-head{gap:10px}.hr-stats{grid-auto-flow:row;grid-template-columns:repeat(5,auto);grid-template-rows:auto;order:3;flex-basis:100%}
   .hr-stats dt{grid-row:1}.hr-stats dd{grid-row:2;font-size:12.5px}
 }
