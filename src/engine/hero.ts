@@ -1,12 +1,13 @@
 // 武将プレイ（試作）: 大名ではなく一人の武将として生きる。家は大名のAIが動かし、プレイヤーは城下を歩き、主命を果たし、人と交わる。
 // 時は旬（10日）で刻む。1か月は3旬。3旬が過ぎると、裏で大名たちの1か月が進む（ゲームの endTurn）。
 // 武将は status 'hero' にして、AIの編成・城主・奉行に使われないようにする（主命・合戦はこちらで扱う）。
-import { hexDist } from './map';
+import { HEXES, NEIGHBORS, PROVINCES, hexDist } from './map';
+import { pathTo, stepCost, type Reach } from './move';
 import { storeOf } from './supply';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
 import * as R from './rules';
-import { addLog, castleKoku, clanCastles, clanName, garrisonMax, hostile, learnCastle, rand } from './state';
+import { addLog, castleAt, castleKoku, clanCastles, clanName, garrisonMax, hostile, learnCastle, rand } from './state';
 import type { Castle, GameState, General } from './types';
 
 export type QuestKind = 'fushin' | 'teisatsu' | 'choryaku';
@@ -14,7 +15,8 @@ export interface Quest { kind: QuestKind; castle: number; need: number; done: nu
 export interface Hero {
   id: string; town: number; jun: number; gold: number; favor: number; goods: number;
   rel: Record<string, number>; met: Record<string, number>; // 親しさ（0〜100）と、最後に会った旬（turn*3+jun）
-  quest: Quest | null; travel: { to: number; left: number } | null;
+  quest: Quest | null; travel?: unknown; // travel は古い試作の名残（使わない）
+  hex: number; field?: boolean; dest?: number | null; // 今いるマス、野にいるか（城下でない）、旅の行き先
   diary: { turn: number; jun: number; text: string }[]; done: number; failed: number; trained: number; lastQuest?: number;
 }
 export const HERO = {
@@ -22,7 +24,7 @@ export const HERO = {
   QUEST_MONTHS: 3, FAVOR_OK: { fushin: 6, teisatsu: 5, choryaku: 10 }, FAVOR_NG: 8,
   MERIT: { fushin: 15, teisatsu: 12, choryaku: 25 }, PAYOUT: { fushin: 100, teisatsu: 80, choryaku: 200 },
   VISIT: 8, GIFT_COST: 50, GIFT_REL: 12, GOODS_COST: 50, FRIEND: 70, TRAIN_COST: 30, TRAIN_P: 0.35, STAT_CAP: 95,
-  TRAVEL_HEX: R.hx(12), // 1旬で進めるおよその道のり
+  MP: R.hx(6), // 1旬に進める道のり（平地1・森と川2・山3。部隊の一月より少し多い）
 };
 export const QUEST_NAME: Record<QuestKind, string> = { fushin: '普請', teisatsu: '偵察', choryaku: '調略' };
 
@@ -41,7 +43,7 @@ export function startHero(s: GameState, id: string) {
   for (const a of Object.values(s.camps ?? {})) { a.staff = (a.staff ?? []).filter((x) => x !== id); }
   for (const c of s.castles) if (c.governor === id) c.governor = null;
   g.status = 'hero'; g.army = null;
-  s.hero = { id, town: g.loc, jun: 0, gold: 200, favor: 30, goods: 0, rel: {}, met: {}, quest: null, travel: null, diary: [], done: 0, failed: 0, trained: 0 };
+  s.hero = { id, town: g.loc, hex: s.castles[g.loc].hex, field: false, dest: null, jun: 0, gold: 200, favor: 30, goods: 0, rel: {}, met: {}, quest: null, diary: [], done: 0, failed: 0, trained: 0 };
   note(s, `${g.name}、${s.castles[g.loc].name}の城下にあり。主君${lordOf(s)?.name ?? ''}に仕える${R.RANK_NAME[g.rank]}。`);
 }
 export function note(s: GameState, text: string) { const H = s.hero!; H.diary.push({ turn: s.turn, jun: H.jun, text }); if (H.diary.length > 300) H.diary.shift(); }
@@ -137,29 +139,56 @@ export function rumor(s: GameState): Act {
 }
 export function rest(s: GameState): Act { used(s); return { ok: true, text: '長屋で体を休めた。' }; }
 
-// 旅: 町から町へ。道のりに応じて旬を使う（着くまでは何もできない）
-export const travelJun = (s: GameState, from: number, to: number) => Math.max(1, Math.ceil(hexDist(s.castles[from].hex, s.castles[to].hex) / HERO.TRAVEL_HEX));
-export function travel(s: GameState, to: number): Act {
-  const H = s.hero!;
-  if (to === H.town) return { ok: false, text: 'すでにこの町にいる' };
-  const n = travelJun(s, H.town, to);
-  H.travel = { to, left: n };
-  stepTravel(s);
-  return { ok: true, text: `${s.castles[to].name}の城下へ旅立った（${n}旬の道のり）。` };
+// 旅: 日本地図の上を、部隊の移動と同じく地形の重さで進む。1旬に HERO.MP まで。城のマスに止まればその城下に入る（他国の城下にも入れる）
+// 遠い所を選べば、その道筋を1旬ぶん進み、行き先を覚えておく（続けて進める）
+function search(s: GameState, from: number, limit = Infinity): Reach {
+  const cost = new Map<number, number>([[from, 0]]), prev = new Map<number, number>();
+  const open: [number, number][] = [[0, from]];
+  while (open.length) {
+    open.sort((x, y) => x[0] - y[0]);
+    const [c, i] = open.shift()!;
+    if (c > (cost.get(i) ?? Infinity)) continue;
+    for (const j of NEIGHBORS[i]) {
+      const nc = c + stepCost(i, j);
+      if (nc > limit) continue;
+      if (nc < (cost.get(j) ?? Infinity)) { cost.set(j, nc); prev.set(j, i); open.push([nc, j]); }
+    }
+  }
+  return { cost, prev };
 }
-// 旅の1旬を進める（月をまたぐ旅は、月の処理のあとで続きを進める）
-export function stepTravel(s: GameState) {
-  const H = s.hero!;
-  if (!H.travel) return;
-  H.travel.left--; used(s);
-  if (H.travel.left <= 0) { H.town = H.travel.to; heroOf(s)!.loc = H.town; H.travel = null; note(s, `${s.castles[H.town].name}の城下に着いた。`); }
+// 1旬で行ける所（地図に明るく出す）
+export function heroReach(s: GameState): Reach { const r = search(s, s.hero!.hex, HERO.MP); r.cost.delete(s.hero!.hex); return r; }
+const placeName = (s: GameState, hex: number) => { const c = castleAt(s, hex); return c ? `${c.name}の城下` : `${PROVINCES[HEXES[hex].p].name}の野`; };
+// 今いる所から各マスまでの道のりの重さ（城の一覧に旬のおよそを出す）
+export const costMap = (s: GameState) => search(s, s.hero!.hex).cost;
+// 行き先までの旬のおよそ
+export function junTo(s: GameState, hex: number) { const r = search(s, s.hero!.hex); const c = r.cost.get(hex); return c === undefined ? null : Math.max(1, Math.ceil(c / HERO.MP)); }
+export function moveTo(s: GameState, dest: number): Act {
+  const H = s.hero!, me = heroOf(s)!;
+  if (dest === H.hex) return { ok: false, text: 'すでにここにいる' };
+  const r = search(s, H.hex);
+  const path = pathTo(r, H.hex, dest);
+  if (path.length < 2) return { ok: false, text: 'そこへは行けない' };
+  let spent = 0, at = H.hex;
+  for (const h of path.slice(1)) { const c = stepCost(at, h); if (spent + c > HERO.MP) break; spent += c; at = h; }
+  if (at === H.hex) return { ok: false, text: '険しくて進めない' };
+  H.hex = at;
+  const c = castleAt(s, at);
+  if (c) { H.town = c.i; H.field = false; me.loc = c.i; } else H.field = true;
+  H.dest = at === dest ? null : dest;
+  used(s);
+  if (!H.dest) { if (c) note(s, `${c.name}の城下に着いた。`); return { ok: true, text: c ? `${c.name}の城下に着いた。` : `${placeName(s, at)}で足を止めた。` }; }
+  const left = junTo(s, dest);
+  return { ok: true, text: `${placeName(s, dest)}を目指して、${placeName(s, at)}まで進んだ（あと${left ?? '?'}旬ほど）。` };
 }
+export const goOn = (s: GameState): Act => (s.hero!.dest !== null && s.hero!.dest !== undefined ? moveTo(s, s.hero!.dest) : { ok: false, text: '行き先がない' });
+export const inField = (s: GameState) => !!s.hero!.field;
 
 // ───────── 主命 ─────────
 export function questBlock(s: GameState): string | null {
   const H = s.hero!, L = lordOf(s);
   if (!L) return '主君がいない';
-  if (L.loc !== H.town) return `主君${L.name}は${s.castles[L.loc].name}にいる`;
+  if (H.field || L.loc !== H.town) return `主君${L.name}は${s.castles[L.loc].name}にいる`;
   return null;
 }
 // 登城: 主命を受けるか、果たした主命を報告する
@@ -213,7 +242,7 @@ function makeQuest(s: GameState): Quest | null {
   s.hero!.lastQuest = pick.castle;
   return pick;
 }
-export const canWork = (s: GameState) => { const H = s.hero!; return !!H.quest && H.quest.done < H.quest.need && H.quest.castle === H.town; };
+export const canWork = (s: GameState) => { const H = s.hero!; return !H.field && !!H.quest && H.quest.done < H.quest.need && H.quest.castle === H.town; };
 // 主命を果たす（その町で1旬）
 export function work(s: GameState): Act {
   const H = s.hero!, me = heroOf(s)!, q = H.quest!;
@@ -254,7 +283,7 @@ function chased(s: GameState, text: string): Act {
   const H = s.hero!;
   if (rand(s) < 0.3) {
     const me = heroOf(s)!, home = clanCastles(s, me.clan!).sort((a, b) => hexDist(a.hex, s.castles[H.town].hex) - hexDist(b.hex, s.castles[H.town].hex))[0];
-    if (home) { H.town = home.i; me.loc = home.i; }
+    if (home) { H.town = home.i; H.hex = home.hex; H.field = false; H.dest = null; me.loc = home.i; }
     return { ok: true, text: `${text}追っ手がかかり、${home?.name ?? '味方の城'}まで逃げ帰った。` };
   }
   return { ok: true, text: `${text}日を改めて、また試すこともできる。` };
@@ -285,7 +314,8 @@ export function heroEnd(s: GameState): string | null {
   if (!me.clan || !s.clans[me.clan]?.alive) return `${clanName(s, s.player)}家は滅んだ。`;
   if (me.status !== 'hero') { me.status = 'hero'; me.army = null; }
   for (const c of s.castles) if (c.governor === me.id) c.governor = null;
-  if (me.loc !== s.hero!.town && !s.hero!.travel) me.loc = s.hero!.town;
+  if (me.loc !== s.hero!.town) me.loc = s.hero!.town;
+  s.hero!.hex ??= s.castles[s.hero!.town].hex;
   return null;
 }
 

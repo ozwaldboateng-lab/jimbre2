@@ -1,14 +1,15 @@
-// 武将プレイ（試作）の画面: 城下の一枚絵・行ける所・人と旅の一覧・言葉の窓・日記。地図は使わず、画面一枚で遊ぶ
+// 武将プレイ（試作）の画面: 城下の一枚絵・行ける所・人の一覧・言葉の窓・日記。旅は日本地図の上を部隊の移動と同じように進む
 import { SCENE_ART } from '../data/sceneArt';
 import { MINATO_ART } from '../data/scenes';
 import { runClanAI } from '../engine/ai';
 import { endTurn } from '../engine/game';
 import * as H from '../engine/hero';
-import { hexDist } from '../engine/map';
+import { HEXES, PROVINCES } from '../engine/map';
+import { MapView } from './render';
 import * as R from '../engine/rules';
 import { rankName } from '../engine/ranks';
 import { newGame } from '../engine/setup';
-import { clanCastles, clanName } from '../engine/state';
+import { castleAt, clanCastles, clanName } from '../engine/state';
 import type { GameState, General } from '../engine/types';
 
 const KEY = 'sengoku-hero-auto';
@@ -26,6 +27,10 @@ let bg = 'town';
 let say: { who?: string; line?: string; text: string } | null = null;
 let busy = false;
 let report: string[] | null = null;
+let mapCanvas: HTMLCanvasElement | null = null;
+let view: MapView | null = null;
+let recenter = true; // 地図を主人公のマスへ寄せ直すか（旅を始めたとき・進んだとき）
+const mapMode = (st: GameState) => pane === 'tabi' || !!st.hero!.field;
 
 export function heroSaved(): boolean { try { return !!localStorage.getItem(KEY); } catch { return false; } }
 function save() { try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 保存できなくても続ける */ } }
@@ -86,9 +91,10 @@ function render() {
     </header>
     <div class="hr-quest">${q ? `<b>主命</b> ${esc(H.QUEST_NAME[q.kind])}：${esc(H.questText(st, q))} <span>${q.done >= q.need ? '<em>果たした。登城して報告せよ</em>' : `期日まで${Math.max(0, q.until - st.turn)}か月`}</span>` : `<b>主命</b> なし。${L ? `主君${esc(L.name)}は${esc(st.castles[L.loc].name)}にいる。登城すれば主命を受けられる。` : ''}`}</div>
     <div class="hr-body">
-      <section class="hr-scene" style="${art ? `background-image:url(${art})` : ''}">
-        <div class="hr-town"><b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span></div>
-        ${say ? `<div class="hr-say">${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p></div>` : ''}
+      <section class="hr-scene${mapMode(st) ? ' map' : ''}" style="${art && !mapMode(st) ? `background-image:url(${art})` : ''}">
+        ${mapMode(st) ? '<div id="hr-mapslot"></div>' : ''}
+        <div class="hr-town">${Hh.field ? `<b>${esc(PROVINCES[HEXES[Hh.hex].p].name)}の野</b><span>旅の途中</span>` : `<b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span>`}</div>
+        ${say ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}">${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p></div>` : ''}
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
@@ -98,8 +104,31 @@ function render() {
     ${report ? `<div class="hr-modal"><div class="hr-report"><h3>${st.year}年${st.month}月を迎えた</h3><ul>${report.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><button class="hr-btn primary" data-h="report-ok">城下へ</button></div></div>` : ''}
     ${busy ? '<div class="hr-modal"><div class="hr-busy">諸国の動き……</div></div>' : ''}
   </div>`;
+  if (mapMode(st)) attachMap(st);
+}
+// 地図: 一度作ったキャンバスを使い回し、描き直すたびに差し込む
+function attachMap(st: GameState) {
+  const slot = document.getElementById('hr-mapslot');
+  if (!slot) return;
+  if (!mapCanvas) { mapCanvas = document.createElement('canvas'); mapCanvas.className = 'hr-map'; }
+  slot.appendChild(mapCanvas);
+  if (!view) { view = new MapView(mapCanvas); view.onHexClick = (hex) => onHex(hex); }
+  view.state = st;
+  view.resize();
+  const Hh = st.hero!;
+  view.sel = { army: null, hex: null, reach: busy ? null : H.heroReach(st), targets: [] };
+  view.marks = { hexes: [Hh.hex], arrows: Hh.dest !== null && Hh.dest !== undefined ? [[Hh.hex, Hh.dest]] : [] };
+  if (recenter) { view.centerOn(Hh.hex, Math.min(2.2, Math.max(1.3, view.w / 520))); recenter = false; }
+  view.redraw();
+}
+function onHex(hex: number) {
+  if (!s || busy || report) return;
+  if (hex === s.hero!.hex) { const c = castleAt(s, hex); say = { text: c ? `ここは${c.name}の城下。` : 'ここで足を止めている。' }; render(); return; }
+  recenter = true;
+  void act(() => H.moveTo(s!, hex), 'tabi');
 }
 function spotsHtml(st: GameState) {
+  if (st.hero!.field) return `<p class="hr-note">城下ではない野にいる。旅を続けるか、休むことしかできない。</p><button class="hr-spot" data-h="pane" data-id="tabi"><b>旅を続ける</b><span>地図で行き先を選ぶ</span></button><button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>`;
   const c = st.castles[st.hero!.town];
   const spots = H.spotsOf(st, c);
   const work = H.canWork(st) ? `<button class="hr-spot main" data-h="work"><b>主命を果たす</b><span>${esc(H.QUEST_NAME[st.hero!.quest!.kind])}（1旬）</span></button>` : '';
@@ -109,6 +138,7 @@ function spotsHtml(st: GameState) {
 }
 function peopleHtml(st: GameState) {
   const me = H.heroOf(st)!;
+  if (st.hero!.field) return '<p class="hr-none">野にいて、訪ねられる屋敷はない。</p>';
   const ps = H.townsfolk(st, st.hero!.town).sort((a, b) => (st.hero!.rel[b.id] ?? 0) - (st.hero!.rel[a.id] ?? 0) || Number(b.clan === me.clan) - Number(a.clan === me.clan) || a.rank - b.rank);
   if (!ps.length) return '<p class="hr-none">この町に訪ねられる武将はいない。</p>';
   return `<p class="hr-note">訪ねる・進物を贈ると親しくなる（1旬）。親しさ${H.HERO.FRIEND}で「友」の縁を結ぶ。</p>${ps.map((g) => {
@@ -118,17 +148,23 @@ function peopleHtml(st: GameState) {
   }).join('')}`;
 }
 function travelHtml(st: GameState) {
-  const Hh = st.hero!, me = H.heroOf(st)!, here = st.castles[Hh.town];
+  const Hh = st.hero!, me = H.heroOf(st)!;
+  const cost = H.costMap(st);
+  const jun = (hex: number) => { const c = cost.get(hex); return c === undefined ? '—' : `${Math.max(1, Math.ceil(c / H.HERO.MP))}旬`; };
   const ids = new Set<number>();
   for (const c of clanCastles(st, me.clan!)) ids.add(c.i);
   if (Hh.quest) ids.add(Hh.quest.castle);
-  for (const c of st.castles) if (hexDist(c.hex, here.hex) <= R.hx(10)) ids.add(c.i);
-  ids.delete(Hh.town);
   const L = H.lordOf(st);
-  const list = [...ids].map((i) => st.castles[i]).sort((a, b) => hexDist(a.hex, here.hex) - hexDist(b.hex, here.hex));
-  return `<p class="hr-note">道のりに応じて旬を使う。他国の城下にも入れる（主命の偵察・調略に）。</p>${list.map((c) => {
+  if (L) ids.add(L.loc);
+  for (const c of st.castles) if ((cost.get(c.hex) ?? Infinity) <= H.HERO.MP * 3) ids.add(c.i);
+  if (!Hh.field) ids.delete(Hh.town);
+  const list = [...ids].map((i) => st.castles[i]).sort((a, b) => (cost.get(a.hex) ?? 999) - (cost.get(b.hex) ?? 999));
+  const dest = Hh.dest !== null && Hh.dest !== undefined ? Hh.dest : null;
+  return `<p class="hr-note">地図で行き先のマスを押す。明るいマスは1旬で行ける所（平地1・森と川2・山3、1旬に${H.HERO.MP}まで）。遠い所を選べば、その方へ1旬ぶん進む。城のマスに止まればその城下に入る（他国の城下にも入れる）。</p>
+    ${dest !== null ? `<button class="hr-spot main" data-h="goon"><b>続けて進む</b><span>${esc(castleAt(st, dest)?.name ?? PROVINCES[HEXES[dest].p].name + 'の野')}へ（あと${jun(dest)}ほど）</span></button>` : ''}
+    ${list.map((c) => {
     const tags = [c.i === L?.loc ? '主君' : '', Hh.quest?.castle === c.i ? '主命' : ''].filter(Boolean);
-    return `<button class="hr-town-row" data-h="travel" data-id="${c.i}"><b>${esc(c.name)}</b><span>${c.owner ? esc(clanName(st, c.owner)) : '国人'}${c.owner === me.clan ? '' : '（他国）'}</span>${tags.map((t) => `<em>${t}</em>`).join('')}<i>${H.travelJun(st, Hh.town, c.i)}旬</i></button>`;
+    return `<button class="hr-town-row" data-h="goto" data-id="${c.hex}"><b>${esc(c.name)}</b><span>${c.owner ? esc(clanName(st, c.owner)) : '国人'}${c.owner === me.clan ? '' : '（他国）'}</span>${tags.map((x) => `<em>${x}</em>`).join('')}<i>${jun(c.hex)}</i></button>`;
   }).join('')}`;
 }
 function diaryHtml(st: GameState) {
@@ -150,8 +186,8 @@ async function act(fn: () => H.Act, scene?: string) {
 async function advance() {
   const st = s!;
   const lines: string[] = [];
-  while (st.hero!.jun >= H.HERO.JUN || st.hero!.travel) {
-    if (st.hero!.jun >= H.HERO.JUN) {
+  if (st.hero!.jun >= H.HERO.JUN) {
+    {
       busy = true; render();
       lines.push(...H.heroMonth(st));
       const n0 = st.log.length;
@@ -163,10 +199,10 @@ async function advance() {
       const end = H.heroEnd(st);
       if (end) { report = [...lines, end, '試作はここまで。']; render(); try { localStorage.removeItem(KEY); } catch { /* 続ける */ } return; }
     }
-    if (st.hero!.travel && st.hero!.jun < H.HERO.JUN) H.stepTravel(st);
   }
   if (lines.length) report = [...new Set(lines)];
-  if (!st.hero!.travel) bg = bg === 'tabi' ? 'town' : bg;
+  // 城下に着いたら、城下の画面へ戻る
+  if (bg === 'tabi' && !st.hero!.field && (st.hero!.dest === null || st.hero!.dest === undefined)) { bg = 'town'; pane = 'spots'; }
   save(); render();
 }
 
@@ -176,15 +212,16 @@ function onClick(e: Event) {
   const h = b.dataset.h!, id = b.dataset.id ?? '';
   if (h === 'quit') { save(); s = null; close(); return; }
   if (h === 'pick') { begin(id); return; }
-  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { bg = 'town'; pane = 'spots'; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; render(); } return; }
+  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; render(); } return; }
   if (!s) return;
-  if (h === 'pane') { pane = id as typeof pane; render(); return; }
+  if (h === 'pane') { if (id === 'tabi') recenter = true; pane = id as typeof pane; render(); return; }
   if (h === 'report-ok') { report = null; render(); return; }
   if (h === 'rest') { void act(() => H.rest(s!), 'town'); return; }
   if (h === 'work') { const k = s.hero!.quest!.kind; void act(() => H.work(s!), k); return; }
   if (h === 'visit') { void act(() => H.visit(s!, id), 'yashiki'); return; }
   if (h === 'gift') { void act(() => H.giveGift(s!, id), 'yashiki'); return; }
-  if (h === 'travel') { void act(() => H.travel(s!, +id), 'tabi'); pane = 'spots'; return; }
+  if (h === 'goto') { onHex(+id); return; }
+  if (h === 'goon') { recenter = true; void act(() => H.goOn(s!), 'tabi'); return; }
   if (h === 'spot') {
     const k = id as H.Spot;
     if (k === 'yashiki') { pane = 'yashiki'; render(); return; }
@@ -231,6 +268,11 @@ const CSS = `
 .hr-who{display:flex;gap:20px;align-items:center;margin-bottom:12px}.hr-who img{border-radius:3px;flex:none;border:1px solid rgba(207,169,94,.4)}
 .hr-who b{color:#cfa95e;font-size:15px;letter-spacing:.06em}.hr-who p{margin:6px 0 0;font-size:21px;line-height:1.75;font-family:var(--font-display,serif)}
 .hr-text{margin:0;color:#ddd2ba;font-size:15.5px;line-height:1.8}
+.hr-scene.map{background:#16222e}
+#hr-mapslot{position:absolute;inset:0}#hr-mapslot canvas{width:100%;height:100%;display:block;touch-action:none}
+.hr-scene.map .hr-town{position:relative;z-index:1;pointer-events:none}
+.hr-say.mini{position:relative;z-index:1;margin:auto 12px 12px;width:auto;align-self:stretch;padding:10px 14px;pointer-events:none}
+.hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}
 .hr-tabs{display:flex;border-bottom:1px solid rgba(207,169,94,.2)}
 .hr-tabs button{flex:1;background:none;border:0;padding:10px 0;color:#b8ab92;font-family:var(--font-ui,sans-serif);font-size:13px;border-bottom:2px solid transparent}
@@ -255,7 +297,7 @@ const CSS = `
 .hr-busy{font-family:var(--font-display,serif);font-size:22px;color:#cfa95e}
 @media (min-width:821px){.hr-main{height:100vh}.hr-body{overflow:hidden}.hr-side{overflow:hidden}.hr-scene{min-height:0}}
 @media (max-width:820px){
-  .hr-body{grid-template-columns:1fr}.hr-scene{min-height:360px}.hr-say{padding:14px 14px;width:calc(100% - 20px)}.hr-who{gap:12px}.hr-who img{width:80px;height:100px}.hr-who p{font-size:17px}.hr-text{font-size:14px}.hr-side{border-left:0;border-top:1px solid rgba(207,169,94,.2)}
+  .hr-body{grid-template-columns:1fr}.hr-scene{min-height:360px}.hr-say{padding:14px 14px;width:calc(100% - 20px)}.hr-who{gap:12px}.hr-who img{width:80px;height:100px}.hr-scene.map{min-height:58vh}.hr-who p{font-size:17px}.hr-text{font-size:14px}.hr-side{border-left:0;border-top:1px solid rgba(207,169,94,.2)}
   .hr-head{gap:10px}.hr-stats{grid-auto-flow:row;grid-template-columns:repeat(5,auto);grid-template-rows:auto;order:3;flex-basis:100%}
   .hr-stats dt{grid-row:1}.hr-stats dd{grid-row:2;font-size:12.5px}
 }

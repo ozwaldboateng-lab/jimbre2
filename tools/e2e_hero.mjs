@@ -23,8 +23,9 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await click('[data-h="visit"]');
   await p.screenshot({ path: `${out}/visit-${vp.tag}.png` });
   // 主命を果たしに行って帰る
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 24; i++) {
     const st = await p.evaluate(() => null);
+    if (await click('[data-h="goon"]')) continue;
     if (await click('[data-h="work"]')) continue;
     const q = await p.$('.hr-quest em');
     if (q) { if (!(await click('[data-h="spot"][data-id="tojo"]'))) { await click('[data-h="pane"][data-id="tabi"]'); await click('.hr-town-row:has(em:text("主君"))'); } continue; }
@@ -32,6 +33,11 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
     if (!(await click('.hr-town-row:has(em:text("主命"))'))) await click('[data-h="spot"][data-id="tojo"]') || await click('[data-h="rest"]');
   }
   await p.screenshot({ path: `${out}/later-${vp.tag}.png` });
+  await click('[data-h="pane"][data-id="tabi"]'); await p.waitForTimeout(500);
+  await p.screenshot({ path: `${out}/map-${vp.tag}.png` });
+  // 地図のマスを押して進む（画面の中ほど右寄り）
+  const cv = await p.$('#hr-mapslot canvas'); if (cv) { const bb = await cv.boundingBox(); await p.mouse.click(bb.x + bb.width * 0.62, bb.y + bb.height * 0.45); await p.waitForTimeout(500); }
+  await p.screenshot({ path: `${out}/moved-${vp.tag}.png` });
   await click('[data-h="pane"][data-id="diary"]');
   await p.screenshot({ path: `${out}/diary-${vp.tag}.png` });
   console.log(vp.tag, await p.evaluate(() => document.querySelector('.hr-date')?.textContent + ' | ' + document.querySelector('.hr-stats')?.textContent));
