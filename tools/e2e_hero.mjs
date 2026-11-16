@@ -25,6 +25,8 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   // 主命を果たしに行って帰る
   for (let i = 0; i < 24; i++) {
     const st = await p.evaluate(() => null);
+    if (await click('[data-h="join"]')) { await p.screenshot({ path: `${out}/camp-${vp.tag}.png` }); continue; }
+    if (await click('[data-h="campwait"]')) continue;
     if (await click('[data-h="goon"]')) continue;
     if (await click('[data-h="work"]')) continue;
     const q = await p.$('.hr-quest em');

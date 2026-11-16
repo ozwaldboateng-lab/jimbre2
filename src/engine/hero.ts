@@ -7,26 +7,28 @@ import { storeOf } from './supply';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
 import * as R from './rules';
+import { attach, attachAuto, leaveArmy, membersOf } from './corps';
+import { removeArmy } from './ops';
 import { addLog, castleAt, castleKoku, clanCastles, clanName, garrisonMax, hostile, learnCastle, rand } from './state';
-import type { Castle, GameState, General } from './types';
+import type { Army, Castle, GameState, General } from './types';
 
-export type QuestKind = 'fushin' | 'teisatsu' | 'choryaku';
-export interface Quest { kind: QuestKind; castle: number; need: number; done: number; until: number; ok?: boolean; note?: string }
+export type QuestKind = 'fushin' | 'teisatsu' | 'choryaku' | 'shutsujin';
+export interface Quest { kind: QuestKind; castle: number; need: number; done: number; until: number; ok?: boolean; note?: string; army?: number }
 export interface Hero {
   id: string; town: number; jun: number; gold: number; favor: number; goods: number;
   rel: Record<string, number>; met: Record<string, number>; // 親しさ（0〜100）と、最後に会った旬（turn*3+jun）
   quest: Quest | null; travel?: unknown; // travel は古い試作の名残（使わない）
-  hex: number; field?: boolean; dest?: number | null; // 今いるマス、野にいるか（城下でない）、旅の行き先
+  hex: number; field?: boolean; dest?: number | null; army?: number | null; joined?: number; // army: 加わっている軍勢、joined: 加わったターン // 今いるマス、野にいるか（城下でない）、旅の行き先
   diary: { turn: number; jun: number; text: string }[]; done: number; failed: number; trained: number; lastQuest?: number;
 }
 export const HERO = {
   JUN: 3, PAY: [400, 200, 100, 50], // 身分ごとの月の俸禄（宿老・侍大将・足軽大将・足軽組頭）
-  QUEST_MONTHS: 3, FAVOR_OK: { fushin: 6, teisatsu: 5, choryaku: 10 }, FAVOR_NG: 8,
-  MERIT: { fushin: 15, teisatsu: 12, choryaku: 25 }, PAYOUT: { fushin: 100, teisatsu: 80, choryaku: 200 },
+  QUEST_MONTHS: 3, FAVOR_OK: { fushin: 6, teisatsu: 5, choryaku: 10, shutsujin: 8 }, FAVOR_NG: 8,
+  MERIT: { fushin: 15, teisatsu: 12, choryaku: 25, shutsujin: 10 }, PAYOUT: { fushin: 100, teisatsu: 80, choryaku: 200, shutsujin: 150 }, // 出陣は合戦そのものの功績が別に入る
   VISIT: 8, GIFT_COST: 50, GIFT_REL: 12, GOODS_COST: 50, FRIEND: 70, TRAIN_COST: 30, TRAIN_P: 0.35, STAT_CAP: 95,
   MP: R.hx(6), // 1旬に進める道のり（平地1・森と川2・山3。部隊の一月より少し多い）
 };
-export const QUEST_NAME: Record<QuestKind, string> = { fushin: '普請', teisatsu: '偵察', choryaku: '調略' };
+export const QUEST_NAME: Record<QuestKind, string> = { fushin: '普請', teisatsu: '偵察', choryaku: '調略', shutsujin: '出陣' };
 
 export const heroOf = (s: GameState) => (s.hero ? s.generals[s.hero.id] : null);
 export const lordOf = (s: GameState) => { const g = heroOf(s); const l = g?.clan ? s.clans[g.clan].leader : null; return l ? s.generals[l] : null; };
@@ -78,7 +80,8 @@ const used = (s: GameState) => { s.hero!.jun++; };
 
 export function visit(s: GameState, gid: string): Act {
   const H = s.hero!, me = heroOf(s)!, g = s.generals[gid];
-  if (g.loc !== H.town) return { ok: false, text: 'その人はこの町にいない' };
+  const sameArmy = me.army !== null && g.army === me.army;
+  if (!sameArmy && (H.field || g.loc !== H.town)) return { ok: false, text: 'その人はここにいない' };
   const first = !H.rel[gid];
   const same = g.clan === me.clan;
   const gain = Math.round(HERO.VISIT + me.cha / 15 + (same ? 2 : 0) + rand(s) * 6 - (H.met[gid] !== undefined && nowJun(s) - H.met[gid] < 3 ? 6 : 0)); // 続けて訪ねると少ない
@@ -165,6 +168,7 @@ export const costMap = (s: GameState) => search(s, s.hero!.hex).cost;
 export function junTo(s: GameState, hex: number) { const r = search(s, s.hero!.hex); const c = r.cost.get(hex); return c === undefined ? null : Math.max(1, Math.ceil(c / HERO.MP)); }
 export function moveTo(s: GameState, dest: number): Act {
   const H = s.hero!, me = heroOf(s)!;
+  if (H.army !== null && H.army !== undefined) return { ok: false, text: '陣中では勝手に動けない（軍勢とともに進む。離れるなら「陣を離れる」）' };
   if (dest === H.hex) return { ok: false, text: 'すでにここにいる' };
   const r = search(s, H.hex);
   const path = pathTo(r, H.hex, dest);
@@ -183,6 +187,64 @@ export function moveTo(s: GameState, dest: number): Act {
 }
 export const goOn = (s: GameState): Act => (s.hero!.dest !== null && s.hero!.dest !== undefined ? moveTo(s, s.hero!.dest) : { ok: false, text: '行き先がない' });
 export const inField = (s: GameState) => !!s.hero!.field;
+
+// ───────── 陣（味方の軍勢に加わって戦に出る） ─────────
+const placeOf = (s: GameState, hex: number) => { const c = castleAt(s, hex); return c ? c.name : `${PROVINCES[HEXES[hex].p].name}の野`; };
+// 今いるマスにいる味方の軍勢（加われる）
+export function armiesHere(s: GameState): Army[] {
+  const H = s.hero!, me = heroOf(s)!;
+  if (H.army !== null && H.army !== undefined) return [];
+  return Object.values(s.armies).filter((a) => a.clan === me.clan && a.hex === H.hex && !a.ikki && !a.routed && a.main !== me.id);
+}
+export const inArmy = (s: GameState) => { const H = s.hero!; return H.army !== null && H.army !== undefined ? s.armies[H.army] ?? null : null; };
+function followArmy(s: GameState, a: Army) {
+  const H = s.hero!, me = heroOf(s)!;
+  H.hex = a.hex; H.dest = null;
+  const c = castleAt(s, a.hex);
+  if (c) { H.town = c.i; H.field = false; } else H.field = true;
+  me.loc = c?.i ?? me.loc;
+}
+export function joinArmy(s: GameState, id: number): Act {
+  const H = s.hero!, me = heroOf(s)!, a = s.armies[id];
+  if (!a || a.hex !== H.hex || a.clan !== me.clan) return { ok: false, text: 'その軍勢はここにいない' };
+  // 主将の下へ（枠と身分が合えば軍団の決まりどおり、合わなければ主将の直下に）
+  me.status = 'free';
+  if (!attachAuto(s, a, me)) attach(s, a, a.main, me);
+  H.army = a.id; H.joined = s.turn; H.dest = null;
+  followArmy(s, a);
+  used(s);
+  const L = s.generals[a.main];
+  note(s, `${L.name}の軍勢（兵${a.troops.toLocaleString()}）に加わった。`);
+  return { ok: true, who: L.id, line: pickLine(s, JOIN_LINE), text: `${L.name}の軍勢に加わった。兵${a.troops.toLocaleString()}。合戦はこの軍勢とともに戦う（勝てば功績が入る）。` };
+}
+export function leaveCamp(s: GameState): Act {
+  const H = s.hero!, me = heroOf(s)!, a = inArmy(s);
+  if (!a) return { ok: false, text: '陣にいない' };
+  if (Object.values(s.armies).some((x) => hostile(s, me.clan!, x.clan) && hexDist(x.hex, a.hex) <= 2)) return { ok: false, text: '敵が近く、陣を離れれば逃げたと見なされる' };
+  if (!leaveArmy(s, me)) removeArmy(s, a);
+  H.army = null; me.army = null; me.boss = undefined; me.status = 'hero';
+  used(s);
+  note(s, `${placeOf(s, H.hex)}で陣を離れた。`);
+  return { ok: true, text: `陣を離れた。${H.field ? '野にいる。旅を続けよ。' : `${s.castles[H.town].name}の城下にいる。`}` };
+}
+export function campWait(s: GameState): Act {
+  const a = inArmy(s);
+  used(s);
+  return { ok: true, text: a ? `陣中で過ごした。兵${a.troops.toLocaleString()}、士気${a.morale.toFixed(2)}。${a.fought === s.turn ? 'この月、合戦があった。' : ''}` : '陣中で過ごした。' };
+}
+// 陣中の顔ぶれ（訪ねられる）
+export function comrades(s: GameState): General[] {
+  const a = inArmy(s), me = heroOf(s)!;
+  return a ? membersOf(a).map((id) => s.generals[id]).filter((g) => g && g.id !== me.id) : [];
+}
+// 出陣の主命: 加わった軍勢が、加わってから合戦をしたら果たした
+function checkShutsujin(s: GameState) {
+  const H = s.hero!, q = H.quest;
+  if (!q || q.kind !== 'shutsujin' || q.done >= q.need) return;
+  const a = q.army !== undefined ? s.armies[q.army] ?? s.camps?.[q.army] : undefined;
+  if (H.army === q.army && a?.fought !== undefined && a.fought >= (H.joined ?? Infinity)) { q.done = q.need; q.ok = true; q.note = `${s.generals[a.main]?.name ?? ''}の軍勢とともに戦った。`; note(s, '出陣の主命を果たした。登城して報告せよ。'); }
+}
+const JOIN_LINE = ['よう来た。戦は近いぞ。遅れを取るな。', '頼もしい。そなたの隊は、わしの脇を固めよ。', '槍の数は一本でも多いほうがよい。存分に働け。'];
 
 // ───────── 主命 ─────────
 export function questBlock(s: GameState): string | null {
@@ -221,6 +283,7 @@ const monthsLeft = (s: GameState, q: Quest) => Math.max(0, q.until - s.turn);
 export function questText(s: GameState, q: Quest) {
   const c = s.castles[q.castle];
   const own = c.owner ? `${clanName(s, c.owner)}家の` : '';
+  if (q.kind === 'shutsujin') { const a = q.army !== undefined ? s.armies[q.army] : undefined; return a ? `${s.generals[a.main]?.name ?? ''}の軍勢（いま${placeOf(s, a.hex)}）に加わり、戦で手柄を立てよ。` : '加わるはずの軍勢はもう陣を払った。'; }
   return q.kind === 'fushin' ? `${c.name}へ出向き、普請を差配せよ（${q.need}旬）。` : q.kind === 'teisatsu' ? `${own}${c.name}の城下に入り、城の様子を探れ。` : `${own}${c.name}に入り込み、城兵を切り崩せ。`;
 }
 function makeQuest(s: GameState): Quest | null {
@@ -237,12 +300,19 @@ function makeQuest(s: GameState): Quest | null {
   const near = (tgt.length ? tgt : foes).sort((a, b) => Math.min(...mine.map((m) => hexDist(m.hex, a.hex))) - Math.min(...mine.map((m) => hexDist(m.hex, b.hex))));
   if (near[0]) pool.push({ kind: 'teisatsu', castle: near[0].i, need: 1, done: 0, until });
   if (near[0] && R.RANK_NAME[me.rank] && me.rank <= 2) pool.push({ kind: 'choryaku', castle: near[Math.min(near.length - 1, 1)].i, need: 1, done: 0, until });
+  // 出陣: 家が攻勢で、地図に出ている味方の軍勢があれば（戦の前に加わる）
+  const fieldArmies = Object.values(s.armies).filter((a) => a.clan === clan && !a.ikki && !a.routed && a.main !== me.id && s.generals[a.main]?.status !== 'dead');
+  if (fieldArmies.length && (C.stance === '攻勢' || C.target)) {
+    const a = fieldArmies.sort((x, y) => y.troops - x.troops)[0];
+    const near = mine.sort((x, y) => hexDist(x.hex, a.hex) - hexDist(y.hex, a.hex))[0];
+    if (near) { pool.push({ kind: 'shutsujin', castle: near.i, need: 1, done: 0, until, army: a.id }); pool.push(pool[pool.length - 1]); } // 戦のときは出陣の主命が出やすい
+  }
   if (!pool.length) return null;
   const pick = pool[Math.floor(rand(s) * pool.length)];
   s.hero!.lastQuest = pick.castle;
   return pick;
 }
-export const canWork = (s: GameState) => { const H = s.hero!; return !H.field && !!H.quest && H.quest.done < H.quest.need && H.quest.castle === H.town; };
+export const canWork = (s: GameState) => { const H = s.hero!; return !H.field && !H.army && !!H.quest && H.quest.kind !== 'shutsujin' && H.quest.done < H.quest.need && H.quest.castle === H.town; };
 // 主命を果たす（その町で1旬）
 export function work(s: GameState): Act {
   const H = s.hero!, me = heroOf(s)!, q = H.quest!;
@@ -296,8 +366,10 @@ export function heroMonth(s: GameState): string[] {
   if (!me || me.status === 'dead') return out;
   const pay = HERO.PAY[me.rank] ?? 50;
   H.gold += pay; out.push(`俸禄 ${pay}貫を受け取った（手元 ${H.gold}貫）。`);
+  checkShutsujin(s);
   const q = H.quest;
-  if (q && q.done < q.need && s.turn >= q.until) { H.favor = clamp(H.favor - HERO.FAVOR_NG); H.failed++; H.quest = null; out.push(`主命（${QUEST_NAME[q.kind]}）の期日が過ぎた。主君の覚え−${HERO.FAVOR_NG}。`); note(s, `主命（${QUEST_NAME[q.kind]}）の期日を過ぎてしまった。`); }
+  if (q && q.kind === 'shutsujin' && q.done < q.need && H.army !== q.army && q.army !== undefined && !s.armies[q.army]) { H.quest = null; out.push('加わるはずの軍勢が陣を払い、出陣の主命は取りやめになった。'); }
+  else if (q && q.done < q.need && s.turn >= q.until) { H.favor = clamp(H.favor - HERO.FAVOR_NG); H.failed++; H.quest = null; out.push(`主命（${QUEST_NAME[q.kind]}）の期日が過ぎた。主君の覚え−${HERO.FAVOR_NG}。`); note(s, `主命（${QUEST_NAME[q.kind]}）の期日を過ぎてしまった。`); }
   // 取り立て（功績が満ちて、主君の覚えがよければ）
   while (me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10) {
     me.rank--; H.favor = clamp(H.favor - 10);
@@ -312,10 +384,25 @@ export function heroEnd(s: GameState): string | null {
   const me = heroOf(s);
   if (!me || me.status === 'dead') return `${me?.name ?? '主人公'}は世を去った。`;
   if (!me.clan || !s.clans[me.clan]?.alive) return `${clanName(s, s.player)}家は滅んだ。`;
-  if (me.status !== 'hero') { me.status = 'hero'; me.army = null; }
+  if (me.status === 'captive') return `${me.name}は敵に捕らえられた。`;
+  const H = s.hero!;
+  H.hex ??= s.castles[H.town].hex;
   for (const c of s.castles) if (c.governor === me.id) c.governor = null;
-  if (me.loc !== s.hero!.town) me.loc = s.hero!.town;
-  s.hero!.hex ??= s.castles[s.hero!.town].hex;
+  if (H.army !== null && H.army !== undefined) {
+    const a = s.armies[H.army];
+    if (a && me.army === a.id && me.status === 'army') { followArmy(s, a); checkShutsujin(s); return null; }
+    // 陣払い・壊滅・編成替えで陣を離れた
+    const camp = s.camps?.[H.army];
+    if (camp) { camp.staff = (camp.staff ?? []).filter((x) => x !== me.id); if (camp.main === me.id) { const n = camp.staff.shift(); if (n) { camp.main = n; s.generals[n].boss = undefined; } else delete s.camps![H.army]; } }
+    else if (me.army !== null) leaveArmy(s, me);
+    H.army = null; me.army = null; me.boss = undefined; me.status = 'hero';
+    const c = camp?.camp !== undefined ? s.castles[camp.camp] : castleAt(s, H.hex) ?? clanCastles(s, me.clan).sort((x, y) => hexDist(x.hex, H.hex) - hexDist(y.hex, H.hex))[0];
+    if (c) { H.town = c.i; H.hex = c.hex; H.field = false; me.loc = c.i; }
+    note(s, `陣が払われ、${c?.name ?? '城'}に戻った。`);
+    return null;
+  }
+  if (me.status !== 'hero') { me.status = 'hero'; me.army = null; }
+  if (me.loc !== H.town) me.loc = H.town;
   return null;
 }
 
@@ -351,12 +438,14 @@ const FIRST_OTHER = ['……よその家の者が、何の用だ。', '敵か味
 const FIRST_RONIN = ['浪々の身に何の用かな。……ほう、酒を持ってきたか。', '仕官の口でもあるのか。話を聞こう。'];
 const GIFT_LINE = ['これは、かたじけない。ありがたく頂戴する。', '気を遣わせたな。この礼はいずれ。'];
 const PRAISE: Record<QuestKind, string[]> = {
+  shutsujin: ['戦場での働き、聞いておるぞ。よう励んだ。', 'そなたの槍、頼もしく思うたぞ。'],
   fushin: ['うむ、手際がよい。城が固くなれば、民も安心する。', '早かったな。次も頼むぞ。'],
   teisatsu: ['よう探った。これで次の手が打てる。', 'ほう、そこまで調べたか。褒めてつかわす。'],
   choryaku: ['でかした！ 城を落とす前に、城の心を落としたな。', '舌先三寸で城兵を崩すとは。そなた、なかなかの曲者よ。'],
 };
 const SCOLD = ['……そうか。次はしくじるなよ。', '不首尾か。言い訳は聞かぬ。次で取り返せ。'];
 const ORDER_LINE: Record<QuestKind, string> = {
+  shutsujin: '戦じゃ。{castle}のあたりにおる軍勢に加わり、手柄を立ててまいれ。',
   fushin: '{castle}の守りが心もとない。出向いて普請を差配せよ。',
   teisatsu: '{castle}の様子を探ってまいれ。兵の数、城主の顔ぶれ、何でもよい。',
   choryaku: '{castle}の侍どもに手を回し、城の守りを内から崩してまいれ。',
