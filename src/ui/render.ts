@@ -152,6 +152,7 @@ export class MapView {
   mode: MapMode = 'power';
   highlight: string | string[] | null = null; // タイトルの家選び・序幕: この家（家々）以外を沈める
   marks: { hexes: number[]; arrows: [number, number][] } | null = null; // 序幕: 光る場所と進軍の矢印
+  heroMark: { hex: number; img: HTMLImageElement } | null = null; // 武将で遊ぶ: 主人公のいるマスに小さな顔
   hexAlpha: number | null = 0.55; // 下絵を敷くときのヘックスの塗りの濃さ（null は下絵なし）
   armyStyle: ArmyStyle = 'hayashi'; // 部隊の印: 幟の林（初期）・丸（兵数の弧）。凸・駒・幟・流れ旗は試作のまま残す
   armySize: 'tier' | 'scale' = 'scale'; // 兵数で3段階か、なめらかに
@@ -591,6 +592,20 @@ export class MapView {
         ctx.strokeStyle = 'rgba(243,214,140,0.95)'; ctx.beginPath(); ctx.arc(x, y, HEX_SIZE * 0.72, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
       }
       this.redraw(); // 動かし続ける
+    }
+    // 武将で遊ぶ: 主人公の小さな顔（画面の上で一定の大きさ）
+    if (this.heroMark) {
+      const { hex, img } = this.heroMark;
+      const [x, y] = CENTERS[hex];
+      const w = 34 * px, h = w * 1.25;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 8 * px;
+      ctx.fillStyle = '#1a1410'; ctx.fillRect(x - w / 2 - 2 * px, y - h / 2 - 2 * px, w + 4 * px, h + 4 * px);
+      ctx.shadowBlur = 0;
+      if (img.complete && img.naturalWidth) ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+      else img.onload = () => this.redraw();
+      ctx.strokeStyle = '#e6c27a'; ctx.lineWidth = 2 * px; ctx.strokeRect(x - w / 2 - 1 * px, y - h / 2 - 1 * px, w + 2 * px, h + 2 * px);
+      ctx.restore();
     }
     // 山脈の名と峠の札（寄ったときだけ）
     if (this.scale > 1.1) {

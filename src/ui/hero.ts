@@ -6,6 +6,7 @@ import { endTurn } from '../engine/game';
 import * as H from '../engine/hero';
 import { HEXES, PROVINCES } from '../engine/map';
 import { MapView } from './render';
+import { PORTRAITS } from '../data/portraits';
 import * as R from '../engine/rules';
 import { rankName } from '../engine/ranks';
 import { newGame } from '../engine/setup';
@@ -29,6 +30,7 @@ let busy = false;
 let report: string[] | null = null;
 let mapCanvas: HTMLCanvasElement | null = null;
 let view: MapView | null = null;
+let heroImg: HTMLImageElement | null = null;
 let recenter = true; // 地図を主人公のマスへ寄せ直すか（旅を始めたとき・進んだとき）
 const mapMode = (st: GameState) => pane === 'tabi' || (!!st.hero!.field && !H.inArmy(st));
 
@@ -117,7 +119,11 @@ function attachMap(st: GameState) {
   view.resize();
   const Hh = st.hero!;
   view.sel = { army: null, hex: null, reach: busy ? null : H.heroReach(st), targets: [] };
-  view.marks = { hexes: [Hh.hex], arrows: Hh.dest !== null && Hh.dest !== undefined ? [[Hh.hex, Hh.dest]] : [] };
+  const dest = Hh.dest !== null && Hh.dest !== undefined ? Hh.dest : null;
+  view.marks = dest !== null ? { hexes: [dest], arrows: [[Hh.hex, dest]] } : null; // 点滅する輪は行き先に
+  const src = PORTRAITS[Hh.id];
+  if (src) { if (!heroImg || heroImg.dataset.id !== Hh.id) { heroImg = new Image(); heroImg.dataset.id = Hh.id; heroImg.src = src; } view.heroMark = { hex: Hh.hex, img: heroImg }; }
+  else { view.heroMark = null; view.marks = { hexes: [Hh.hex, ...(dest !== null ? [dest] : [])], arrows: view.marks?.arrows ?? [] }; } // 顔がなければ輪で
   if (recenter) { view.centerOn(Hh.hex, Math.min(2.2, Math.max(1.3, view.w / 520))); recenter = false; }
   view.redraw();
 }
@@ -125,7 +131,7 @@ function onHex(hex: number) {
   if (!s || busy || report) return;
   if (hex === s.hero!.hex) { const c = castleAt(s, hex); say = { text: c ? `ここは${c.name}の城下。` : 'ここで足を止めている。' }; render(); return; }
   recenter = true;
-  void act(() => H.moveTo(s!, hex), 'tabi');
+  void act(() => H.moveTo(s!, hex), 'tabi').then(() => { if (root && window.innerWidth <= 820) root.scrollTo({ top: 0 }); }); // 狭い画面では地図へ戻す
 }
 function spotsHtml(st: GameState) {
   const a = H.inArmy(st);
@@ -165,7 +171,8 @@ function travelHtml(st: GameState) {
   if (L) ids.add(L.loc);
   for (const c of st.castles) if ((cost.get(c.hex) ?? Infinity) <= H.HERO.MP * 3) ids.add(c.i);
   if (!Hh.field) ids.delete(Hh.town);
-  const list = [...ids].map((i) => st.castles[i]).sort((a, b) => (cost.get(a.hex) ?? 999) - (cost.get(b.hex) ?? 999));
+  const key = (c: { i: number }) => Number(c.i === L?.loc || Hh.quest?.castle === c.i); // 主君・主命の城を先に
+  const list = [...ids].map((i) => st.castles[i]).sort((a, b) => key(b) - key(a) || (cost.get(a.hex) ?? 999) - (cost.get(b.hex) ?? 999)).slice(0, 12);
   const dest = Hh.dest !== null && Hh.dest !== undefined ? Hh.dest : null;
   if (H.inArmy(st)) return '<p class="hr-note">陣中では軍勢とともに動く。地図は見るだけ。離れるなら「城下」の「陣を離れる」。</p>';
   return `<p class="hr-note">地図で行き先のマスを押す。明るいマスは1旬で行ける所（平地1・森と川2・山3、1旬に${H.HERO.MP}まで）。遠い所を選べば、その方へ1旬ぶん進む。城のマスに止まればその城下に入る（他国の城下にも入れる）。</p>
