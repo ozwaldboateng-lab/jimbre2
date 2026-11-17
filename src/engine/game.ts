@@ -46,6 +46,7 @@ export async function endTurn(s: GameState) {
   const order = Object.keys(s.clans).filter((c) => c !== s.player && s.clans[c].alive);
   for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rand(s) * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
   for (const c of order) { if (s.over) break; await aiDiplomacy(s, c); }
+  if (s.hero && s.clans[s.player]?.alive) await aiDiplomacy(s, s.player); // 武将で遊ぶ: 当家（大名はAI）も外交する
   await monthlyCoalitions(s); // 檄と連合（包囲網）
   for (const c of order) { if (s.over) break; await runClanAI(s, c); }
   monthEnd(s);

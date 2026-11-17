@@ -6,6 +6,8 @@ import { endTurn } from '../engine/game';
 import * as H from '../engine/hero';
 import { HEXES, PROVINCES } from '../engine/map';
 import { MapView } from './render';
+import { nextStory, storyDue, storyJump } from '../engine/story2';
+import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
 import * as R from '../engine/rules';
 import { rankName } from '../engine/ranks';
@@ -74,6 +76,7 @@ export function openHeroWith(f: Face, quit: () => void, st: GameState, first: { 
   mount();
   s = st; pane = 'spots'; bg = 'town'; report = null; recenter = true; say = first;
   save(); render();
+  runStory();
 }
 // ───────── 本体 ─────────
 function begin(id: string) {
@@ -92,7 +95,7 @@ function render() {
   const art = ART(H.inArmy(st) ? 'jinmaku' : BG[bg] ?? 'ichi');
   root.innerHTML = `<div class="hr-main">
     <header class="hr-head">
-      <div class="hr-id">${face(me.id, 56)}<div><b>${esc(me.name)}</b><span>${clanName(st, me.clan!)}家・${R.RANK_NAME[me.rank]}</span></div></div>
+      <div class="hr-id">${face(me.id, 56)}<div><b>${esc(me.name)}</b><span>${clanName(st, me.clan!)}家・${R.RANK_NAME[me.rank]}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
       <div class="hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div>
       <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd><dt>進物</dt><dd>${Hh.goods}</dd><dt>主君の覚え</dt><dd>${Hh.favor}</dd><dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
       <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd></dl>
@@ -141,6 +144,7 @@ function onHex(hex: number) {
   void act(() => H.moveTo(s!, hex), 'tabi').then(() => { if (root && window.innerWidth <= 820) root.scrollTo({ top: 0 }); }); // 狭い画面では地図へ戻す
 }
 function spotsHtml(st: GameState) {
+  if (st.hero!.over) return `<p class="hr-note">${esc(st.hero!.over)}</p><button class="hr-spot main" data-h="quit"><b>タイトルへ</b><span>この遊びは終わった</span></button>`;
   const a = H.inArmy(st);
   if (a) return `<p class="hr-note">${esc(st.generals[a.main]?.name ?? '')}の軍勢にいる。軍勢は大名（AI）の采配で動き、合戦もこの軍勢とともに戦う（勝てば功績が入る）。</p>
     <button class="hr-spot" data-h="campwait"><b>陣中で過ごす</b><span>1旬。戦を待つ</span></button>
@@ -154,7 +158,7 @@ function spotsHtml(st: GameState) {
   const work = H.canWork(st) ? `<button class="hr-spot main" data-h="work"><b>主命を果たす</b><span>${esc(H.QUEST_NAME[st.hero!.quest!.kind])}（1旬）</span></button>` : '';
   const desc: Record<H.Spot, string> = { tojo: '主命を受ける・報告する', yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
   return `${work}${join}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
-    <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>`;
+    <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
 function peopleHtml(st: GameState) {
   const me = H.heroOf(st)!;
@@ -205,27 +209,53 @@ async function act(fn: () => H.Act, scene?: string) {
   await advance();
 }
 // 3旬が過ぎたら1か月を進める。月をまたぐ旅は続ける
+// 1か月を進める（大名たちの月の処理）。主人公が死ぬか家が滅べば終わりの言葉を返す
+async function monthStep(st: GameState, lines: string[]): Promise<string | null> {
+  lines.push(...H.heroMonth(st));
+  const n0 = st.log.length;
+  await runClanAI(st, st.player);
+  await endTurn(st);
+  st.over = null; st.scenes = []; st.events = [];
+  lines.push(...st.log.slice(n0).filter((l) => l.mine && (l.kind === 'battle' || l.kind === 'castle' || l.kind === 'death')).map((l) => l.text).slice(-10));
+  return H.heroEnd(st);
+}
 async function advance() {
   const st = s!;
   const lines: string[] = [];
   if (st.hero!.jun >= H.HERO.JUN) {
-    {
-      busy = true; render();
-      lines.push(...H.heroMonth(st));
-      const n0 = st.log.length;
-      await runClanAI(st, st.player);
-      await endTurn(st);
-      st.over = null; st.scenes = []; st.events = [];
-      lines.push(...st.log.slice(n0).filter((l) => l.mine && (l.kind === 'battle' || l.kind === 'castle' || l.kind === 'death')).map((l) => l.text).slice(-10));
-      busy = false;
-      const end = H.heroEnd(st);
-      if (end) { report = [...lines, end, '試作はここまで。']; render(); try { localStorage.removeItem(KEY); } catch { /* 続ける */ } return; }
-    }
+    busy = true; render();
+    const end = await monthStep(st, lines);
+    busy = false;
+    if (end) { report = [...lines, end, '試作はここまで。']; render(); try { localStorage.removeItem(KEY); } catch { /* 続ける */ } return; }
   }
   if (lines.length) report = [...new Set(lines)];
   // 城下に着いたら、城下の画面へ戻る
   if (bg === 'tabi' && !st.hero!.field && (st.hero!.dest === null || st.hero!.dest === undefined)) { bg = 'town'; pane = 'spots'; }
   save(); render();
+  runStory();
+}
+// 物語（前田利家 ― 残り火）: 時期の来た場面を、物語の画面で見せる
+let theater: ((beats: Beat[], done: () => void) => void) | null = null;
+export function setTheater(f: typeof theater) { theater = f; }
+function runStory() {
+  if (!s || !theater || busy) return;
+  const ev = storyDue(s);
+  if (!ev) return;
+  const st = s;
+  theater(ev.beats, () => {
+    const lines = ev.apply?.(st) ?? [];
+    if (lines.length) { say = { text: lines.join('') }; for (const x of lines) H.note(st, x); }
+    save(); render();
+    runStory();
+  });
+}
+// 月日を送る（物語）: 次の場面の年月まで暦だけを跳ぶ（世の中はそのまま）
+function skipTime() {
+  const st = s!;
+  const lines = storyJump(st);
+  if (lines.length) { say = { text: lines.join('') }; for (const x of lines) H.note(st, x); }
+  save(); render();
+  runStory();
 }
 
 function onClick(e: Event) {
@@ -234,11 +264,13 @@ function onClick(e: Event) {
   const h = b.dataset.h!, id = b.dataset.id ?? '';
   if (h === 'quit') { save(); s = null; close(); return; }
   if (h === 'pick') { begin(id); return; }
-  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; render(); } return; }
+  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; render(); runStory(); } return; }
   if (!s) return;
+  if (s.hero?.over && !['pane', 'report-ok'].includes(h)) return; // 終わったあとは見るだけ
   if (h === 'pane') { if (id === 'tabi') recenter = true; pane = id as typeof pane; render(); return; }
   if (h === 'report-ok') { report = null; render(); return; }
   if (h === 'rest') { void act(() => H.rest(s!), 'town'); return; }
+  if (h === 'skip') { skipTime(); return; }
   if (h === 'work') { const k = s.hero!.quest!.kind; void act(() => H.work(s!), k); return; }
   if (h === 'visit') { void act(() => H.visit(s!, id), 'yashiki'); return; }
   if (h === 'gift') { void act(() => H.giveGift(s!, id), 'yashiki'); return; }

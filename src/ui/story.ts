@@ -11,7 +11,7 @@ import { endTurn } from '../engine/game';
 import { heroEnd, startHero } from '../engine/hero';
 import { newGame } from '../engine/setup';
 import type { GameState } from '../engine/types';
-import { CSS, openHeroWith } from './hero';
+import { CSS, openHeroWith, setTheater } from './hero';
 
 const KEY = 'sengoku-story-toshiie';
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -34,13 +34,16 @@ let lastArt: string | undefined;
 export const storySaved = () => { try { return !!localStorage.getItem(KEY); } catch { return false; } };
 function save() { try { if (st) localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* 続ける */ } }
 
-export function openStory(f: Face, quit: () => void) {
-  face = f; onQuit = quit;
+function ensureRoot() {
   if (!document.getElementById('hero-style')) { const x = document.createElement('style'); x.id = 'hero-style'; x.textContent = CSS; document.head.appendChild(x); }
   if (!document.getElementById('story-style')) { const x = document.createElement('style'); x.id = 'story-style'; x.textContent = CSS.split('#hero').join('#story') + STORY_CSS; document.head.appendChild(x); } // 同じ見た目を #story にも
   root = document.getElementById('story');
   if (!root) { root = document.createElement('div'); root.id = 'story'; root.className = 'story-root'; document.body.appendChild(root); root.addEventListener('click', onClick); }
   root.hidden = false;
+}
+export function openStory(f: Face, quit: () => void) {
+  face = f; onQuit = quit;
+  ensureRoot();
   st = null; queue = []; pending = null; pane = 'acts';
   renderTitle();
 }
@@ -68,7 +71,7 @@ function begin(skip: boolean) {
 const nameOf = (id: string) => D.STORY_CAST[id] ?? ({ maeda_toshiie: '前田利家', oda_nobunaga: '織田信長', ikeda_tsuneoki: '池田恒興', sassa_narimasa: '佐々成政', kinoshita_tokichiro: '木下藤吉郎', shibata_katsuie: '柴田勝家', maeda_toshimasu: '前田利益' } as Record<string, string>)[id] ?? id;
 // 顔: 物語の人物は届いた絵、犬千代は利家の顔、三郎は信長の顔。なければ名の札
 function faceOf(id: string, w: number) {
-  const pid = id === 'maeda_toshiie' && !st?.done ? 'inuchiyo' : id === 'sanro' ? 'nobunaga_young' : id; // 帰参までの利家は若き日の顔、辻の三郎はうつけの頃の信長
+  const pid = id === 'maeda_toshiie' && !theaterDone && !st?.done ? 'inuchiyo' : id === 'sanro' ? 'nobunaga_young' : id; // 帰参までの利家は若き日の顔、辻の三郎はうつけの頃の信長
   const src = STORY_PORTRAITS[pid] ?? PORTRAITS[pid];
   if (src) return `<img class="face" src="${src}" width="${w}" height="${Math.round(w * 1.25)}" alt="">`;
   return `<span class="hr-noface" style="width:${w}px;height:${Math.round(w * 1.25)}px;font-size:${Math.round(w / 4)}px">${esc(nameOf(id).slice(0, 3))}</span>`;
@@ -140,7 +143,7 @@ function stepHtml(step: D.Step) {
 }
 function sideHtml(s: S.StoryState) {
   const locked = queue.length > 0 || !!pending || !!s.battle;
-  if (s.done && !locked) return `<p class="hr-note">第一幕はここまで。第二幕「戻る道」（赤母衣・家督）は作成中。ここからは1560年の世界で、織田家の家臣として主命と陣で働ける。</p><button class="hr-spot main" data-s="tohero"><b>清洲で働く</b><span>武将で遊ぶ（1560年の世界）へ</span></button>`;
+  if (s.done && !locked) return `<p class="hr-note">第一幕はここまで。ここから第二幕「戻る道」。1560年の世界で織田家の家臣として主命と陣で働きながら、赤母衣・兄の座・家督へ進む（物語の場面は時期と働きに応じて起きる。「月日を送る」で次の場面まで時を進められる）。</p><button class="hr-spot main" data-s="tohero"><b>第二幕へ</b><span>清洲で働く（1560年の世界）</span></button>`;
   if (locked) return `<p class="hr-note">${s.battle ? '戦の只中。読む・決める・飛び込む。' : '場面の途中。'}</p>`;
   if (pane === 'diary') return `<ol class="hr-diary">${[...s.diary].reverse().map((x) => `<li><small>${esc(x.date)}</small>${esc(x.text)}</li>`).join('')}</ol>`;
   if (pane === 'tabi') return `<p class="hr-note">荒子・清洲・熱田は近い。行き来に旬は使わない（着いた先での行いに1旬）。</p>${S.placesOf(s).map((p) => `<button class="hr-town-row" data-s="go" data-id="${p}"><b>${esc(S.PLACE_NAME[p])}</b><span>${p === s.place ? 'いまここ' : ''}</span></button>`).join('')}`;
@@ -150,6 +153,26 @@ function sideHtml(s: S.StoryState) {
   }
   return S.actsOf(s).map((a) => a === 'yashiki' ? `<button class="hr-spot" data-s="pane" data-id="yashiki"><b>屋敷</b><span>まつ・兄・家の者と話す</span></button>` : `<button class="hr-spot${a === 'mihari' ? ' main' : a === 'rest' ? ' dim' : ''}" data-s="act" data-id="${a}"><b>${S.ACT_NAME[a][0]}</b><span>${S.ACT_NAME[a][1]}</span></button>`).join('');
 }
+
+// ───────── 第二幕の場面（武将で遊ぶの上に、物語の場面だけを画面いっぱいに見せる） ─────────
+let theaterDone: (() => void) | null = null;
+export function playTheater(beats: Beat[], done: () => void) {
+  ensureRoot();
+  root!.style.zIndex = '70';
+  queue = [...beats]; pending = null; theaterDone = done; lastArt = undefined;
+  renderTheater();
+}
+function renderTheater() {
+  const b = queue[0];
+  if (!b) { root!.hidden = true; root!.style.zIndex = ''; const d = theaterDone; theaterDone = null; d?.(); return; }
+  if (b.bg) bg = b.bg;
+  const art = ART(bg), changed = art !== lastArt; lastArt = art;
+  root!.innerHTML = `<div><div class="hr-main" style="height:100vh"><div class="hr-body" style="grid-template-columns:1fr;flex:1"><section class="hr-scene st-scene" style="min-height:100vh">
+    <div class="st-bg${changed ? ' fadein' : ''}" style="${art ? `background-image:url(${art})` : ''}"></div>
+    ${b.kind ? fxHtml(b) : `<div class="hr-town"><b>${esc(b.head ?? BG_NAME[bg] ?? '')}</b><span>残り火　第二幕</span></div>${beatHtml(b)}`}
+  </section></div></div></div>`;
+}
+setTheater(playTheater); // 武将で遊ぶから呼べるように
 
 // ───────── 動き ─────────
 function show(r: S.Show) { queue.push(...r.beats); if (r.choice) pending = r.choice; if (st && S.moribeDue(st) && !pending) show(S.startMoribe(st)); save(); render(); }
@@ -162,8 +185,8 @@ function onClick(e: Event) {
   if (a === 'new-skip') { begin(true); return; }
   if (a === 'continue') { try { st = JSON.parse(localStorage.getItem(KEY)!); } catch { st = null; } if (st) { queue = []; pending = st.battle ? null : S.pendingChoice(st) ?? null; render(); } return; }
   if (!st) return;
-  if (a === 'next') { e.stopPropagation(); queue.shift(); render(); return; }
-  if (a === 'skip') { queue = []; render(); return; }
+  if (a === 'next') { e.stopPropagation(); queue.shift(); if (theaterDone) renderTheater(); else render(); return; }
+  if (a === 'skip') { queue = []; if (theaterDone) renderTheater(); else render(); return; }
   if (a === 'pane') { pane = id as typeof pane; render(); return; }
   if (a === 'go') { st.place = id as S.Place; pane = 'acts'; bg = S.PLACE_BG[st.place]; render(); return; }
   if (a === 'act') { pane = id.endsWith('_t') ? 'yashiki' : 'acts'; show(S.act(st, id as S.ActId)); return; }
@@ -186,12 +209,14 @@ async function toHero() {
   me.bra = Math.max(me.bra, s.bra);
   g.hero!.gold = Math.max(100, s.gold);
   g.hero!.favor = s.rel.oda_nobunaga ?? 40;
+  g.hero!.story = 'toshiie'; g.hero!.storyStart = g.year * 12 + g.month; // 第二幕の物語
+  if (g.clans.matsudaira?.alive && !g.treaties.some((x) => (x.a === 'oda' && x.b === 'matsudaira') || (x.a === 'matsudaira' && x.b === 'oda'))) g.treaties.push({ a: 'oda', b: 'matsudaira', kind: 'alliance', start: g.turn, until: g.turn + 120 }); // 清洲同盟（史実は1562年）
   for (const id of ['ikeda_tsuneoki', 'sassa_narimasa', 'kinoshita_tokichiro', 'shibata_katsuie']) if (s.rel[id]) g.hero!.rel[id] = s.rel[id];
   g.hero!.diary.push(...s.diary.map((d) => ({ turn: 1, jun: 0, text: `（${d.date}）${d.text}` })));
   busy = '';
   try { localStorage.removeItem(KEY); } catch { /* 続ける */ }
   if (root) root.hidden = true;
-  openHeroWith(face, onQuit, g, { who: 'oda_nobunaga', line: '働け。主命は、登城して受けよ', text: '清洲へ戻った。ここからは織田家の家臣として、主命と陣で働く。（第二幕は作成中）' });
+  openHeroWith(face, onQuit, g, { who: 'oda_nobunaga', line: '働け。主命は、登城して受けよ', text: '清洲へ戻った。ここからは織田家の家臣として、主命と陣で働く。' });
 }
 
 // 物語の文字: 地の文もセリフと同じ書体・大きさで、一文ごとに改行

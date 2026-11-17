@@ -39,6 +39,24 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   }
   await p.waitForTimeout(800);
   await p.screenshot({ path: `${out}/st-${vp.tag}-hero.png` });
+  // 第二幕: 物語の場面を送り、月日を送って家督まで
+  const seen = [];
+  for (let it = 0; it < 400; it++) {
+    const theater = await p.$('#story:not([hidden]) .st-scene');
+    if (theater) {
+      const head = await p.$eval('#story .st-scene', (e) => e.textContent).catch(() => '');
+      const mm = head.match(/^\s*(戻った庭|母衣|成政の推し|兄の座|三人の前田|家督|第一部　了)/); if (mm && !seen.includes(mm[1])) { seen.push(mm[1]); await p.waitForTimeout(1300); await p.screenshot({ path: `${out}/st-${vp.tag}-act2-${seen.length}.png` }); }
+      const nx = await p.$('#story .st-fx') ?? await p.$('#story .hr-say button[data-s="next"]');
+      if (nx) { await nx.click(); await p.waitForTimeout(50); continue; }
+    }
+    if (await p.$('#hero [data-h="report-ok"]')) { await p.click('#hero [data-h="report-ok"]'); await p.waitForTimeout(50); continue; }
+    const sk = await p.$('#hero [data-h="skip"]');
+    if (sk) { await sk.click(); await p.waitForFunction(() => !document.querySelector('#hero .hr-busy'), null, { timeout: 120000 }); await p.waitForTimeout(100); continue; }
+    if (await p.$('#hero [data-h="pane"][data-id="spots"]')) { await p.click('#hero [data-h="pane"][data-id="spots"]'); await p.waitForTimeout(50); if (await p.$('#hero [data-h="skip"]')) continue; }
+    break;
+  }
+  await p.screenshot({ path: `${out}/st-${vp.tag}-act2-end.png` });
+  console.log(vp.tag, 'act2', seen.join(','), await p.evaluate(() => document.querySelector('#hero .hr-id')?.textContent + ' ' + document.querySelector('#hero .hr-date')?.textContent));
   console.log(vp.tag, await p.evaluate(() => (document.querySelector('#hero .hr-date')?.textContent ?? 'no-hero') + ' | ' + (document.querySelector('#hero .hr-text')?.textContent ?? '')));
   await p.close();
 }

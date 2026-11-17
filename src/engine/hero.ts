@@ -4,6 +4,7 @@
 import { HEXES, NEIGHBORS, PROVINCES, hexDist } from './map';
 import { pathTo, stepCost, type Reach } from './move';
 import { storeOf } from './supply';
+import { storyGuard } from './story2';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
 import * as R from './rules';
@@ -20,6 +21,8 @@ export interface Hero {
   quest: Quest | null; travel?: unknown; // travel は古い試作の名残（使わない）
   hex: number; field?: boolean; dest?: number | null; army?: number | null; joined?: number; // army: 加わっている軍勢、joined: 加わったターン // 今いるマス、野にいるか（城下でない）、旅の行き先
   diary: { turn: number; jun: number; text: string }[]; done: number; failed: number; trained: number; lastQuest?: number;
+  over?: string; // 終わった（主人公の死・主家の滅亡など）。終わりの言葉
+  story?: string; storyDone?: string[]; storyStart?: number; title?: string; // 物語（前田利家 ― 残り火）の第二幕: 起きた出来事・始まりの年月・肩書き
 }
 export const HERO = {
   JUN: 3, PAY: [400, 200, 100, 50], // 身分ごとの月の俸禄（宿老・侍大将・足軽大将・足軽組頭）
@@ -361,6 +364,7 @@ function chased(s: GameState, text: string): Act {
 
 // ───────── 月の終わり（3旬が過ぎたら、大名たちの1か月の前に） ─────────
 export function heroMonth(s: GameState): string[] {
+  storyGuard(s);
   const H = s.hero!, me = heroOf(s)!;
   const out: string[] = [];
   if (!me || me.status === 'dead') return out;
@@ -381,7 +385,14 @@ export function heroMonth(s: GameState): string[] {
 }
 // 武将が生きて家にいるか（いなければ試作はそこで終わり）
 export function heroEnd(s: GameState): string | null {
+  const e = heroEnd0(s);
+  if (e && s.hero) s.hero.over = e;
+  return e;
+}
+function heroEnd0(s: GameState): string | null {
   const me = heroOf(s);
+  if (s.hero?.over) return s.hero.over;
+  if (s.hero?.story === 'toshiie' && me && me.status !== 'dead' && me.clan !== 'oda') return '織田家を失い、利家の物語はここで途切れた。';
   if (!me || me.status === 'dead') return `${me?.name ?? '主人公'}は世を去った。`;
   if (!me.clan || !s.clans[me.clan]?.alive) return `${clanName(s, s.player)}家は滅んだ。`;
   if (me.status === 'captive') return `${me.name}は敵に捕らえられた。`;
