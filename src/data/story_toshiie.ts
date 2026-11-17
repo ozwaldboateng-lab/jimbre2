@@ -5,7 +5,7 @@ export interface Choice { id: string; label: string; note?: string }
 
 // この物語だけの人物（顔の絵が届いたら PORTRAITS に同じ id で入れる）
 export const STORY_CAST: Record<string, string> = {
-  matsu: 'まつ', inuchiyo: '犬千代', toshiharu: '前田利春', toshihisa: '前田利久', juami: '拾阿弥', fukushima: '福島', sakakibara: '榊原',
+  matsu: 'まつ', matsu_young: 'まつ', matsu_wife: 'まつ', inuchiyo: '犬千代', toshiharu: '前田利春', toshihisa: '前田利久', juami: '拾阿弥', fukushima: '福島', sakakibara: '榊原',
   matabe: '又兵衛', wakazamurai: '若侍くずれ', koshin: '前田家の古参', kerai: '前田家の家臣', monban: '門番', kosan: '勝家配下の古参', tsukai: '使い',
   sanro: '三郎',
 };
@@ -21,9 +21,9 @@ export const PROLOGUE: Beat[] = [
   { bg: 'arako', text: '荒子は、その尾張の南寄りにある。田の中に土塁が盛り上がり、浅い堀がめぐる。城というより、大きな土の屋敷である。その前田家の四男が、犬千代である。' },
   { bg: 'arako', text: '四男というものは、戦国の家では扱いに困る。いてもいなくても、家の形は変わらぬ。だから犬千代に残された道は、家の中で待つことではなく、外で名を作ることだった。' },
   { bg: 'arako', text: '喧嘩は腕だけでは決まらない。先に「こいつには勝てぬ」と思った方が負ける。ならば目立てばいい。派手に歩けばいい。槍を長くすればいい。犬千代の槍は、異様に長かった。' },
-  { who: 'matsu', bg: 'arako', text: 'また喧嘩ですか' },
+  { who: 'matsu_young', bg: 'arako', text: 'また喧嘩ですか' },
   { who: 'inuchiyo', bg: 'arako', text: '喧嘩じゃねえ' },
-  { who: 'matsu', bg: 'arako', text: '……人を殴りにいく顔です。父上がまた困ります' },
+  { who: 'matsu_young', bg: 'arako', text: '……人を殴りにいく顔です。父上がまた困ります' },
   { bg: 'arako', text: 'のちのまつである。この時はまだ、ただの年下の武家の娘にすぎない。だが、不思議と人をまっすぐ見る目をしていた。' },
   { bg: 'kiyosu_tsuji', text: '清洲の辻で、着方のひどくいい加減な若者と向き合った。道を譲るということを知らない歩き方である。' },
   { who: 'inuchiyo', bg: 'kiyosu_tsuji', text: 'どけ' },

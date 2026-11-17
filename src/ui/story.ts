@@ -2,6 +2,7 @@
 import { SCENE_ART } from '../data/sceneArt';
 import { MINATO_ART } from '../data/scenes';
 import { PORTRAITS } from '../data/portraits';
+import { STORY_PORTRAITS } from '../data/portraits_story';
 import * as D from '../data/story_toshiie';
 import type { Beat, Choice } from '../data/story_toshiie';
 import * as S from '../engine/story';
@@ -64,7 +65,8 @@ function begin(skip: boolean) {
 const nameOf = (id: string) => D.STORY_CAST[id] ?? ({ maeda_toshiie: '前田利家', oda_nobunaga: '織田信長', ikeda_tsuneoki: '池田恒興', sassa_narimasa: '佐々成政', kinoshita_tokichiro: '木下藤吉郎', shibata_katsuie: '柴田勝家', maeda_toshimasu: '前田利益' } as Record<string, string>)[id] ?? id;
 // 顔: 物語の人物は届いた絵、犬千代は利家の顔、三郎は信長の顔。なければ名の札
 function faceOf(id: string, w: number) {
-  const src = PORTRAITS[id] ?? (id === 'inuchiyo' ? PORTRAITS.maeda_toshiie : id === 'sanro' ? PORTRAITS.oda_nobunaga : undefined);
+  const pid = id === 'maeda_toshiie' && !st?.done ? 'inuchiyo' : id; // 帰参までの利家は若き日の顔で
+  const src = STORY_PORTRAITS[pid] ?? PORTRAITS[pid] ?? (id === 'sanro' ? PORTRAITS.oda_nobunaga : undefined);
   if (src) return `<img class="face" src="${src}" width="${w}" height="${Math.round(w * 1.25)}" alt="">`;
   return `<span class="hr-noface" style="width:${w}px;height:${Math.round(w * 1.25)}px;font-size:${Math.round(w / 4)}px">${esc(nameOf(id).slice(0, 3))}</span>`;
 }
