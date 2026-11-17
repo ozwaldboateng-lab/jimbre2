@@ -10,6 +10,7 @@ import { carryHero, nextStory, storyDue, storyJump } from '../engine/story2';
 import * as M from '../engine/maeda';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
+import { STORY_PORTRAITS } from '../data/portraits_story';
 import * as R from '../engine/rules';
 import { rankName } from '../engine/ranks';
 import { newGame } from '../engine/setup';
@@ -35,6 +36,9 @@ let mapCanvas: HTMLCanvasElement | null = null;
 let view: MapView | null = null;
 let heroImg: HTMLImageElement | null = null;
 let recenter = true; // 地図を主人公のマスへ寄せ直すか（旅を始めたとき・進んだとき）
+// 物語の利家は、家督のあと壮年の顔に
+const midAge = (st: GameState) => st.hero?.story === 'toshiie' && (st.hero.storyDone ?? []).includes('katoku') && !!STORY_PORTRAITS.toshiie_mid;
+const myFace = (st: GameState, w: number) => midAge(st) ? `<img class="face" src="${STORY_PORTRAITS.toshiie_mid}" width="${w}" height="${Math.round(w * 1.25)}" alt="">` : face(st.hero!.id, w);
 const mapMode = (st: GameState) => pane === 'tabi' || (!!st.hero!.field && !H.inArmy(st));
 
 export function heroSaved(): boolean { try { return !!localStorage.getItem(KEY); } catch { return false; } }
@@ -93,10 +97,10 @@ function render() {
   const st = s, Hh = st.hero!, me = H.heroOf(st)!, c = st.castles[Hh.town], L = H.lordOf(st);
   const q = Hh.quest;
   const next = me.rank > 0 ? R.MERIT_AT[me.rank - 1] : null;
-  const art = ART(H.inArmy(st) ? 'jinmaku' : BG[bg] ?? 'ichi');
+  const art = !H.inArmy(st) && bg === 'town' && Hh.fuchu === Hh.town && !Hh.field && SCENE_ART.story_fuchu ? SCENE_ART.story_fuchu : ART(H.inArmy(st) ? 'jinmaku' : BG[bg] ?? 'ichi');
   root.innerHTML = `<div class="hr-main">
     <header class="hr-head">
-      <div class="hr-id">${face(me.id, 56)}<div><b>${esc(me.name)}</b><span>${clanName(st, me.clan!)}家・${R.RANK_NAME[me.rank]}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
+      <div class="hr-id">${myFace(st, 56)}<div><b>${esc(me.name)}</b><span>${clanName(st, me.clan!)}家・${R.RANK_NAME[me.rank]}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
       <div class="hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div>
       <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd><dt>進物</dt><dd>${Hh.goods}</dd><dt>主君の覚え</dt><dd>${Hh.favor}</dd><dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
       <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>前田家</dt><dd title="荒子衆・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}</dd>` : ''}</dl>
@@ -133,8 +137,8 @@ function attachMap(st: GameState) {
   view.sel = { army: null, hex: null, reach: busy ? null : H.heroReach(st), targets: [] };
   const dest = Hh.dest !== null && Hh.dest !== undefined ? Hh.dest : null;
   view.marks = dest !== null ? { hexes: [dest], arrows: [[Hh.hex, dest]] } : null; // 点滅する輪は行き先に
-  const src = PORTRAITS[Hh.id];
-  if (src) { if (!heroImg || heroImg.dataset.id !== Hh.id) { heroImg = new Image(); heroImg.dataset.id = Hh.id; heroImg.src = src; } view.heroMark = { hex: Hh.hex, img: heroImg }; }
+  const src = midAge(st) ? STORY_PORTRAITS.toshiie_mid : PORTRAITS[Hh.id];
+  if (src) { if (!heroImg || heroImg.dataset.id !== src.slice(-24)) { heroImg = new Image(); heroImg.dataset.id = src.slice(-24); heroImg.src = src; } view.heroMark = { hex: Hh.hex, img: heroImg }; }
   else { view.heroMark = null; view.marks = { hexes: [Hh.hex, ...(dest !== null ? [dest] : [])], arrows: view.marks?.arrows ?? [] }; } // 顔がなければ輪で
   if (recenter) { view.centerOn(Hh.hex, Math.min(2.2, Math.max(1.3, view.w / 520))); recenter = false; }
   view.redraw();
