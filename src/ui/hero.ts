@@ -68,6 +68,13 @@ function renderPick() {
   </div>`;
 }
 
+// 物語（前田利家 ― 残り火）の第一幕から、1560年の世界の武将で遊ぶへ引き継ぐ
+export function openHeroWith(f: Face, quit: () => void, st: GameState, first: { who?: string; line?: string; text: string }) {
+  face = f; onQuit = quit;
+  mount();
+  s = st; pane = 'spots'; bg = 'town'; report = null; recenter = true; say = first;
+  save(); render();
+}
 // ───────── 本体 ─────────
 function begin(id: string) {
   s = pickState ?? newGame('oda', 'normal', undefined, '1560');
@@ -249,7 +256,7 @@ function onClick(e: Event) {
   }
 }
 
-const CSS = `
+export const CSS = `
 #hero{position:fixed;inset:0;z-index:60;background:#0c0c0d;color:var(--paper,#ece2cc);overflow:auto;font-family:var(--font-body,serif)}
 #hero .hr-btn{border:1px solid rgba(207,169,94,.45);background:#1d1a16;color:inherit;padding:7px 14px;border-radius:3px;font-family:var(--font-ui,sans-serif);font-size:13px}
 #hero .hr-btn:hover:not(:disabled){border-color:#cfa95e;background:#2a231b}
