@@ -1,4 +1,5 @@
 // 年齢・成長と老い・病・病没
+import { storyProtected } from './story_guard';
 import { BORN } from '../data/births';
 import { killGeneral, nearestOwnCastle, removeArmy } from './ops';
 import { staffOf } from './corps';
@@ -37,7 +38,7 @@ export function monthlyLife(s: GameState) {
     if (g.status === 'young') continue;
     const age = ageOf(s, g) ?? 40;
     if (g.sick) {
-      if (rand(s) < R.sickDeath(age) && !(s.hero?.story && s.hero.id === g.id)) { die(s, g); continue; } // 物語の主人公は病では死なない
+      if (rand(s) < R.sickDeath(age) && !storyProtected(s, g.id)) { die(s, g); continue; } // 物語の人物は史実の没年までは病では死なない
       if (--g.sick <= 0) { g.sick = undefined; if (visible(s, g)) addLog(s, `${g.name}は病が癒えた。`, 'info', g.clan === s.player); }
     } else if (rand(s) < R.sickChance(age)) {
       g.sick = 1 + Math.floor(rand(s) * R.SICK_MONTHS_MAX);

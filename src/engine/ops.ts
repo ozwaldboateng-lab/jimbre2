@@ -1,4 +1,5 @@
 // 城の占領・勢力滅亡・武将の処遇など、状態を変える操作
+import { storyProtected } from './story_guard';
 import { dropFromCoalitions } from './coalition';
 import { onCastleTaken } from './bakufu';
 import { bondIn, goodBondOf, rivalIn } from './bushi';
@@ -86,6 +87,7 @@ function quitArmy(s: GameState, g: General) {
   for (const h of off) if (h.status === 'army') sendHome(s, h, a.hex);
 }
 export function killGeneral(s: GameState, g: General, why: string) {
+  if (storyProtected(s, g.id)) { addLog(s, `${g.name}は${why.includes('病') ? '重い病に伏したが、持ち直した' : '深手を負ったが、命は取り留めた'}。`, 'info', g.clan === s.player); return; }
   const clanId = g.clan;
   dropItems(s, g, undefined);
   quitArmy(s, g);
@@ -181,6 +183,13 @@ export function recruitChance(s: GameState, g: General, captor: string): number 
 }
 
 export function captureGeneral(s: GameState, g: General, captor: string) {
+  if (storyProtected(s, g.id)) { // 物語の人物は捕らわれず、辛くも逃れる
+    quitArmy(s, g);
+    if (s.hero?.id === g.id) g.status = 'hero';
+    else if (g.status !== 'governor') { g.status = 'free'; const c = g.clan ? nearestOwnCastle(s, g.clan, s.castles[g.loc].hex) : null; if (c) g.loc = c.i; }
+    addLog(s, `${g.name}は囲みを破り、辛くも逃れた。`, 'info', g.clan === s.player);
+    return;
+  }
   const wasLeader = g.clan && s.clans[g.clan].leader === g.id;
   dropItems(s, g, captor);
   quitArmy(s, g);
