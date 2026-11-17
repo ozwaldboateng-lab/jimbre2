@@ -17,7 +17,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   const snap = async (n) => { if (shot < 40) { shot++; await p.screenshot({ path: `${out}/st-${vp.tag}-${String(shot).padStart(2, '0')}-${n}.png` }); } };
   await snap('prologue');
   // 序幕を数枚見てから飛ばす
-  for (let i = 0; i < 4; i++) { await p.click('#story button[data-s="next"]'); await p.waitForTimeout(60); }
+  for (let i = 0; i < 4; i++) { const fx = await p.$('#story .st-fx'); if (fx) { await snap('fx'); await fx.click(); } else await p.click('#story button[data-s="next"]'); await p.waitForTimeout(400); }
   await snap('prologue4');
   await p.click('[data-s="skip"]'); await p.waitForTimeout(100);
   const plan = ['sakaya', 'yashiki:koshin_t', 'go:atsuta', 'yojinbo', 'minato', 'go:kiyosu', 'tsuji', 'kiyosu_sakaya', 'go:arako', 'yashiki:matsu_t', 'suburi', 'sakaya', 'go:fukushima', 'mihari', 'mihari', 'go:arako', 'yashiki:matsu_t'];
@@ -25,6 +25,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   for (let it = 0; it < 500; it++) {
     const has = async (sel) => !!(await p.$(sel));
     if (await has('#story [data-s="tohero"]')) { await snap('done'); const t0 = Date.now(); await p.click('#story [data-s="tohero"]'); await p.waitForSelector('#hero .hr-date', { timeout: 180000 }); console.log(vp.tag, 'tohero ms', Date.now() - t0); break; }
+    if (await has('#story .st-fx')) { const k2 = await p.$eval('#story .st-fx', (e) => e.className); if (shot < 34) await snap(k2.replace(/\s+/g, '-')); await p.click('#story .st-fx'); await p.waitForTimeout(60); continue; }
     if (await has('#story .hr-say [data-s="next"]')) { const txt = await p.$eval('#story .hr-say', (e) => e.textContent); if (/桶狭間|森部|帰参|第一幕　了|父の死|浪人の槍|利益/.test(txt) && shot < 30) await snap('scene'); await p.click('#story .hr-say button[data-s="next"]'); await p.waitForTimeout(40); continue; }
     if (await has('#story [data-s="choose"]')) { await snap('choice'); await p.click('#story [data-s="choose"]'); await p.waitForTimeout(60); continue; }
     if (await has('#story [data-s="bchoose"]')) { await snap('battle'); const bs = await p.$$('#story [data-s="bchoose"]'); await bs[bs.length > 2 ? 1 : 0].click(); await p.waitForTimeout(60); continue; }

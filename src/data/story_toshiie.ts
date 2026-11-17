@@ -1,24 +1,25 @@
 // 武将で遊ぶ「前田利家 ― 残り火」第一部の筋書き。場面の語り・セリフは小説『残り火』（第一章〜第三章）から縮めて使う
 // who は話し手（武将の id か、この物語だけの人物 STORY_CAST の id）。bg は場面の絵（SCENE_ART の名か、届いた物語の絵）
-export interface Beat { who?: string; text: string; bg?: string; head?: string }
+export interface Beat { who?: string; text: string; bg?: string; head?: string; kind?: 'door' | 'time' | 'chapter'; sub?: string } // kind: 節の扉（墨）・月日の流れ（白）・章の扉
 export interface Choice { id: string; label: string; note?: string }
 
 // この物語だけの人物（顔の絵が届いたら PORTRAITS に同じ id で入れる）
 export const STORY_CAST: Record<string, string> = {
   matsu: 'まつ', matsu_young: 'まつ', matsu_wife: 'まつ', inuchiyo: '犬千代', toshiharu: '前田利春', toshihisa: '前田利久', juami: '拾阿弥', fukushima: '福島', sakakibara: '榊原',
   matabe: '又兵衛', wakazamurai: '若侍くずれ', koshin: '前田家の古参', kerai: '前田家の家臣', monban: '門番', kosan: '勝家配下の古参', tsukai: '使い',
-  sanro: '三郎',
+  sanro: '三郎', nobunaga_young: '織田信長', nobunaga_1560: '織田信長',
 };
 // 場面の絵（注文の絵が届くまでは今ある絵で代わりに）
 export const STORY_BG: Record<string, string> = {
   arako: 'mura', arako_night: 'zashiki_night', sakaya: 'ichi', kiyosu_tsuji: 'ichi', kiyosu_niwa: 'ishigaki', denchu: 'zashiki_day', moribe: 'senjo',
-  okehazama: 'amemichi', ta_yoru: 'tsukiyo', atsuta: 'minato', fukushima: 'mura', jinmaku: 'jinmaku', hiroma: 'zashiki_day',
+  okehazama: 'amemichi', okehazama_sen: 'senjo', kayazu: 'senjo', ino: 'senjo', moribe_sen: 'senjo', ta_yoru: 'tsukiyo', atsuta: 'minato', fukushima: 'mura', jinmaku: 'jinmaku', hiroma: 'zashiki_day',
 };
 
 // ───────── 序幕（第一章「火の庭」。見せるだけ） ─────────
 export const PROLOGUE: Beat[] = [
   // 一　荒子の犬千代
-  { head: '残り火　第一章　火の庭', bg: 'arako', text: '尾張という国は、遠目には穏やかな国に見える。春になれば田に張った水が空を映し、夏は青田がどこまでもつづき、秋には黄金色の波になる。景色だけ見れば、人が槍を持って歩き回る理由などどこにもない。' },
+  { kind: 'chapter', head: '第一章', text: '火の庭', sub: '残り火' },
+  { head: '荒子', bg: 'arako', text: '尾張という国は、遠目には穏やかな国に見える。春になれば田に張った水が空を映し、夏は青田がどこまでもつづき、秋には黄金色の波になる。景色だけ見れば、人が槍を持って歩き回る理由などどこにもない。' },
   { bg: 'arako', text: 'だが、景色と人の腹は別である。同じ織田の一門でありながら、清洲だの岩倉だの犬山だのと、それぞれが半ば別の国の主のように振る舞っている。土地は狭く、面子は多い。喧嘩は、ほとんど日々の景色の一部だった。' },
   { bg: 'arako', text: '荒子は、その尾張の南寄りにある。田の中に土塁が盛り上がり、浅い堀がめぐる。城というより、大きな土の屋敷である。前田家は大身ではないが家は古く、百姓や町人にとっては、それだけで十分に武家だった。' },
   { bg: 'arako', text: 'その前田家の四男が、犬千代である。長男は家を継ぐ。次男三男には養子や分家の口がある。四男となると、いてもいなくても、家の形は変わらぬ。' },
@@ -46,7 +47,7 @@ export const PROLOGUE: Beat[] = [
   { who: 'inuchiyo', bg: 'kiyosu_tsuji', text: '前田犬千代' },
   { who: 'sanro', bg: 'kiyosu_tsuji', text: '三郎' },
   { bg: 'kiyosu_niwa', text: '数日後、犬千代は清洲城の門前に立っていた。なぜ来たのか、自分でも分からない。ただ、あの「三郎」ともう一度顔を合わせたかった。門番が露骨に嫌な顔をした、その時、奥から声がした。' },
-  { who: 'oda_nobunaga', bg: 'kiyosu_niwa', text: '入れ。……来るか' },
+  { who: 'nobunaga_young', bg: 'kiyosu_niwa', text: '入れ。……来るか' },
   { who: 'inuchiyo', bg: 'kiyosu_niwa', text: '退屈しなさそうだ' },
   { bg: 'kiyosu_niwa', text: '若者――織田三郎信長は、それで十分という顔をした。清洲城の庭は広かった。砂の上に無数の足跡があり、若侍たちが槍を合わせている。' },
   { bg: 'kiyosu_niwa', text: '荒子では、人の立つ場所は最初から決まっている。誰が継ぎ、誰が余るか。だが、ここは違った。立つ場所は、前へ出た者のものだった。家の筋ではなく、今ここでの働きで人が見られる。' },
@@ -64,6 +65,7 @@ export const PROLOGUE: Beat[] = [
   { who: 'inuchiyo', bg: 'kiyosu_niwa', text: 'なら黙ってろ' },
   { bg: 'kiyosu_niwa', text: '恒興が腹を抱えて笑った。信長も笑っていた。その笑いの中へ、犬千代はするりと入っていった。荒子よりはずっとましだ、と思った。そして、その居場所をつくるのは、戦であった。' },
   // 二　萱津・森部
+  { kind: 'door', head: '萱津', text: '萱津', sub: '天文二十一年 夏' },
   { head: '萱津', bg: 'kiyosu_niwa', text: '尾張は、外から攻められていたわけではない。内側から割れていたのである。萱津の戦いは、その割れ目の一つだった。三郎信長にとっては、尾張の争いの中へ兵を率いて踏み出す最初期の戦。犬千代たちにとっては、初めて本当の戦場を見る戦だった。' },
   { bg: 'kiyosu_niwa', text: '出陣の朝、清洲城の庭はまだ白かった。馬の鼻息が白く、鎧の緒が鳴り、槍の穂先がぼんやり光る。喧嘩にしか使ったことのない槍を、今日は人を殺すために持っている。' },
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_niwa', text: '顔が固いぞ' },
@@ -71,21 +73,22 @@ export const PROLOGUE: Beat[] = [
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_niwa', text: '手が汗ばんでる' },
   { who: 'inuchiyo', bg: 'kiyosu_niwa', text: '春は湿る' },
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_niwa', text: '便利な男だな、お前は' },
-  { who: 'oda_nobunaga', bg: 'jinmaku', text: '行くぞ' },
-  { bg: 'jinmaku', text: 'それだけである。誰も、なぜ戦うのかとは聞かない。理屈ではない。自分が先に行く、という決め方だけがある。戦場が近づくと、先頭の兵が一瞬ためらった。その時、信長は馬を進めたのではない。歩いたのである。兵の前へ、庭を横切るように。' },
-  { bg: 'jinmaku', text: 'この男は、後ろで大声を出して人を動かすのではない。先に行く。怖い方へ、自分の足で行く。兵がついて行くのは命令だからではない。あの背中を見失いたくないからだ、と犬千代は思った。' },
-  { bg: 'jinmaku', text: '長い槍は、思ったよりも役に立った。相手より先に届く。それだけで相手の顔色が変わる。突いた時、人は妙に軽くなる。そこが、いちばん不気味だった。頬にかかった血を、犬千代はぬぐわなかった。' },
+  { who: 'nobunaga_young', bg: 'kayazu', text: '行くぞ' },
+  { bg: 'kayazu', text: 'それだけである。誰も、なぜ戦うのかとは聞かない。理屈ではない。自分が先に行く、という決め方だけがある。戦場が近づくと、先頭の兵が一瞬ためらった。その時、信長は馬を進めたのではない。歩いたのである。兵の前へ、庭を横切るように。' },
+  { bg: 'kayazu', text: 'この男は、後ろで大声を出して人を動かすのではない。先に行く。怖い方へ、自分の足で行く。兵がついて行くのは命令だからではない。あの背中を見失いたくないからだ、と犬千代は思った。' },
+  { bg: 'kayazu', text: '長い槍は、思ったよりも役に立った。相手より先に届く。それだけで相手の顔色が変わる。突いた時、人は妙に軽くなる。そこが、いちばん不気味だった。頬にかかった血を、犬千代はぬぐわなかった。' },
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_niwa', text: 'どうだ、戦は' },
   { who: 'inuchiyo', bg: 'kiyosu_niwa', text: '喧嘩より派手だ' },
   { bg: 'kiyosu_niwa', text: '成政は黙ったままだったが、口元だけわずかに緩んだ。この男について行けば、退屈はしない。それが理由だった。それだけで十分だった。' },
+  { kind: 'door', head: '森部', text: '森部', sub: '尾張の争いは、なお続く' },
   { head: '森部', bg: 'moribe', text: '森部は川と田が入り組んだ土地で、朝霧が深い。見えぬところから人が出てきて、見えぬまま倒れていく。霧の向こうで、恒興が敵に囲まれていた。三人。足が泥に取られて、うまく動けない。' },
-  { who: 'inuchiyo', bg: 'moribe', text: 'どけ' },
-  { bg: 'moribe', text: '一人の肩口を突き、返す柄で二人目の顔面を打つ。三人目が振り向く前に、成政が横から突いた。霧の中で、三人の息だけが荒い。' },
-  { who: 'ikeda_tsuneoki', bg: 'moribe', text: '助かった' },
-  { who: 'inuchiyo', bg: 'moribe', text: '遅えんだよ' },
-  { who: 'sassa_narimasa', bg: 'moribe', text: '前へ出すぎだ' },
-  { who: 'ikeda_tsuneoki', bg: 'moribe', text: 'お前たちが来ると思った' },
-  { bg: 'moribe', text: '喧嘩と違って、戦では背中を預けるということがある。自分ひとりで強いだけでは駄目だ。横に立つ奴がいる。そいつが倒れそうなら助ける。それは犬千代にとって、新しい感覚だった。' },
+  { who: 'inuchiyo', bg: 'moribe_sen', text: 'どけ' },
+  { bg: 'moribe_sen', text: '一人の肩口を突き、返す柄で二人目の顔面を打つ。三人目が振り向く前に、成政が横から突いた。霧の中で、三人の息だけが荒い。' },
+  { who: 'ikeda_tsuneoki', bg: 'moribe_sen', text: '助かった' },
+  { who: 'inuchiyo', bg: 'moribe_sen', text: '遅えんだよ' },
+  { who: 'sassa_narimasa', bg: 'moribe_sen', text: '前へ出すぎだ' },
+  { who: 'ikeda_tsuneoki', bg: 'moribe_sen', text: 'お前たちが来ると思った' },
+  { bg: 'moribe_sen', text: '喧嘩と違って、戦では背中を預けるということがある。自分ひとりで強いだけでは駄目だ。横に立つ奴がいる。そいつが倒れそうなら助ける。それは犬千代にとって、新しい感覚だった。' },
   { bg: 'kiyosu_niwa', text: '戦が終わった夜、清洲城の庭に若侍たちが集まった。勝った時の酒は、馬鹿みたいに喉へ落ちる。' },
   { who: 'sassa_narimasa', bg: 'kiyosu_niwa', text: '死ぬぞ' },
   { who: 'inuchiyo', bg: 'kiyosu_niwa', text: '死なねえ' },
@@ -94,39 +97,41 @@ export const PROLOGUE: Beat[] = [
   { who: 'kinoshita_tokichiro', bg: 'kiyosu_niwa', text: '長い槍の噂が出始めています。城下で言っていました。長い槍の男が、また戦で前へ出たと。……数はどうでもいいのです。人は話で負けます' },
   { who: 'sassa_narimasa', bg: 'kiyosu_niwa', text: '……長い槍も悪くない。褒めてはいない' },
   { who: 'inuchiyo', bg: 'kiyosu_niwa', text: '同じだ' },
-  { who: 'oda_nobunaga', bg: 'kiyosu_niwa', text: '面白い奴が揃った' },
+  { who: 'nobunaga_young', bg: 'kiyosu_niwa', text: '面白い奴が揃った' },
   { bg: 'kiyosu_niwa', text: 'その一言で、その夜の庭の空気が決まった。清洲は、ただ面白い場所ではなくなりつつあった。帰る場所になり始めていたのである。' },
   // 三　稲生
-  { head: '稲生', bg: 'jinmaku', text: '稲生の戦いは、それまでの戦とは違っていた。敵はよその国ではない。信長の弟、信行である。誰が尾張の主になるかを決める戦。信長方七百、信行方千七百。算盤で見れば勝負にならない。' },
+  { kind: 'door', head: '稲生', text: '稲生', sub: '弘治二年 八月' },
+  { head: '稲生', bg: 'ino', text: '稲生の戦いは、それまでの戦とは違っていた。敵はよその国ではない。信長の弟、信行である。誰が尾張の主になるかを決める戦。信長方七百、信行方千七百。算盤で見れば勝負にならない。' },
   { bg: 'kiyosu_niwa', text: '出陣の前夜、佐々家の者が息を切らせて城門から走り込んできた。成政だけが、その使者の顔を見た瞬間に、すっと立ち上がった。' },
   { who: 'sassa_narimasa', bg: 'kiyosu_niwa', text: '兄が討たれた' },
   { who: 'inuchiyo', bg: 'kiyosu_niwa', text: '行かなくていいのか' },
   { who: 'sassa_narimasa', bg: 'kiyosu_niwa', text: '俺は三郎様の側だ。家のことだからこそだ。……兄が死ねば、次は俺だ。明日、負けるわけにはいかん' },
   { bg: 'kiyosu_niwa', text: 'お前は一人で負ければ済む顔をしてる――あれは威張っていたのではない。家の名がそのまま肩に乗っている者の言葉だった。' },
-  { who: 'ikeda_tsuneoki', bg: 'jinmaku', text: '七百と千七百じゃ、算盤なら負けだな' },
-  { who: 'sassa_narimasa', bg: 'jinmaku', text: '三郎は算盤で戦をしない' },
-  { who: 'inuchiyo', bg: 'jinmaku', text: 'じゃあ、何でやる' },
-  { who: 'sassa_narimasa', bg: 'jinmaku', text: '気合いだ' },
-  { bg: 'jinmaku', text: '城を出てしばらく進んだところで、信長は突然馬を降りた。大将が徒歩になるのは常道ではない。だが信長は槍を取り、自分の足で前へ歩き出した。兵たちの間に、怖れより先に妙な熱が走った。' },
-  { who: 'oda_nobunaga', bg: 'jinmaku', text: 'かかれ' },
-  { bg: 'jinmaku', text: '戦は一気に乱れた。田の畦は崩れ、誰がどこにいるのかも怪しくなる。左手で恒興の声がした。押し込まれている。犬千代は考えなかった。走った。長槍が伸び、血が三方へ散った。' },
-  { bg: 'jinmaku', text: 'その瞬間、顔の右側に衝撃が来た。世界が横へずれた。矢だった。右目の下に、深く刺さっている。' },
-  { who: 'ikeda_tsuneoki', bg: 'jinmaku', text: '抜け！' },
-  { who: 'sassa_narimasa', bg: 'jinmaku', text: '引け！' },
-  { who: 'inuchiyo', bg: 'jinmaku', text: 'まだ首を取ってねえ' },
-  { bg: 'jinmaku', text: 'ここで下がるのは格好が悪いと思った。信長が徒歩で前へ出ているのに、自分だけ矢一本で引くのは腹が立つ。怖いかどうかではない。少し前で、信長が笑っているのが見えた。犬千代はまた前へ出た。' },
-  { bg: 'jinmaku', text: 'やがて千七百の厚みが崩れた。崩れると、急に薄く見える。犬千代はようやく膝をついた。矢はまだ刺さっている。' },
-  { who: 'ikeda_tsuneoki', bg: 'jinmaku', text: '馬鹿かお前は' },
-  { who: 'inuchiyo', bg: 'jinmaku', text: '知ってる' },
-  { who: 'oda_nobunaga', bg: 'jinmaku', text: 'まだ抜かんのか' },
-  { who: 'inuchiyo', bg: 'jinmaku', text: '首を取ってからにします' },
-  { who: 'oda_nobunaga', bg: 'jinmaku', text: '馬鹿だな' },
-  { who: 'inuchiyo', bg: 'jinmaku', text: '知ってます' },
-  { who: 'oda_nobunaga', bg: 'jinmaku', text: '名は' },
-  { who: 'inuchiyo', bg: 'jinmaku', text: '犬千代' },
-  { who: 'oda_nobunaga', bg: 'jinmaku', text: '覚えた' },
-  { bg: 'jinmaku', text: 'この男のそばにいたいと、はっきりそう思った。' },
+  { who: 'ikeda_tsuneoki', bg: 'ino', text: '七百と千七百じゃ、算盤なら負けだな' },
+  { who: 'sassa_narimasa', bg: 'ino', text: '三郎は算盤で戦をしない' },
+  { who: 'inuchiyo', bg: 'ino', text: 'じゃあ、何でやる' },
+  { who: 'sassa_narimasa', bg: 'ino', text: '気合いだ' },
+  { bg: 'ino', text: '城を出てしばらく進んだところで、信長は突然馬を降りた。大将が徒歩になるのは常道ではない。だが信長は槍を取り、自分の足で前へ歩き出した。兵たちの間に、怖れより先に妙な熱が走った。' },
+  { who: 'nobunaga_young', bg: 'ino', text: 'かかれ' },
+  { bg: 'ino', text: '戦は一気に乱れた。田の畦は崩れ、誰がどこにいるのかも怪しくなる。左手で恒興の声がした。押し込まれている。犬千代は考えなかった。走った。長槍が伸び、血が三方へ散った。' },
+  { bg: 'ino', text: 'その瞬間、顔の右側に衝撃が来た。世界が横へずれた。矢だった。右目の下に、深く刺さっている。' },
+  { who: 'ikeda_tsuneoki', bg: 'ino', text: '抜け！' },
+  { who: 'sassa_narimasa', bg: 'ino', text: '引け！' },
+  { who: 'inuchiyo', bg: 'ino', text: 'まだ首を取ってねえ' },
+  { bg: 'ino', text: 'ここで下がるのは格好が悪いと思った。信長が徒歩で前へ出ているのに、自分だけ矢一本で引くのは腹が立つ。怖いかどうかではない。少し前で、信長が笑っているのが見えた。犬千代はまた前へ出た。' },
+  { bg: 'ino', text: 'やがて千七百の厚みが崩れた。崩れると、急に薄く見える。犬千代はようやく膝をついた。矢はまだ刺さっている。' },
+  { who: 'ikeda_tsuneoki', bg: 'ino', text: '馬鹿かお前は' },
+  { who: 'inuchiyo', bg: 'ino', text: '知ってる' },
+  { who: 'nobunaga_young', bg: 'ino', text: 'まだ抜かんのか' },
+  { who: 'inuchiyo', bg: 'ino', text: '首を取ってからにします' },
+  { who: 'nobunaga_young', bg: 'ino', text: '馬鹿だな' },
+  { who: 'inuchiyo', bg: 'ino', text: '知ってます' },
+  { who: 'nobunaga_young', bg: 'ino', text: '名は' },
+  { who: 'inuchiyo', bg: 'ino', text: '犬千代' },
+  { who: 'nobunaga_young', bg: 'ino', text: '覚えた' },
+  { bg: 'ino', text: 'この男のそばにいたいと、はっきりそう思った。' },
   // 四　拾阿弥
+  { kind: 'door', head: '拾阿弥', text: '拾阿弥', sub: '永禄二年' },
   { head: '拾阿弥', bg: 'denchu', text: '拾阿弥という男は、ただ嫌味なだけの近習ではなかった。兵糧をどこから運ぶか、誰をどの門から入れるか。誰が金に困っているか、どの町人が二枚舌かまで知っている。信長がこの男をそばに置く理由は、それだった。使えるから使っている。' },
   { bg: 'denchu', text: 'ある夜、城の裏手で、犬千代は拾阿弥が見知らぬ男から銭袋を受け取るのを見た。去り際のひと言から、出陣の刻限が敵へ流れていると分かった。' },
   { bg: 'denchu', text: '怪しいだけなら追える。嫌なだけなら殴れる。だが役に立つ男が怪しいとなると、話は違う。騒げば、信長の側にいる男が敵へ刻限を流していた、という話になる。信長の恥になる。それだけは、どうにも嫌だった。だから黙っていた。' },
@@ -134,9 +139,10 @@ export const PROLOGUE: Beat[] = [
   { who: 'inuchiyo', bg: 'kiyosu_niwa', text: '嫌いなんだよ' },
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_niwa', text: '嫌いなのは分かる。だが、三郎が使ってる' },
   { bg: 'kiyosu_niwa', text: '三郎が使っている。それは「手を出すな」と同じ意味に聞こえた。だが犬千代の中では、別のものも膨らんでいた。三郎が使っているからこそ、放っておけぬ。自分の惚れた男のそばに、こんなものがいる。それが許せない。' },
-  { who: 'oda_nobunaga', bg: 'denchu', text: '遅い。……口が軽い' },
+  { who: 'nobunaga_1560', bg: 'denchu', text: '遅い。……口が軽い' },
   { bg: 'denchu', text: '信長が拾阿弥に言ったのは、それだけだった。拾阿弥は深く頭を下げた。「次はございません」。犬千代は思った。次がある。こいつはやめない。こいつは、またやる。' },
   // 五　追放
+  { kind: 'door', head: '追放', text: '追放', sub: '永禄二年 夏' },
   { head: '追放', bg: 'denchu', text: '殿中は、夏の光をどこか薄めて受ける。城というものは、外へ向かう時は派手で、内へ入るほど息苦しくなる。廊下の向こうから、拾阿弥が来た。薄く笑っている。' },
   { who: 'juami', bg: 'denchu', text: '前田殿。この頃はご立派ですな。戦に出れば名が立ち、町へ出れば女が振り返る' },
   { who: 'juami', bg: 'denchu', text: 'しかし長い槍も結構なものです。遠くから届くものは、身を汚さずに済みますからな。……城の中でも同じことですかな。遠くから吠えるばかりで、近くのことは見えぬ' },
@@ -148,24 +154,24 @@ export const PROLOGUE: Beat[] = [
   { bg: 'denchu', text: 'また信長のそばが濁る。拾阿弥は、まだ笑っていた。' },
   { who: 'juami', bg: 'denchu', text: '若い方は、気が早い' },
   { bg: 'denchu', text: '白い刃が一度だけ走る。それで済んだ。拾阿弥の体が崩れる。殿中の血は違う。白い畳の上で、やけに赤い。誰もすぐには動けなかった。' },
-  { who: 'oda_nobunaga', bg: 'denchu', text: '斬ったのか' },
+  { who: 'nobunaga_1560', bg: 'denchu', text: '斬ったのか' },
   { who: 'inuchiyo', bg: 'denchu', text: '斬った' },
-  { who: 'oda_nobunaga', bg: 'denchu', text: 'なぜだ' },
+  { who: 'nobunaga_1560', bg: 'denchu', text: 'なぜだ' },
   { who: 'inuchiyo', bg: 'denchu', text: '盗人を斬ったまでだ' },
-  { who: 'oda_nobunaga', bg: 'denchu', text: '殿中でか' },
+  { who: 'nobunaga_1560', bg: 'denchu', text: '殿中でか' },
   { who: 'inuchiyo', bg: 'denchu', text: '盗人なら、どこで斬っても同じだ' },
-  { who: 'oda_nobunaga', bg: 'denchu', text: '同じではない。ここは俺の城だ' },
+  { who: 'nobunaga_1560', bg: 'denchu', text: '同じではない。ここは俺の城だ' },
   { who: 'inuchiyo', bg: 'denchu', text: '知ってる' },
-  { who: 'oda_nobunaga', bg: 'denchu', text: 'ならば、俺の城の掟で裁く。……下がれ' },
+  { who: 'nobunaga_1560', bg: 'denchu', text: 'ならば、俺の城の掟で裁く。……下がれ' },
   { bg: 'denchu', text: 'すぐには斬られない。だが、いつでも斬れる。それがかえって重かった。日が傾く頃、恒興が動いた。まず成政を捕まえた。' },
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_niwa', text: 'このままだと、あいつは死ぬ' },
   { who: 'sassa_narimasa', bg: 'kiyosu_niwa', text: '当然だ。殿中で人を斬った。筋だけ見れば、死罪で何の不足もない。……だが、あいつをそれで終わらせるのは惜しい。槍は立つ。戦では前へ出る' },
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_niwa', text: 'じゃあ動け。……俺一人でも、お前一人でも足りん。だから、権六だ' },
   { who: 'shibata_katsuie', bg: 'hiroma', text: 'お前たちは、あの馬鹿が惜しいのか。……なるほど。恒興は情で来た。成政は理で来た。よかろう。俺が行く' },
   { who: 'shibata_katsuie', bg: 'hiroma', text: '犬千代は惜しい。殿中で刀を抜いた。死罪でも文句は言えぬ。だが、あれは槍で使える' },
-  { who: 'oda_nobunaga', bg: 'hiroma', text: '槍で使えれば、何をしてもよいか' },
+  { who: 'nobunaga_1560', bg: 'hiroma', text: '槍で使えれば、何をしてもよいか' },
   { who: 'shibata_katsuie', bg: 'hiroma', text: 'よくはない。だが、斬るには惜しい' },
-  { who: 'oda_nobunaga', bg: 'hiroma', text: '甘いな。……追い出す。二度と近づけるな' },
+  { who: 'nobunaga_1560', bg: 'hiroma', text: '甘いな。……追い出す。二度と近づけるな' },
   { bg: 'hiroma', text: 'それが裁きだった。死罪ではない。だが許しでもない。家中の面目は立てる。' },
   { who: 'inuchiyo', bg: 'kiyosu_tsuji', text: '世話かけたな' },
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_tsuji', text: 'お前がかけたんだろうが' },
@@ -178,7 +184,8 @@ export const PROLOGUE: Beat[] = [
 
 // ───────── 第一幕「こぼれた火」の出来事 ─────────
 export const EV_RETURN: Beat[] = [
-  { head: '残り火　第二章　こぼれた火', bg: 'arako', text: '永禄二年、夏の朝。田に張った水は白く光り、百姓は何事もない顔で畦を歩いている。尾張の朝は、昨日だろうが今日だろうが、同じように明ける。変わったのは利家だけだった。' },
+  { kind: 'chapter', head: '第二章', text: 'こぼれた火', sub: '残り火' },
+  { head: '荒子', bg: 'arako', text: '永禄二年、夏の朝。田に張った水は白く光り、百姓は何事もない顔で畦を歩いている。尾張の朝は、昨日だろうが今日だろうが、同じように明ける。変わったのは利家だけだった。' },
   { bg: 'arako', text: '追放されても、槍だけは返された。清洲の庭では、人の目を引き、道を割らせるのにちょうどよい長さだった。仕える先もなく、呼ぶ声もなく、ただ荒子へ戻る男が担いでいると、長すぎる槍はひどく半端に見えた。' },
   { bg: 'arako', text: '清洲を出る時には、まだ熱のようなものが残っていた。信長の顔、恒興の噛み殺した声、成政の握った拳。だが一晩歩くうちに、それは少しずつ冷えた。冷えたあとに残るのは、怒りでも悔しさでもなく、ひどく鬱陶しい空白だった。' },
   { bg: 'arako', text: '道の向こうに、荒子の土塁が低く見え始める。以前は、その小ささが嫌でたまらなかった。だから外へ出た。行くところがないから戻る。その違いだけで、同じ土塁がまるで別のものに見えた。' },
@@ -254,6 +261,7 @@ export const EV_KOSHIN: Beat[] = [
   { bg: 'arako_night', text: '利家の何を支えられるわけでもない。だが、この小さな手で自分の小袖を直そうとしている。その不器用さが、なぜか堪えた。（熱田の湊で、用心棒の口が見つかるようになった）' },
 ];
 export const EV_FATHER: Beat[] = [
+  { kind: 'time', text: '月日は流れ――', sub: '永禄二年 秋' },
   { head: '父の死', bg: 'arako_night', text: '永禄二年の秋。その朝、父・利春は死んだ。前の晩、少し長く咳をしていた。それだけだった。' },
   { bg: 'arako_night', text: '誰も声を荒らげない。家人たちは粛々と動く。泣き声や線香の匂いが消えるのを待つわけではない。死者のための作法が終われば、その場で次の手が打たれる。誰が前へ出るか。誰が米蔵の鍵を持つか。' },
   { bg: 'arako_night', text: '利久が、当主の座へおとなしく収まった。兄は正しい。正しく家督を継ぐ。武士の家とは、死んでも止まらぬように出来ているのだと、利家はその頃になってようやく知った。' },
@@ -261,6 +269,7 @@ export const EV_FATHER: Beat[] = [
   { bg: 'arako_night', text: '父を失った悔しさなのか。自分の居場所がまた一つ遠のいた悔しさなのか。自分でも分からなかった。待っていても、家は動く。' },
 ];
 export const EV_ANIKE: Beat[] = [
+  { kind: 'door', head: '兄の家', text: '兄の家', sub: '永禄二年 冬' },
   { head: '兄の家', bg: 'arako', text: '父の死のあとの家中は、思ったよりも乱れなかった。家臣たちは利久の前へ出て頭を下げ、指図を待つ。家は回る。だが、崩れぬことと、勢いがあることとは別である。ある朝、庭の木陰で若い家臣が二人、槍を持て余していた。' },
   { who: 'kerai', bg: 'arako', text: 'やはり、犬千代様がおられぬとな' },
   { who: 'kerai', bg: 'arako', text: '馬鹿を言うな。いまは利久様が当主だ。……分かっているなら言うな' },
@@ -294,6 +303,7 @@ export const IRAI_CHOICES: Choice[] = [
   { id: '30', label: '「三十でいい」', note: '三十貫。福島の親しさが上がる' },
 ];
 export const EV_NIGHT1: Beat[] = [
+  { kind: 'door', head: '浪人の槍', text: '浪人の槍', sub: '荒子の西はずれ' },
   { head: '浪人の槍', bg: 'ta_yoru', text: '夜。月明かりの畦道。福島の若い者が「前田殿、もう少し後ろで」と言う。「危なくねえ場所があるなら連れてけ」。やがて、三つの影が水口へ寄ってきた。' },
   { who: 'maeda_toshiie', bg: 'ta_yoru', text: 'おい' },
   { bg: 'ta_yoru', text: '三人の動きが止まる。「誰だ」。' },
@@ -337,6 +347,7 @@ export const EV_NIGHT2_RUSH: Beat[] = [
   { who: 'matabe', bg: 'fukushima', text: '……勝たれましたな。ですが、勝つのと、残すのは違います。それだけは、お忘れなく' },
 ];
 export const EV_RIEKI: Beat[] = [
+  { kind: 'time', text: '年が明けた。', sub: '永禄三年 春' },
   { head: '利益', bg: 'arako', text: '荒子の朝は相変わらず早い。廊下の向こうに、見慣れぬ若者がいた。目がよかった。利家自身と同じ、人を測る目である。' },
   { who: 'kerai', bg: 'arako', text: '利久様の……養子に。利益様にございます' },
   { who: 'maeda_toshiie', bg: 'arako', text: '気に食わねえ' },
@@ -356,6 +367,7 @@ export const EV_RIEKI: Beat[] = [
   { who: 'maeda_toshiie', bg: 'arako_night', text: 'まだ行かねえ。……だが、もう待たねえ' },
 ];
 export const EV_UWASA: Beat[] = [
+  { kind: 'door', head: '無断参戦', text: '無断参戦', sub: '永禄三年 五月' },
   { head: '噂', bg: 'sakaya', text: '戦の報せは、武士の家へ届く前に、たいてい町へ落ちる。米が動く。馬が動く。道が騒がしくなる。旅の商人が口を軽くし、酒屋の客が声を潜め、百姓までが「どこそこで兵が出た」と言い出す。' },
   { who: 'wakazamurai', bg: 'sakaya', text: '清洲が動くらしい' },
   { who: 'maeda_toshiie', bg: 'sakaya', text: 'どこへだ' },
@@ -405,12 +417,12 @@ export const OKEHAZAMA: Step[] = [
       { id: 'saki', label: '先手の脇から入る', note: '戦の只中へ。武勇が要る', score: (k) => (k.bra >= 80 ? 3 : 2) },
       { id: 'tani', label: '雨の谷筋を回り、敵の本陣の横へ出る', note: '噂を読む力が要る', score: (k) => (k.sense >= 50 ? 4 : 0) },
     ] },
-  { head: '桶狭間　決める', bg: 'okehazama', text: '雨が上がった。目の前で今川勢が崩れ始める。何を狙うか。',
+  { head: '桶狭間　決める', bg: 'okehazama_sen', text: '雨が上がった。目の前で今川勢が崩れ始める。何を狙うか。',
     choices: [
       { id: 'zohyo', label: '確実に取れる首を取る', note: '首は取れるが、格は低い', score: () => 1 },
       { id: 'samurai', label: '名のありそうな侍を狙う', note: '武勇しだい', score: (k) => (k.bra >= 82 ? 3 : k.bra >= 76 ? 2 : 0) },
     ] },
-  { head: '桶狭間　飛び込む', bg: 'okehazama', text: '槍を握り直す。',
+  { head: '桶狭間　飛び込む', bg: 'okehazama_sen', text: '槍を握り直す。',
     choices: [
       { id: 'nanoru', label: '「前田利家だ！」と名乗って飛び込む', note: '名が知れているほど目に留まる', score: (k) => (k.fame >= 30 ? 2 : 1) },
       { id: 'damaru', label: '黙って突く', note: '確かだが、誰の目にも留まらない', score: () => 1 },
@@ -422,7 +434,7 @@ export const MORIBE: Step[] = [
       { id: 'kiri', label: '霧に紛れて前へ', note: '武勇が要る', score: (k) => (k.bra >= 78 ? 3 : 2) },
       { id: 'kawa', label: '川沿いの道を読んで回り込む', note: '噂を読む力が要る', score: (k) => (k.sense >= 40 ? 3 : 1) },
     ] },
-  { head: '森部　飛び込む', bg: 'moribe', text: '霧の向こうに、名のある武者の影。足立六兵衛、「首取り足立」と呼ばれる男だという。',
+  { head: '森部　飛び込む', bg: 'moribe_sen', text: '霧の向こうに、名のある武者の影。足立六兵衛、「首取り足立」と呼ばれる男だという。',
     choices: [
       { id: 'adachi', label: '足立六兵衛に挑む', note: '武勇しだい', score: (k) => (k.bra >= 80 ? 4 : 2) },
       { id: 'yoko', label: '脇の雑兵を確実に', note: '首は取れる', score: () => 2 },
@@ -430,21 +442,22 @@ export const MORIBE: Step[] = [
 ];
 export const EV_SASSA_SENJO: Beat[] = [
   { bg: 'okehazama', text: '戦場が近づくにつれ、音が変わる。あの音だけは、何度聞いても利家の血を少し早くした。高まりかける胸を、無理に押さえはしない。ただ、そこへそのまま突っ込まぬだけでよい。熱を持ち、なお見る。いまの自分に要るのは、それだった。' },
-  { bg: 'okehazama', text: 'いちばん騒がしいところへ行けば、それで済むわけではない。どこへ入れば、自分の一突きがただの乱戦で終わらず、首級になるか。どこが薄く、どこが詰まり、どこなら長槍が生きるか。思った瞬間、もう足が動いている。' },
-  { bg: 'okehazama', text: '長槍の間合いは、刀の男には長すぎる。だが近づかれれば逆に死ぬ。その半歩を、利家は前よりよく知っていた。手応えは重く、しかし迷いはなかった。周りの敵が一瞬だけ止まる。その止まり方で、利家には分かった。取った。' },
-  { who: 'maeda_toshiie', bg: 'okehazama', text: '前田利家だ！' },
-  { bg: 'okehazama', text: '誰に聞かせたかったのか、自分でも分からない。信長か。戦場そのものか。あるいは、まだ荒子へ閉じ込めておきたがる家の空気へか。その時、横から声がした。' },
-  { who: 'sassa_narimasa', bg: 'okehazama', text: '犬千代か' },
-  { who: 'maeda_toshiie', bg: 'okehazama', text: '見りゃ分かるだろ' },
-  { who: 'sassa_narimasa', bg: 'okehazama', text: '勝手に来たのか' },
-  { who: 'maeda_toshiie', bg: 'okehazama', text: '来た' },
-  { who: 'sassa_narimasa', bg: 'okehazama', text: '馬鹿だな' },
-  { who: 'maeda_toshiie', bg: 'okehazama', text: '知ってる' },
-  { who: 'sassa_narimasa', bg: 'okehazama', text: '首を持って行け。それだけは、忘れるな' },
-  { who: 'maeda_toshiie', bg: 'okehazama', text: '言われなくても' },
+  { bg: 'okehazama_sen', text: 'いちばん騒がしいところへ行けば、それで済むわけではない。どこへ入れば、自分の一突きがただの乱戦で終わらず、首級になるか。どこが薄く、どこが詰まり、どこなら長槍が生きるか。思った瞬間、もう足が動いている。' },
+  { bg: 'okehazama_sen', text: '長槍の間合いは、刀の男には長すぎる。だが近づかれれば逆に死ぬ。その半歩を、利家は前よりよく知っていた。手応えは重く、しかし迷いはなかった。周りの敵が一瞬だけ止まる。その止まり方で、利家には分かった。取った。' },
+  { who: 'maeda_toshiie', bg: 'okehazama_sen', text: '前田利家だ！' },
+  { bg: 'okehazama_sen', text: '誰に聞かせたかったのか、自分でも分からない。信長か。戦場そのものか。あるいは、まだ荒子へ閉じ込めておきたがる家の空気へか。その時、横から声がした。' },
+  { who: 'sassa_narimasa', bg: 'okehazama_sen', text: '犬千代か' },
+  { who: 'maeda_toshiie', bg: 'okehazama_sen', text: '見りゃ分かるだろ' },
+  { who: 'sassa_narimasa', bg: 'okehazama_sen', text: '勝手に来たのか' },
+  { who: 'maeda_toshiie', bg: 'okehazama_sen', text: '来た' },
+  { who: 'sassa_narimasa', bg: 'okehazama_sen', text: '馬鹿だな' },
+  { who: 'maeda_toshiie', bg: 'okehazama_sen', text: '知ってる' },
+  { who: 'sassa_narimasa', bg: 'okehazama_sen', text: '首を持って行け。それだけは、忘れるな' },
+  { who: 'maeda_toshiie', bg: 'okehazama_sen', text: '言われなくても' },
 ];
 export const EV_SHUKYU: Beat[] = [
-  { head: '残り火　第三章　戻る道', bg: 'okehazama', text: '戦が終わったあとの野は、妙に広い。首は重い。勝手に戦へ出て、勝手に取り、勝手に名を叫んだ首である。' },
+  { kind: 'chapter', head: '第三章', text: '戻る道', sub: '残り火' },
+  { head: '首級の重さ', bg: 'okehazama_sen', text: '戦が終わったあとの野は、妙に広い。首は重い。勝手に戦へ出て、勝手に取り、勝手に名を叫んだ首である。' },
   { who: 'kosan', bg: 'okehazama', text: '知らぬ首を持って歩いておるのか。……よい首だな。馬鹿でなければ、こんなことはせん' },
   { who: 'ikeda_tsuneoki', bg: 'jinmaku', text: 'この馬鹿。また勝手に入りやがって。……黙って外に置いとくには、首がよすぎる。死んでたら、ただの馬鹿で終わりだ' },
   { who: 'maeda_toshiie', bg: 'jinmaku', text: '生きてれば？' },
@@ -452,23 +465,25 @@ export const EV_SHUKYU: Beat[] = [
   { who: 'shibata_katsuie', bg: 'jinmaku', text: '戻りたいか' },
   { who: 'maeda_toshiie', bg: 'jinmaku', text: '戻るに足ると思ってます。首は持ってきました' },
   { who: 'shibata_katsuie', bg: 'jinmaku', text: 'それで全部埋まるとは思わぬか。……思っていないなら、まだましだ' },
-  { who: 'oda_nobunaga', bg: 'hiroma', text: 'また勝手に来たか。……呼べ' },
+  { who: 'nobunaga_1560', bg: 'hiroma', text: 'また勝手に来たか。……呼べ' },
 ];
 export const EV_NOT_YET: Beat[] = [
   { bg: 'hiroma', text: '首は清洲へ届いた。だが、呼び出しの文は来なかった。' },
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_tsuji', text: '殿は何も言わねえ。……首一つじゃ、まだ足りねえってことだろうよ。腐るなよ、犬千代' },
   { bg: 'arako', text: '荒子へ戻る。勝手に出て、勝手に取った首は、まだ許しにならない。——次の戦を待つ。（翌年、美濃との戦が近いという噂がある）' },
+  { kind: 'time', text: '月日は流れ――', sub: '荒子で、次の戦を待つ' },
 ];
 export const EV_KISAN: Beat[] = [
+  { kind: 'door', head: '帰参', text: '帰参', sub: '清洲' },
   { head: '帰参', bg: 'kiyosu_niwa', text: '呼び出しの文は短かった。詫びよとも、急げとも書いていない。ただ、来い、というだけである。' },
   { who: 'kinoshita_tokichiro', bg: 'kiyosu_niwa', text: 'お戻りで' },
   { who: 'maeda_toshiie', bg: 'kiyosu_niwa', text: 'まだ戻っちゃいねえ' },
   { who: 'kinoshita_tokichiro', bg: 'kiyosu_niwa', text: 'そうでした。では、これからですな' },
-  { who: 'oda_nobunaga', bg: 'hiroma', text: 'また勝手をしたな。誰が許した' },
+  { who: 'nobunaga_1560', bg: 'hiroma', text: 'また勝手をしたな。誰が許した' },
   { who: 'maeda_toshiie', bg: 'hiroma', text: '誰も。待っても、戻れぬと思いました' },
-  { who: 'oda_nobunaga', bg: 'hiroma', text: '首一つでか' },
+  { who: 'nobunaga_1560', bg: 'hiroma', text: '首一つでか' },
   { who: 'maeda_toshiie', bg: 'hiroma', text: '首一つでも、ないよりはましです' },
-  { who: 'oda_nobunaga', bg: 'hiroma', text: 'お前は、そういう言い方を覚えたか。……都合がよければ戻してくれると思ったか' },
+  { who: 'nobunaga_1560', bg: 'hiroma', text: 'お前は、そういう言い方を覚えたか。……都合がよければ戻してくれると思ったか' },
 ];
 export const KISAN_CHOICES: Choice[] = [
   { id: 'shojiki', label: '「思いません。放っておけぬところまで行くつもりでした」', note: '小説の答え' },
@@ -476,13 +491,13 @@ export const KISAN_CHOICES: Choice[] = [
 ];
 export const EV_KISAN_SHOJIKI: Beat[] = [
   { who: 'maeda_toshiie', bg: 'hiroma', text: '前のままでは、俺は外にいるだけでした。それが嫌でした。だから、戦場で立つしかないと思いました' },
-  { who: 'oda_nobunaga', bg: 'hiroma', text: 'お前は、また同じことをするな。……言わぬか' },
+  { who: 'nobunaga_1560', bg: 'hiroma', text: 'お前は、また同じことをするな。……言わぬか' },
   { who: 'maeda_toshiie', bg: 'hiroma', text: '言えません。嘘をついて戻っても、意味がねえ' },
-  { who: 'oda_nobunaga', bg: 'hiroma', text: '正直だな。——戻れ。だが今度は、勝手に死ぬな。働け' },
+  { who: 'nobunaga_1560', bg: 'hiroma', text: '正直だな。——戻れ。だが今度は、勝手に死ぬな。働け' },
 ];
 export const EV_KISAN_WABI: Beat[] = [
   { who: 'maeda_toshiie', bg: 'hiroma', text: '二度と勝手はいたしませぬ' },
-  { who: 'oda_nobunaga', bg: 'hiroma', text: '嘘をつけ。……お前の顔に書いてある。まあよい。戻れ。だが今度は、勝手に死ぬな。働け' },
+  { who: 'nobunaga_1560', bg: 'hiroma', text: '嘘をつけ。……お前の顔に書いてある。まあよい。戻れ。だが今度は、勝手に死ぬな。働け' },
 ];
 export const EV_KISAN_AFTER: Beat[] = [
   { who: 'ikeda_tsuneoki', bg: 'kiyosu_niwa', text: '生きたな。……お前、昔より少し嫌な男になったな。噛みつく前に見るようになった' },

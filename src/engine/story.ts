@@ -190,10 +190,10 @@ export function battleChoose(s: StoryState, id: string): Show {
     if (!great) { s.flags.waitMoribe = true; s.flags.okeHead = true; note(s, '桶狭間で首を取った。だが、許しは来なかった。'); return { beats: [...D.EV_SASSA_SENJO, ...D.EV_SHUKYU.slice(0, 4), ...D.EV_NOT_YET] }; }
     s.done = 'okehazama'; note(s, '桶狭間で名のある首を挙げ、清洲へ呼ばれた。');
   } else { s.year = 1561; s.month = 5; s.jun = 2; s.done = 'moribe'; note(s, '森部で足立六兵衛の首を挙げ、清洲へ呼ばれた。'); }
-  const sh = D.EV_SHUKYU.map((x) => (kind === 'moribe' ? { ...x, bg: x.bg === 'okehazama' ? 'moribe' : x.bg } : x));
+  const sh = D.EV_SHUKYU.map((x) => (kind === 'moribe' ? { ...x, bg: x.bg === 'okehazama' ? 'moribe' : x.bg === 'okehazama_sen' ? 'moribe_sen' : x.bg } : x));
   return { beats: [...(kind === 'okehazama' ? D.EV_SASSA_SENJO : []), ...sh, ...D.EV_KISAN], choice: { key: 'kisan', choices: D.KISAN_CHOICES } };
 }
 export function startMoribe(s: StoryState): Show {
   s.battle = { kind: 'moribe', step: 0, score: 0 };
-  return { beats: [{ head: '森部', bg: 'sakaya', text: '永禄四年五月。「美濃の斎藤義龍が死んだ。清洲が美濃へ出るらしい」。今度は迷わなかった。' }, ...D.EV_SHUTTATSU((s.rel.matsu ?? 0) >= 50).slice(0, 3)] };
+  return { beats: [{ kind: 'door', head: '森部', text: '森部', sub: '永禄四年 五月' }, { head: '森部', bg: 'sakaya', text: '永禄四年五月。「美濃の斎藤義龍が死んだ。清洲が美濃へ出るらしい」。今度は迷わなかった。' }, ...D.EV_SHUTTATSU((s.rel.matsu ?? 0) >= 50).slice(0, 3)] };
 }

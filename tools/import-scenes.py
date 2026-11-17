@@ -5,14 +5,14 @@ from PIL import Image
 KEYS = {1: 'fire_castle', 2: 'night_fire', 3: 'zashiki_day', 4: 'zashiki_night', 5: 'chashitsu', 6: 'hondo', 7: 'senjo', 8: 'yukimichi',
         9: 'minato', 10: 'ichi', 11: 'ishigaki', 12: 'tsukiyo', 13: 'gosho', 14: 'mura', 15: 'jinmaku', 16: 'amemichi',
         101: 'kaijo', 102: 'tenshu_dawn', 103: 'utage', 104: 'kuyo',  # 101〜: エンディングの場面（tools/import-ending.py が置く）
-        201: 'story_arako', 202: 'story_ta_yoru', 203: 'story_sakaya', 204: 'story_kiyosu_tsuji', 205: 'story_kiyosu_niwa', 206: 'story_denchu', 207: 'story_moribe', 208: 'story_okehazama'}  # 201〜: 前田利家 ― 残り火（ART_ORDER_TOSHIIE.txt の S1〜S8。ファイル名の先頭「S1_」も読む）
+        201: 'story_arako', 202: 'story_ta_yoru', 203: 'story_sakaya', 204: 'story_kiyosu_tsuji', 205: 'story_kiyosu_niwa', 206: 'story_denchu', 207: 'story_moribe', 208: 'story_okehazama', 209: 'story_kayazu', 210: 'story_ino', 211: 'story_okehazama_sen', 212: 'story_moribe_sen'}  # 201〜: 前田利家 ― 残り火（ART_ORDER_TOSHIIE.txt の S1〜S8。ファイル名の先頭「S1_」も読む）
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out = os.path.join(root, 'assets', 'scenes')
 os.makedirs(out, exist_ok=True)
 if len(sys.argv) > 1:
     for f in sorted(os.listdir(sys.argv[1])):
-        m = re.match(r'(\d+)_', f) or re.match(r'S(\d)_', f)
-        if m and f.startswith('S'): m = re.match(r'S(\d)_', f); n = 200 + int(m.group(1))
+        m = re.match(r'(\d+)_', f) or re.match(r'S(\d+)_', f)
+        if m and f.startswith('S'): m = re.match(r'S(\d+)_', f); n = 200 + int(m.group(1))
         else: n = int(m.group(1)) if m else -1
         if not m or n not in KEYS or not re.search(r'\.(png|jpe?g|webp)$', f, re.I): continue
         k = KEYS[n]

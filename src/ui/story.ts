@@ -16,6 +16,8 @@ import { CSS, openHeroWith } from './hero';
 const KEY = 'sengoku-story-toshiie';
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const ART = (k: string) => { const key = D.STORY_BG[k] ?? k; return SCENE_ART[`story_${k}`] ?? SCENE_ART[key] ?? (key === 'minato' ? MINATO_ART : undefined); };
+// 場所の札（場面の絵から）
+const BG_NAME: Record<string, string> = { arako: '荒子', arako_night: '荒子の屋敷', sakaya: '荒子の酒屋', kiyosu_tsuji: '清洲の辻', kiyosu_niwa: '清洲城の庭', denchu: '清洲城 殿中', hiroma: '清洲城 広間', kayazu: '萱津', ino: '稲生', moribe: '森部', moribe_sen: '森部', jinmaku: '陣', okehazama: '桶狭間', okehazama_sen: '桶狭間', ta_yoru: '福島の田', fukushima: '福島の屋敷', atsuta: '熱田' };
 type Face = (id: string | null | undefined, w: number) => string;
 
 let face: Face = () => '';
@@ -27,6 +29,7 @@ let pending: { key: string; choices: Choice[] } | null = null; // 場面のあ�
 let pane: 'acts' | 'yashiki' | 'tabi' | 'diary' = 'acts';
 let busy = '';
 let bg = 'arako';
+let lastArt: string | undefined;
 
 export const storySaved = () => { try { return !!localStorage.getItem(KEY); } catch { return false; } };
 function save() { try { if (st) localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* 続ける */ } }
@@ -65,8 +68,8 @@ function begin(skip: boolean) {
 const nameOf = (id: string) => D.STORY_CAST[id] ?? ({ maeda_toshiie: '前田利家', oda_nobunaga: '織田信長', ikeda_tsuneoki: '池田恒興', sassa_narimasa: '佐々成政', kinoshita_tokichiro: '木下藤吉郎', shibata_katsuie: '柴田勝家', maeda_toshimasu: '前田利益' } as Record<string, string>)[id] ?? id;
 // 顔: 物語の人物は届いた絵、犬千代は利家の顔、三郎は信長の顔。なければ名の札
 function faceOf(id: string, w: number) {
-  const pid = id === 'maeda_toshiie' && !st?.done ? 'inuchiyo' : id; // 帰参までの利家は若き日の顔で
-  const src = STORY_PORTRAITS[pid] ?? PORTRAITS[pid] ?? (id === 'sanro' ? PORTRAITS.oda_nobunaga : undefined);
+  const pid = id === 'maeda_toshiie' && !st?.done ? 'inuchiyo' : id === 'sanro' ? 'nobunaga_young' : id; // 帰参までの利家は若き日の顔、辻の三郎はうつけの頃の信長
+  const src = STORY_PORTRAITS[pid] ?? PORTRAITS[pid];
   if (src) return `<img class="face" src="${src}" width="${w}" height="${Math.round(w * 1.25)}" alt="">`;
   return `<span class="hr-noface" style="width:${w}px;height:${Math.round(w * 1.25)}px;font-size:${Math.round(w / 4)}px">${esc(nameOf(id).slice(0, 3))}</span>`;
 }
@@ -79,6 +82,9 @@ function render() {
   const step = st.battle && !queue.length ? S.stepsOf(st)[st.battle.step] : null;
   const pro = queue.includes(D.EV_RETURN[0]) && queue[0] !== D.EV_RETURN[0]; // 序幕の間は日付を出さない
   if (step) bg = step.bg;
+  const sceneArt = step ? ART(step.bg) : art;
+  const changed = sceneArt !== lastArt; // 絵が替わったときだけ、ゆっくり浮かび上がらせる
+  lastArt = sceneArt;
   root.innerHTML = `<div><div class="hr-main">
     <header class="hr-head">
       <div class="hr-id">${faceOf('maeda_toshiie', 56)}<div><b>前田利家</b><span>${st.done ? '帰参' : '浪人（前田家の四男）'}</span></div></div>
@@ -88,9 +94,10 @@ function render() {
     </header>
     <div class="hr-quest"><b>${st.done ? '第一幕　了' : st.flags.waitMoribe ? '目当て' : '第一幕'}</b> ${esc(goalText(st))}</div>
     <div class="hr-body">
-      <section class="hr-scene" style="${(step ? ART(step.bg) : art) ? `background-image:url(${step ? ART(step.bg) : art})` : ''}">
-        <div class="hr-town"><b>${b?.head ? esc(b.head) : step ? esc(step.head) : esc(S.PLACE_NAME[st.place])}</b><span>${pro ? '序幕' : esc(S.dateLabel(st))}</span></div>
-        ${b ? beatHtml(b) : step ? stepHtml(step) : pending ? choiceHtml(pending) : ''}
+      <section class="hr-scene st-scene">
+        <div class="st-bg${pro ? ' memory' : ''}${changed ? ' fadein' : ''}" style="${sceneArt ? `background-image:url(${sceneArt})` : ''}"></div>${pro ? '<div class="st-haze"></div>' : ''}
+        ${b?.kind ? fxHtml(b) : `<div class="hr-town"><b>${b?.head ? esc(b.head) : step ? esc(step.head) : esc((b || pending ? BG_NAME[bg] : undefined) ?? S.PLACE_NAME[st.place])}</b><span>${pro ? '序幕' : esc(S.dateLabel(st))}</span></div>
+        ${b ? beatHtml(b) : step ? stepHtml(step) : pending ? choiceHtml(pending) : ''}`}
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['acts', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-s="pane" data-id="${k}">${{ acts: S.PLACE_NAME[st!.place], yashiki: '屋敷', tabi: '道', diary: '日記' }[k]}</button>`).join('')}</nav>
@@ -112,6 +119,12 @@ function beatHtml(b: Beat) {
   const thought = b.text.startsWith('（'); // 心の声・人物の描き添えは括弧のまま
   return `<div class="hr-say" data-s="next" style="cursor:pointer">${who ? `<div class="hr-who">${faceOf(who, 128)}<div><b>${esc(nameOf(who))}</b><p class="st-line">${thought ? esc(b.text) : `「${esc(b.text)}」`}</p></div></div>` : `<p class="st-narr">${narr(b.text)}</p>`}
     <div style="text-align:right;margin-top:8px"><button class="hr-btn" data-s="next">次へ ▸</button> <button class="hr-btn ghost sm" data-s="skip">場面をとばす</button></div></div>`;
+}
+// 場面転換: 節の扉（墨のにじみ・縦書きの題と年月）・月日の流れ（白い霞と一行）・章の扉（大きな章題）。押すと次へ
+function fxHtml(b: Beat) {
+  if (b.kind === 'time') return `<div class="st-fx time" data-s="next"><p>${esc(b.text)}</p>${b.sub ? `<span>${esc(b.sub)}</span>` : ''}<small>押して進む</small></div>`;
+  if (b.kind === 'chapter') return `<div class="st-fx chapter" data-s="next"><span class="st-sub">${esc(b.sub ?? '')}</span><b>${esc(b.head ?? '')}</b><em>${esc(b.text)}</em><small>押して進む</small></div>`;
+  return `<div class="st-fx door" data-s="next"><div class="st-door"><b>${esc(b.text)}</b>${b.sub ? `<span class="st-sub">${esc(b.sub)}</span>` : ''}</div><small>押して進む</small></div>`;
 }
 // 地の文: 一文ごとに改行する（「」の中の句点では切らない）
 function narr(text: string) {
@@ -186,5 +199,28 @@ const STORY_CSS = `
 #story .st-narr{margin:0;font-family:var(--font-display,serif);font-size:20px;line-height:1.9;color:#ece2cc;letter-spacing:.02em}
 #story .st-line{margin:6px 0 0;font-size:21px;line-height:1.75;font-family:var(--font-display,serif)}
 #story .hr-say{max-height:calc(100% - 90px);overflow:auto}
-@media (max-width:820px){#story .st-narr{font-size:17px;line-height:1.85}#story .st-line{font-size:17px}}
+#story .st-scene{position:relative;overflow:hidden;background:#0c0c0d}
+#story .st-scene>.hr-town,#story .st-scene>.hr-say{position:relative;z-index:1}
+#story .st-bg{position:absolute;inset:-3%;background:center/cover no-repeat;animation:st-kb 28s ease-in-out infinite alternate}
+#story .st-bg.fadein{animation:st-fi 1s ease-out,st-kb 28s ease-in-out infinite alternate}
+#story .st-bg.memory{filter:sepia(.45) saturate(.72) brightness(1.06) contrast(.9)}
+#story .st-haze{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(255,250,238,0) 45%,rgba(255,248,230,.22) 100%);pointer-events:none}
+@keyframes st-kb{from{transform:scale(1) translate(0,0)}to{transform:scale(1.07) translate(-1.5%,-1%)}}
+@keyframes st-fi{from{opacity:0}to{opacity:1}}
+#story .st-fx{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer;text-align:center}
+#story .st-fx small{position:absolute;bottom:16px;font-family:var(--font-ui,sans-serif);font-size:11px;letter-spacing:.2em;opacity:.55}
+#story .st-fx.door{background:radial-gradient(ellipse at center,rgba(10,8,6,.9) 25%,rgba(0,0,0,.985) 75%);color:#ece2cc;animation:st-ink 1.1s ease-out}
+#story .st-door{display:flex;flex-direction:row-reverse;align-items:flex-start;gap:22px}
+#story .st-door b{writing-mode:vertical-rl;font-family:var(--font-display,serif);font-weight:400;font-size:46px;letter-spacing:.35em}
+#story .st-sub{writing-mode:vertical-rl;color:#cfa95e;font-size:16px;letter-spacing:.25em;font-family:var(--font-display,serif)}
+#story .st-fx.time{background:rgba(250,246,236,.97);color:#3a3026;animation:st-white 1.4s ease-out}
+#story .st-fx.time p{margin:0;font-family:var(--font-display,serif);font-size:34px;letter-spacing:.2em}
+#story .st-fx.time span{font-family:var(--font-display,serif);font-size:17px;letter-spacing:.3em;color:#8a7350}
+#story .st-fx.chapter{background:#060606;color:#ece2cc;animation:st-ink 1.6s ease-out}
+#story .st-fx.chapter .st-sub{writing-mode:horizontal-tb;font-size:14px;letter-spacing:.6em}
+#story .st-fx.chapter b{font-family:var(--font-display,serif);font-weight:400;font-size:22px;letter-spacing:.4em;color:#cfa95e}
+#story .st-fx.chapter em{font-style:normal;font-family:var(--font-display,serif);font-size:58px;letter-spacing:.3em}
+@keyframes st-ink{from{opacity:0;filter:blur(8px)}to{opacity:1;filter:blur(0)}}
+@keyframes st-white{0%{opacity:0;background:rgba(255,255,255,1)}35%{opacity:1;background:rgba(255,255,255,1)}100%{opacity:1}}
+@media (max-width:820px){#story .st-narr{font-size:17px;line-height:1.85}#story .st-line{font-size:17px}#story .st-door b{font-size:36px}#story .st-fx.time p{font-size:26px}#story .st-fx.chapter em{font-size:40px}}
 `;
