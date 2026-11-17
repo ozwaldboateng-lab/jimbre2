@@ -20,7 +20,7 @@ import type { GameState, General } from '../engine/types';
 const KEY = 'sengoku-hero-auto';
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const ART = (k: string) => SCENE_ART[k] ?? (k === 'minato' ? MINATO_ART : undefined);
-const BG: Record<string, string> = { town: 'ichi', tojo: 'zashiki_day', yashiki: 'zashiki_night', chaya: 'chashitsu', ichi: 'ichi', dojo: 'jinmaku', tera: 'hondo', tabi: 'yukimichi', nanban: 'minato', fushin: 'ishigaki', teisatsu: 'tsukiyo', choryaku: 'zashiki_night', month: 'tsukiyo' };
+const BG: Record<string, string> = { town: 'ichi', tojo: 'zashiki_day', yashiki: 'zashiki_night', chaya: 'chashitsu', ichi: 'ichi', dojo: 'jinmaku', tera: 'hondo', tabi: 'yukimichi', nanban: 'minato', fushin: 'ishigaki', teisatsu: 'tsukiyo', choryaku: 'zashiki_night', kenkin: 'zashiki_day', kenjo: 'zashiki_day', month: 'tsukiyo' };
 
 type Face = (id: string | null | undefined, w: number) => string;
 let s: GameState | null = null;

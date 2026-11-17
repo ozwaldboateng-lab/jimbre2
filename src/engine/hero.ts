@@ -14,7 +14,7 @@ import { removeArmy } from './ops';
 import { addLog, castleAt, castleKoku, clanCastles, clanName, garrisonMax, hostile, learnCastle, rand } from './state';
 import type { Army, Castle, GameState, General } from './types';
 
-export type QuestKind = 'fushin' | 'teisatsu' | 'choryaku' | 'shutsujin';
+export type QuestKind = 'fushin' | 'teisatsu' | 'choryaku' | 'shutsujin' | 'kenkin' | 'kenjo'; // kenkin 献金（金を納める）・kenjo 献上（進物を納める）
 export interface Quest { kind: QuestKind; castle: number; need: number; done: number; until: number; ok?: boolean; note?: string; army?: number }
 export interface Hero {
   id: string; town: number; jun: number; gold: number; favor: number; goods: number;
@@ -28,12 +28,15 @@ export interface Hero {
 }
 export const HERO = {
   JUN: 3, PAY: [400, 200, 100, 50], // 身分ごとの月の俸禄（宿老・侍大将・足軽大将・足軽組頭）
-  QUEST_MONTHS: 3, FAVOR_OK: { fushin: 6, teisatsu: 5, choryaku: 10, shutsujin: 8 }, FAVOR_NG: 8,
-  MERIT: { fushin: 15, teisatsu: 12, choryaku: 25, shutsujin: 10 }, PAYOUT: { fushin: 100, teisatsu: 80, choryaku: 200, shutsujin: 150 }, // 出陣は合戦そのものの功績が別に入る
+  QUEST_MONTHS: 3, FAVOR_OK: { fushin: 6, teisatsu: 5, choryaku: 10, shutsujin: 8, kenkin: 4, kenjo: 4 }, FAVOR_NG: 8,
+  MERIT: { fushin: 15, teisatsu: 12, choryaku: 25, shutsujin: 10, kenkin: 8, kenjo: 8 }, PAYOUT: { fushin: 100, teisatsu: 80, choryaku: 200, shutsujin: 150, kenkin: 0, kenjo: 0 },
+  // 献金・献上: 身分ごとの基の額（宿老〜足軽組頭）。手元の金が多いほど額が上がる（手元の3割まで、基の8倍まで）。功績と覚えは額に応じて足す
+  KENKIN: [800, 400, 200, 100], KENKIN_SHARE: 0.3, KENKIN_MAX: 8, KENJO: [6, 4, 3, 2], KENJO_BUY: 2, // 献上の進物が足りなければ、市の2倍の値で調えて納める
+  KENKIN_RICH: 1500, // 手元にこれ以上あると、献金の主命が出やすい // 出陣は合戦そのものの功績が別に入る
   VISIT: 8, GIFT_COST: 50, GIFT_REL: 12, GOODS_COST: 50, FRIEND: 70, TRAIN_COST: 30, TRAIN_P: 0.35, STAT_CAP: 95,
   MP: R.hx(6), // 1旬に進める道のり（平地1・森と川2・山3。部隊の一月より少し多い）
 };
-export const QUEST_NAME: Record<QuestKind, string> = { fushin: '普請', teisatsu: '偵察', choryaku: '調略', shutsujin: '出陣' };
+export const QUEST_NAME: Record<QuestKind, string> = { fushin: '普請', teisatsu: '偵察', choryaku: '調略', shutsujin: '出陣', kenkin: '献金', kenjo: '献上' };
 
 export const heroOf = (s: GameState) => (s.hero ? s.generals[s.hero.id] : null);
 export const lordOf = (s: GameState) => { const g = heroOf(s); const l = g?.clan ? s.clans[g.clan].leader : null; return l ? s.generals[l] : null; };
@@ -268,10 +271,13 @@ export function tojo(s: GameState): Act {
     // 報告
     const ok = q.ok !== false;
     if (ok) {
-      addMerit(s, me.id, HERO.MERIT[q.kind]); H.favor = clamp(H.favor + HERO.FAVOR_OK[q.kind]); H.gold += HERO.PAYOUT[q.kind]; H.done++;
-      note(s, `主命（${QUEST_NAME[q.kind]}・${s.castles[q.castle].name}）を果たし、${L.name}に報告した。褒美に金${HERO.PAYOUT[q.kind]}貫。`);
+      // 献金・献上は納めた額に応じて功績と覚えを足す（額の平方根で緩やかに。金で出世を買えないように）
+      const extra = q.kind === 'kenkin' ? Math.floor(Math.sqrt(q.need / 100)) : q.kind === 'kenjo' ? Math.floor(Math.sqrt(q.need)) : 0;
+      const merit = HERO.MERIT[q.kind] + extra * 4, favor = HERO.FAVOR_OK[q.kind] + extra * 2;
+      addMerit(s, me.id, merit); H.favor = clamp(H.favor + favor); H.gold += HERO.PAYOUT[q.kind]; H.done++;
+      note(s, `主命（${QUEST_NAME[q.kind]}・${s.castles[q.castle].name}）を果たし、${L.name}に報告した。${HERO.PAYOUT[q.kind] ? `褒美に金${HERO.PAYOUT[q.kind]}貫。` : ''}`);
       H.quest = null;
-      return { ok: true, who: L.id, line: pickLine(s, PRAISE[q.kind]), text: `主命の首尾を申し上げた。功績+${HERO.MERIT[q.kind]}、主君の覚え+${HERO.FAVOR_OK[q.kind]}、金+${HERO.PAYOUT[q.kind]}貫。${q.note ?? ''}` };
+      return { ok: true, who: L.id, line: pickLine(s, PRAISE[q.kind]), text: `主命の首尾を申し上げた。功績+${merit}、主君の覚え+${favor}${HERO.PAYOUT[q.kind] ? `、金+${HERO.PAYOUT[q.kind]}貫` : ''}。${q.note ?? ''}` };
     }
     H.favor = clamp(H.favor - 3); H.failed++; H.quest = null;
     note(s, `主命（${QUEST_NAME[q.kind]}）は不首尾に終わったと報告した。`);
@@ -288,6 +294,8 @@ const monthsLeft = (s: GameState, q: Quest) => Math.max(0, q.until - s.turn);
 export function questText(s: GameState, q: Quest) {
   const c = s.castles[q.castle];
   const own = c.owner ? `${clanName(s, c.owner)}家の` : '';
+  if (q.kind === 'kenkin') return `${c.name}へ金${q.need}貫を納めよ（${c.name}の城下で、主命を果たす）。`;
+  if (q.kind === 'kenjo') return `${c.name}へ進物${q.need}つを献上せよ（足りなければ金で調える。1つ${HERO.GOODS_COST * HERO.KENJO_BUY}貫）。`;
   if (q.kind === 'shutsujin') { const a = q.army !== undefined ? s.armies[q.army] : undefined; return a ? `${s.generals[a.main]?.name ?? ''}の軍勢（いま${placeOf(s, a.hex)}）に加わり、戦で手柄を立てよ。` : '加わるはずの軍勢はもう陣を払った。'; }
   return q.kind === 'fushin' ? `${c.name}へ出向き、普請を差配せよ（${q.need}旬）。` : q.kind === 'teisatsu' ? `${own}${c.name}の城下に入り、城の様子を探れ。` : `${own}${c.name}に入り込み、城兵を切り崩せ。`;
 }
@@ -312,6 +320,15 @@ function makeQuest(s: GameState): Quest | null {
     const near = mine.sort((x, y) => hexDist(x.hex, a.hex) - hexDist(y.hex, a.hex))[0];
     if (near) { pool.push({ kind: 'shutsujin', castle: near.i, need: 1, done: 0, until, army: a.id }); pool.push(pool[pool.length - 1]); } // 戦のときは出陣の主命が出やすい
   }
+  // 献金・献上: 主君の城へ納める（手元の金が多いほど出やすく、額も上がる）
+  const L = lordOf(s), H0 = s.hero!;
+  if (L) {
+    const base = HERO.KENKIN[me.rank] ?? 100;
+    const amt = Math.round(Math.max(base, Math.min(H0.gold * HERO.KENKIN_SHARE, base * HERO.KENKIN_MAX)) / 50) * 50;
+    const kk: Quest = { kind: 'kenkin', castle: L.loc, need: amt, done: 0, until };
+    if (H0.gold >= amt) { pool.push(kk); if (H0.gold >= HERO.KENKIN_RICH) pool.push(kk); if (H0.gold >= HERO.KENKIN_RICH * 3) pool.push(kk, kk); } // 払える額のときだけ
+    pool.push({ kind: 'kenjo', castle: L.loc, need: HERO.KENJO[me.rank] ?? 2, done: 0, until });
+  }
   if (!pool.length) return null;
   const pick = pool[Math.floor(rand(s) * pool.length)];
   s.hero!.lastQuest = pick.castle;
@@ -323,6 +340,17 @@ export function work(s: GameState): Act {
   const H = s.hero!, me = heroOf(s)!, q = H.quest!;
   if (!canWork(s)) return { ok: false, text: 'ここでできる主命はない' };
   const c = s.castles[q.castle];
+  if (q.kind === 'kenkin') {
+    if (H.gold < q.need) return { ok: false, text: `金が足りない（${q.need}貫。手元${H.gold}貫）` };
+    used(s); H.gold -= q.need; q.done = q.need; q.ok = true; q.note = `金${q.need}貫を納めた。`;
+    return { ok: true, text: `${c.name}の蔵へ金${q.need}貫を納めた（手元${H.gold}貫）。登城して報告せよ。` };
+  }
+  if (q.kind === 'kenjo') {
+    const lack = Math.max(0, q.need - H.goods), cost = lack * HERO.GOODS_COST * HERO.KENJO_BUY;
+    if (H.gold < cost) return { ok: false, text: `進物が${lack}つ足りず、調える金もない（${cost}貫）` };
+    used(s); H.goods -= q.need - lack; H.gold -= cost; q.done = q.need; q.ok = true; q.note = `進物${q.need}つを献上した。`;
+    return { ok: true, text: `進物${q.need}つを献上した${lack ? `（足りない${lack}つは金${cost}貫で調えた）` : ''}。登城して報告せよ。` };
+  }
   used(s);
   if (q.kind === 'fushin') {
     if (c.owner !== me.clan) { q.done = q.need; q.ok = false; q.note = '城が人手に渡り、普請はかなわなかった。'; return { ok: true, text: q.note }; }
@@ -455,6 +483,8 @@ const PRAISE: Record<QuestKind, string[]> = {
   fushin: ['うむ、手際がよい。城が固くなれば、民も安心する。', '早かったな。次も頼むぞ。'],
   teisatsu: ['よう探った。これで次の手が打てる。', 'ほう、そこまで調べたか。褒めてつかわす。'],
   choryaku: ['でかした！ 城を落とす前に、城の心を落としたな。', '舌先三寸で城兵を崩すとは。そなた、なかなかの曲者よ。'],
+  kenkin: ['うむ、確かに受け取った。戦は銭でするものでもあるからな。', '殊勝である。この銭、無駄にはせぬ。'],
+  kenjo: ['ほう、よい品じゃ。目が利くな。', '気の利いた献上よ。覚えておくぞ。'],
 };
 const SCOLD = ['……そうか。次はしくじるなよ。', '不首尾か。言い訳は聞かぬ。次で取り返せ。'];
 const ORDER_LINE: Record<QuestKind, string> = {
@@ -462,4 +492,6 @@ const ORDER_LINE: Record<QuestKind, string> = {
   fushin: '{castle}の守りが心もとない。出向いて普請を差配せよ。',
   teisatsu: '{castle}の様子を探ってまいれ。兵の数、城主の顔ぶれ、何でもよい。',
   choryaku: '{castle}の侍どもに手を回し、城の守りを内から崩してまいれ。',
+  kenkin: '近頃は何かと物入りでな。{castle}の蔵へ、そなたからも銭を納めてもらいたい。',
+  kenjo: '近く客人を迎える。{castle}へ、引き出物になる品を調えて献上せよ。',
 };
