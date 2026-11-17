@@ -34,7 +34,7 @@ function save() { try { if (st) localStorage.setItem(KEY, JSON.stringify(st)); }
 export function openStory(f: Face, quit: () => void) {
   face = f; onQuit = quit;
   if (!document.getElementById('hero-style')) { const x = document.createElement('style'); x.id = 'hero-style'; x.textContent = CSS; document.head.appendChild(x); }
-  if (!document.getElementById('story-style')) { const x = document.createElement('style'); x.id = 'story-style'; x.textContent = CSS.split('#hero').join('#story'); document.head.appendChild(x); } // 同じ見た目を #story にも
+  if (!document.getElementById('story-style')) { const x = document.createElement('style'); x.id = 'story-style'; x.textContent = CSS.split('#hero').join('#story') + STORY_CSS; document.head.appendChild(x); } // 同じ見た目を #story にも
   root = document.getElementById('story');
   if (!root) { root = document.createElement('div'); root.id = 'story'; root.className = 'story-root'; document.body.appendChild(root); root.addEventListener('click', onClick); }
   root.hidden = false;
@@ -109,14 +109,21 @@ function goalText(s: S.StoryState) {
 }
 function beatHtml(b: Beat) {
   const who = b.who;
-  return `<div class="hr-say" data-s="next" style="cursor:pointer">${who ? `<div class="hr-who">${faceOf(who, 128)}<div><b>${esc(nameOf(who))}</b><p>「${esc(b.text)}」</p></div></div>` : `<p class="hr-text" style="font-size:17px">${esc(b.text)}</p>`}
+  const thought = b.text.startsWith('（'); // 心の声・人物の描き添えは括弧のまま
+  return `<div class="hr-say" data-s="next" style="cursor:pointer">${who ? `<div class="hr-who">${faceOf(who, 128)}<div><b>${esc(nameOf(who))}</b><p class="st-line">${thought ? esc(b.text) : `「${esc(b.text)}」`}</p></div></div>` : `<p class="st-narr">${narr(b.text)}</p>`}
     <div style="text-align:right;margin-top:8px"><button class="hr-btn" data-s="next">次へ ▸</button> <button class="hr-btn ghost sm" data-s="skip">場面をとばす</button></div></div>`;
+}
+// 地の文: 一文ごとに改行する（「」の中の句点では切らない）
+function narr(text: string) {
+  let depth = 0, out = '';
+  for (const ch of text) { if (ch === '「') depth++; if (ch === '」') depth = Math.max(0, depth - 1); out += ch; if (ch === '。' && depth === 0) out += '\n'; }
+  return esc(out.trim()).replace(/\n/g, '<br>');
 }
 function choiceHtml(p: { key: string; choices: Choice[] }) {
   return `<div class="hr-say"><p class="hr-text" style="margin-bottom:10px">どうする。</p>${p.choices.map((c) => `<button class="hr-spot" data-s="choose" data-id="${c.id}"><b>${esc(c.label)}</b>${c.note ? `<span>${esc(c.note)}</span>` : ''}</button>`).join('')}</div>`;
 }
 function stepHtml(step: D.Step) {
-  return `<div class="hr-say"><p class="hr-text" style="font-size:17px;margin-bottom:10px">${esc(step.text)}</p>${step.choices.map((c) => `<button class="hr-spot" data-s="bchoose" data-id="${c.id}"><b>${esc(c.label)}</b>${c.note ? `<span>${esc(c.note)}</span>` : ''}</button>`).join('')}</div>`;
+  return `<div class="hr-say"><p class="st-narr" style="margin-bottom:12px">${narr(step.text)}</p>${step.choices.map((c) => `<button class="hr-spot" data-s="bchoose" data-id="${c.id}"><b>${esc(c.label)}</b>${c.note ? `<span>${esc(c.note)}</span>` : ''}</button>`).join('')}</div>`;
 }
 function sideHtml(s: S.StoryState) {
   const locked = queue.length > 0 || !!pending || !!s.battle;
@@ -173,3 +180,11 @@ async function toHero() {
   if (root) root.hidden = true;
   openHeroWith(face, onQuit, g, { who: 'oda_nobunaga', line: '働け。主命は、登城して受けよ', text: '清洲へ戻った。ここからは織田家の家臣として、主命と陣で働く。（第二幕は作成中）' });
 }
+
+// 物語の文字: 地の文もセリフと同じ書体・大きさで、一文ごとに改行
+const STORY_CSS = `
+#story .st-narr{margin:0;font-family:var(--font-display,serif);font-size:20px;line-height:1.9;color:#ece2cc;letter-spacing:.02em}
+#story .st-line{margin:6px 0 0;font-size:21px;line-height:1.75;font-family:var(--font-display,serif)}
+#story .hr-say{max-height:calc(100% - 90px);overflow:auto}
+@media (max-width:820px){#story .st-narr{font-size:17px;line-height:1.85}#story .st-line{font-size:17px}}
+`;
