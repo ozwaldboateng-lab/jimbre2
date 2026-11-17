@@ -6,6 +6,7 @@ import { pathTo, stepCost, type Reach } from './move';
 import { storeOf } from './supply';
 import { storyGuard } from './story2';
 import { ieMonth } from './maeda';
+import { bandits, tradeMonth } from './trade';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
 import * as R from './rules';
@@ -24,6 +25,7 @@ export interface Hero {
   diary: { turn: number; jun: number; text: string }[]; done: number; failed: number; trained: number; lastQuest?: number;
   over?: string; // 終わった（主人公の死・主家の滅亡など）。終わりの言葉
   story?: string; storyDone?: string[]; storyStart?: number; title?: string; // 物語（前田利家 ― 残り火）の第二幕: 起きた出来事・始まりの年月・肩書き
+  cargo?: Record<string, import('./trade').Cargo>; glut?: Record<string, number>; // 商い: 持っている荷（産地の城の id → 数と仕入れ値）と、町ごとの値崩れ
   ie?: import('./maeda').Ie; sv?: Record<string, number>; fuchu?: number; until?: number; // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
 }
 export const HERO = {
@@ -189,9 +191,10 @@ export function moveTo(s: GameState, dest: number): Act {
   if (c) { H.town = c.i; H.field = false; me.loc = c.i; } else H.field = true;
   H.dest = at === dest ? null : dest;
   used(s);
-  if (!H.dest) { if (c) note(s, `${c.name}の城下に着いた。`); return { ok: true, text: c ? `${c.name}の城下に着いた。` : `${placeName(s, at)}で足を止めた。` }; }
+  const rob = bandits(s); if (rob) note(s, rob);
+  if (!H.dest) { if (c) note(s, `${c.name}の城下に着いた。`); return { ok: true, text: (c ? `${c.name}の城下に着いた。` : `${placeName(s, at)}で足を止めた。`) + (rob ?? '') }; }
   const left = junTo(s, dest);
-  return { ok: true, text: `${placeName(s, dest)}を目指して、${placeName(s, at)}まで進んだ（あと${left ?? '?'}旬ほど）。` };
+  return { ok: true, text: `${placeName(s, dest)}を目指して、${placeName(s, at)}まで進んだ（あと${left ?? '?'}旬ほど）。${rob ?? ''}` };
 }
 export const goOn = (s: GameState): Act => (s.hero!.dest !== null && s.hero!.dest !== undefined ? moveTo(s, s.hero!.dest) : { ok: false, text: '行き先がない' });
 export const inField = (s: GameState) => !!s.hero!.field;
@@ -400,6 +403,7 @@ export function heroMonth(s: GameState): string[] {
   const pay = HERO.PAY[me.rank] ?? 50;
   H.gold += pay; out.push(`俸禄 ${pay}貫を受け取った（手元 ${H.gold}貫）。`);
   out.push(...ieMonth(s));
+  tradeMonth(s);
   checkShutsujin(s);
   const q = H.quest;
   if (q && q.kind === 'shutsujin' && q.done < q.need && H.army !== q.army && q.army !== undefined && !s.armies[q.army]) { H.quest = null; out.push('加わるはずの軍勢が陣を払い、出陣の主命は取りやめになった。'); }

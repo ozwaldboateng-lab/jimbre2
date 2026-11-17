@@ -8,6 +8,7 @@ import { HEXES, PROVINCES } from '../engine/map';
 import { MapView } from './render';
 import { carryHero, nextStory, storyDue, storyJump } from '../engine/story2';
 import * as M from '../engine/maeda';
+import * as T from '../engine/trade';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
 import { STORY_PORTRAITS } from '../data/portraits_story';
@@ -27,7 +28,7 @@ let s: GameState | null = null;
 let face: Face = () => '';
 let onQuit: () => void = () => {};
 let root: HTMLElement | null = null;
-let pane: 'spots' | 'yashiki' | 'tabi' | 'diary' = 'spots';
+let pane: 'spots' | 'yashiki' | 'tabi' | 'diary' | 'akinai' = 'spots';
 let bg = 'town';
 let say: { who?: string; line?: string; text: string } | null = null;
 let busy = false;
@@ -116,7 +117,7 @@ function render() {
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
-        <div class="hr-pane">${pane === 'spots' ? spotsHtml(st) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : diaryHtml(st)}</div>
+        <div class="hr-pane">${pane === 'spots' ? spotsHtml(st) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : diaryHtml(st)}</div>
       </aside>
     </div>
     ${report ? `<div class="hr-modal"><div class="hr-report"><h3>${st.year}年${st.month}月を迎えた</h3><ul>${report.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><button class="hr-btn primary" data-h="report-ok">城下へ</button></div></div>` : ''}
@@ -165,7 +166,8 @@ function spotsHtml(st: GameState) {
   const desc: Record<H.Spot, string> = { tojo: '主命を受ける・報告する', yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
   const gov = M.canGovern(st) ? `<p class="hr-note">${esc(M.fuchuText(st))}</p>${(Object.keys(M.GOV_NAME) as M.GovAct[]).map((k) => `<button class="hr-spot${k === 'mimawari' ? ' main' : ''}" data-h="gov" data-id="${k}"><b>${M.GOV_NAME[k][0]}</b><span>${M.GOV_NAME[k][1]}</span></button>`).join('')}` : '';
   const adv = M.canAdvice(st) ? `<button class="hr-spot" data-h="advice"><b>家中の進言</b><span>奥村・村井の話を聞いて、前田家のことを決める（月に一度・1旬）</span></button>` : '';
-  return `${work}${gov}${join}${adv}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
+  const trade = T.canTrade(st, c) ? `<button class="hr-spot" data-h="pane" data-id="akinai"><b>商い</b><span>${T.buyOffer(st, c) ? `特産「${esc(T.buyOffer(st, c)!.name)}」を仕入れる。` : ''}荷を売る（荷駄 ${T.loadOf(st)}/${T.capOf(st)}）</span></button>` : '';
+  return `${work}${gov}${join}${adv}${trade}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
     <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
 function peopleHtml(st: GameState) {
@@ -200,6 +202,20 @@ function travelHtml(st: GameState) {
     const tags = [c.i === L?.loc ? '主君' : '', Hh.quest?.castle === c.i ? '主命' : ''].filter(Boolean);
     return `<button class="hr-town-row" data-h="goto" data-id="${c.hex}"><b>${esc(c.name)}</b><span>${c.owner ? esc(clanName(st, c.owner)) : '国人'}${c.owner === me.clan ? '' : '（他国）'}</span>${tags.map((x) => `<em>${x}</em>`).join('')}<i>${jun(c.hex)}</i></button>`;
   }).join('')}`;
+}
+// 商い: この城下の特産を仕入れ、持っている荷をここで売る（遠くの町・商いの要所ほど高い）
+function tradeHtml(st: GameState) {
+  const Hh = st.hero!, c = st.castles[Hh.town];
+  if (Hh.field || H.inArmy(st)) return '<p class="hr-none">城下でなければ商いはできない。</p>';
+  const o = T.buyOffer(st, c), room = T.capOf(st) - T.loadOf(st);
+  const own = c.owner && c.owner !== H.heroOf(st)!.clan ? `（${esc(clanName(st, c.owner))}家の町。関銭一割）` : '';
+  const buyRow = o ? `<div class="hr-person"><div class="hr-pi"><b>仕入れ: ${esc(o.name)}</b><span>荷一つ ${o.price}貫${own}</span><span>荷駄 ${T.loadOf(st)}/${T.capOf(st)}・手元${Hh.gold}貫</span></div>
+    <div class="hr-pa">${[1, 5].map((n) => `<button class="hr-btn sm" data-h="buy" data-id="${n}" ${room < 1 || Hh.gold < o.price ? 'disabled' : ''}>${n}荷</button>`).join('')}<button class="hr-btn sm" data-h="buy" data-id="999" ${room < 1 || Hh.gold < o.price ? 'disabled' : ''}>買えるだけ</button></div></div>` : '<p class="hr-note">この城下には仕入れられる特産がない。</p>';
+  const cargo = Object.entries(Hh.cargo ?? {});
+  const sellRows = cargo.length ? cargo.map(([id, cg]) => { const pr = T.sellPrice(st, c, id), avg = Math.round(cg.cost / cg.n); return `<div class="hr-person"><div class="hr-pi"><b>${esc(T.productName(id))} ${cg.n}荷</b><span>ここで荷一つ ${pr}貫（仕入れ ${avg}貫）</span><span class="hr-rel">${pr > avg ? `儲け見込み +${(pr - avg) * cg.n}貫ほど` : '損になる'}</span></div><div class="hr-pa"><button class="hr-btn sm" data-h="sell" data-id="${id}">売る</button></div></div>`; }).join('') : '<p class="hr-none">荷は持っていない。</p>';
+  return `<p class="hr-note">特産を仕入れ、遠くの町で売れば儲かる（京・堺・博多などの商いの要所はなお高い）。同じ町で売り続けると値が崩れ、月ごとに戻る。値は月ごとに上下する。荷を持って野を行くと野盗に遭うことがある。仕入れ・売りはそれぞれ1旬。</p>
+    ${buyRow}<h4 class="hr-sub">持っている荷</h4>${sellRows}
+    <button class="hr-spot dim" data-h="pane" data-id="spots"><b>城下へ戻る</b><span></span></button>`;
 }
 function diaryHtml(st: GameState) {
   const d = [...st.hero!.diary].reverse().slice(0, 80);
@@ -305,6 +321,8 @@ function onClick(e: Event) {
   if (h === 'rest') { void act(() => H.rest(s!), 'town'); return; }
   if (h === 'skip') { skipTime(); return; }
   if (h === 'advice') { advice(); return; }
+  if (h === 'buy') { pane = 'akinai'; void act(() => T.buy(s!, +id), 'ichi'); return; }
+  if (h === 'sell') { pane = 'akinai'; void act(() => T.sell(s!, id), 'ichi'); return; }
   if (h === 'gov') { void act(() => M.govern(s!, id as M.GovAct), 'town'); return; }
   if (h === 'work') { const k = s.hero!.quest!.kind; void act(() => H.work(s!), k); return; }
   if (h === 'visit') { void act(() => H.visit(s!, id), 'yashiki'); return; }
@@ -324,6 +342,7 @@ function onClick(e: Event) {
 }
 
 export const CSS = `
+#hero .hr-sub{margin:14px 0 6px;font-size:13px;font-weight:600;color:#cfa95e;font-family:var(--font-ui,sans-serif)}
 #hero{position:fixed;inset:0;z-index:60;background:#0c0c0d;color:var(--paper,#ece2cc);overflow:auto;font-family:var(--font-body,serif)}
 #hero .hr-btn{border:1px solid rgba(207,169,94,.45);background:#1d1a16;color:inherit;padding:7px 14px;border-radius:3px;font-family:var(--font-ui,sans-serif);font-size:13px}
 #hero .hr-btn:hover:not(:disabled){border-color:#cfa95e;background:#2a231b}
