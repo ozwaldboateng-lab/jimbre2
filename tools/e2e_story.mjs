@@ -45,10 +45,12 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
     const theater = await p.$('#story:not([hidden]) .st-scene');
     if (theater) {
       const head = await p.$eval('#story .st-scene', (e) => e.textContent).catch(() => '');
-      const mm = head.match(/^\s*(戻った庭|母衣|成政の推し|兄の座|三人の前田|家督|第一部　了)/); if (mm && !seen.includes(mm[1])) { seen.push(mm[1]); await p.waitForTimeout(1300); await p.screenshot({ path: `${out}/st-${vp.tag}-act2-${seen.length}.png` }); }
+      const mm = head.match(/^\s*(戻った庭|母衣|成政の推し|兄の座|三人の前田|家督|第一部　了|家を取る)/); if (mm && !seen.includes(mm[1])) { seen.push(mm[1]); await p.waitForTimeout(1300); await p.screenshot({ path: `${out}/st-${vp.tag}-act2-${seen.length}.png` }); }
+      const ask = await p.$('#story [data-s="ask"]'); if (ask) { await ask.click(); await p.waitForTimeout(40); continue; }
       const nx = await p.$('#story .st-fx') ?? await p.$('#story .hr-say button[data-s="next"]');
       if (nx) { await nx.click(); await p.waitForTimeout(50); continue; }
     }
+    if (/形になった/.test(await p.$eval('#hero .hr-text', (e) => e.textContent).catch(() => ''))) break; // 第二部の始まり（世の中の合わせ直し）まで
     if (await p.$('#hero [data-h="report-ok"]')) { await p.click('#hero [data-h="report-ok"]'); await p.waitForTimeout(50); continue; }
     const sk = await p.$('#hero [data-h="skip"]');
     if (sk) { await sk.click(); await p.waitForFunction(() => !document.querySelector('#hero .hr-busy'), null, { timeout: 120000 }); await p.waitForTimeout(100); continue; }

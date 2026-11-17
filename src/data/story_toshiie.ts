@@ -1,6 +1,6 @@
 // 武将で遊ぶ「前田利家 ― 残り火」第一部の筋書き。場面の語り・セリフは小説『残り火』（第一章〜第三章）から縮めて使う
 // who は話し手（武将の id か、この物語だけの人物 STORY_CAST の id）。bg は場面の絵（SCENE_ART の名か、届いた物語の絵）
-export interface Beat { who?: string; text: string; bg?: string; head?: string; kind?: 'door' | 'time' | 'chapter'; sub?: string } // kind: 節の扉（墨）・月日の流れ（白）・章の扉
+export interface Beat { who?: string; text: string; bg?: string; head?: string; kind?: 'door' | 'time' | 'chapter'; sub?: string; ask?: string } // kind: 節の扉（墨）・月日の流れ（白）・章の扉。ask: この場面で選ばせる（story_toshiie2.ts の NODES の鍵）
 export interface Choice { id: string; label: string; note?: string }
 
 // この物語だけの人物（顔の絵が届いたら PORTRAITS に同じ id で入れる）
@@ -8,11 +8,15 @@ export const STORY_CAST: Record<string, string> = {
   matsu: 'まつ', matsu_young: 'まつ', matsu_wife: 'まつ', inuchiyo: '犬千代', toshiharu: '前田利春', toshihisa: '前田利久', juami: '拾阿弥', fukushima: '福島', sakakibara: '榊原',
   matabe: '又兵衛', wakazamurai: '若侍くずれ', koshin: '前田家の古参', kerai: '前田家の家臣', monban: '門番', kosan: '勝家配下の古参', tsukai: '使い',
   sanro: '三郎', nobunaga_young: '織田信長', nobunaga_1560: '織田信長',
+  // 第二部
+  okumura: '奥村永福', murai: '村井長頼', toshiie_mid: '前田利家', muraosa: '越前の村役', monto: '門徒の若い男', arako_wakamono: '荒子衆の若者', nene: 'ねね', kurayaku: '蔵役',
 };
 // 場面の絵（注文の絵が届くまでは今ある絵で代わりに）
 export const STORY_BG: Record<string, string> = {
   arako: 'mura', arako_night: 'zashiki_night', sakaya: 'ichi', kiyosu_tsuji: 'ichi', kiyosu_niwa: 'ishigaki', denchu: 'zashiki_day', moribe: 'senjo',
   okehazama: 'amemichi', okehazama_sen: 'senjo', kayazu: 'senjo', ino: 'senjo', moribe_sen: 'senjo', ta_yoru: 'tsukiyo', atsuta: 'minato', fukushima: 'mura', jinmaku: 'jinmaku', hiroma: 'zashiki_day',
+  // 第二部（ART_ORDER_TOSHIIE_PART2.txt の S13〜S20 が届くまで）
+  zashiki_arako: 'zashiki_day', kanegasaki: 'amemichi', anegawa: 'senjo', kita_michi: 'yukimichi', fuchu: 'ishigaki', kieta_mura: 'mura', hyojo: 'zashiki_night', fuyu_echizen: 'yukimichi',
 };
 
 // ───────── 序幕（第一章「火の庭」。見せるだけ） ─────────
@@ -620,5 +624,5 @@ export const EV2_KATOKU: Beat[] = [
   { who: 'maeda_toshiie', bg: 'arako_night', text: '……前田をやる' },
   { who: 'maeda_toshiie', bg: 'arako_night', text: '俺がやる' },
   { kind: 'chapter', head: '第一部　了', text: '戻る道', sub: '残り火' },
-  { bg: 'arako', text: '前田の家督を継いだ。（荒子の当主となり、侍大将に取り立てられた。第二部「家を取る」は作成中。ここからは織田家の侍大将として、引き続き働ける）' },
+  { bg: 'arako', text: '前田の家督を継いだ。（荒子の当主となり、侍大将に取り立てられた。ここから第二部「北へ立つ」。前田家を率いて、金ヶ崎・姉川、そして越前へ）' },
 ];

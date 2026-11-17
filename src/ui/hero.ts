@@ -6,7 +6,8 @@ import { endTurn } from '../engine/game';
 import * as H from '../engine/hero';
 import { HEXES, PROVINCES } from '../engine/map';
 import { MapView } from './render';
-import { nextStory, storyDue, storyJump } from '../engine/story2';
+import { carryHero, nextStory, storyDue, storyJump } from '../engine/story2';
+import * as M from '../engine/maeda';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
 import * as R from '../engine/rules';
@@ -98,9 +99,10 @@ function render() {
       <div class="hr-id">${face(me.id, 56)}<div><b>${esc(me.name)}</b><span>${clanName(st, me.clan!)}家・${R.RANK_NAME[me.rank]}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
       <div class="hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div>
       <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd><dt>進物</dt><dd>${Hh.goods}</dd><dt>主君の覚え</dt><dd>${Hh.favor}</dd><dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
-      <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd></dl>
+      <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>前田家</dt><dd title="荒子衆・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}</dd>` : ''}</dl>
       <button class="hr-btn ghost" data-h="quit" title="保存してタイトルへ">中断</button>
     </header>
+    ${Hh.fuchu !== undefined && !(Hh.storyDone ?? []).includes('ryo') ? `<div class="hr-quest"><b>府中</b> ${esc(M.fuchuText(st))}</div>` : ''}
     <div class="hr-quest">${q ? `<b>主命</b> ${esc(H.QUEST_NAME[q.kind])}：${esc(H.questText(st, q))} <span>${q.done >= q.need ? '<em>果たした。登城して報告せよ</em>' : `期日まで${Math.max(0, q.until - st.turn)}か月`}</span>` : `<b>主命</b> なし。${L ? `主君${esc(L.name)}は${esc(st.castles[L.loc].name)}にいる。登城すれば主命を受けられる。` : ''}`}</div>
     <div class="hr-body">
       <section class="hr-scene${mapMode(st) ? ' map' : ''}" style="${art && !mapMode(st) ? `background-image:url(${art})` : ''}">
@@ -157,7 +159,9 @@ function spotsHtml(st: GameState) {
   const spots = H.spotsOf(st, c);
   const work = H.canWork(st) ? `<button class="hr-spot main" data-h="work"><b>主命を果たす</b><span>${esc(H.QUEST_NAME[st.hero!.quest!.kind])}（1旬）</span></button>` : '';
   const desc: Record<H.Spot, string> = { tojo: '主命を受ける・報告する', yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
-  return `${work}${join}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
+  const gov = M.canGovern(st) ? `<p class="hr-note">${esc(M.fuchuText(st))}</p>${(Object.keys(M.GOV_NAME) as M.GovAct[]).map((k) => `<button class="hr-spot${k === 'mimawari' ? ' main' : ''}" data-h="gov" data-id="${k}"><b>${M.GOV_NAME[k][0]}</b><span>${M.GOV_NAME[k][1]}</span></button>`).join('')}` : '';
+  const adv = M.canAdvice(st) ? `<button class="hr-spot" data-h="advice"><b>家中の進言</b><span>奥村・村井の話を聞いて、前田家のことを決める（月に一度・1旬）</span></button>` : '';
+  return `${work}${gov}${join}${adv}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
     <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
 function peopleHtml(st: GameState) {
@@ -235,8 +239,11 @@ async function advance() {
   runStory();
 }
 // 物語（前田利家 ― 残り火）: 時期の来た場面を、物語の画面で見せる
-let theater: ((beats: Beat[], done: () => void) => void) | null = null;
-export function setTheater(f: typeof theater) { theater = f; }
+type Theater = (beats: Beat[], done: () => void, choose?: (key: string, id: string) => Beat[], opt?: { part2?: boolean; label?: string }) => void;
+let theater: Theater | null = null;
+export function setTheater(f: Theater) { theater = f; }
+const chooser = (st: GameState) => (key: string, id: string) => { const r = M.storyChoose(st, key, id); for (const x of r.lines) H.note(st, x); return r.lines.length ? [...r.beats, { text: `（${r.lines.join('。')}）`, bg: r.beats[r.beats.length - 1]?.bg }] : r.beats; };
+const opt = (st: GameState) => ({ part2: (st.hero!.storyDone ?? []).includes('katoku'), label: (st.hero!.storyDone ?? []).includes('katoku') ? '残り火　第二部' : '残り火　第二幕' });
 function runStory() {
   if (!s || !theater || busy) return;
   const ev = storyDue(s);
@@ -245,9 +252,31 @@ function runStory() {
   theater(ev.beats, () => {
     const lines = ev.apply?.(st) ?? [];
     if (lines.length) { say = { text: lines.join('') }; for (const x of lines) H.note(st, x); }
+    if (ev.reset) { resetWorld(ev.reset); return; }
     save(); render();
     runStory();
-  });
+  }, chooser(st), opt(st));
+}
+// 部の切れ目: 世の中を史実のシナリオに合わせ直し、利家と前田家を移す
+function resetWorld(sc: string) {
+  const old = s!;
+  const g = newGame('oda', 'normal', undefined, sc);
+  H.startHero(g, old.hero!.id);
+  carryHero(old, g);
+  s = g; bg = 'town'; pane = 'spots'; recenter = true; view = null; mapCanvas = null;
+  const c = g.castles[g.hero!.town];
+  say = { text: `${g.year}年${g.month}月。世の中は「${sc === '1572' ? '元亀三年 信長包囲網' : sc}」の形になった。${c.name}の城下にいる。` };
+  H.note(g, say.text);
+  save(); render();
+  runStory();
+}
+// 家中の進言: 奥村・村井の話（物語の画面で）
+function advice() {
+  const st = s!;
+  const a = M.nextAdvice(st);
+  if (!a || !theater) return;
+  save();
+  theater(a.beats, () => { say = { text: `家中の進言（${a.head}）を聞いた。` }; void advance(); }, chooser(st), { part2: true, label: '前田家　家中の進言' });
 }
 // 月日を送る（物語）: 次の場面の年月まで暦だけを跳ぶ（世の中はそのまま）
 function skipTime() {
@@ -271,6 +300,8 @@ function onClick(e: Event) {
   if (h === 'report-ok') { report = null; render(); return; }
   if (h === 'rest') { void act(() => H.rest(s!), 'town'); return; }
   if (h === 'skip') { skipTime(); return; }
+  if (h === 'advice') { advice(); return; }
+  if (h === 'gov') { void act(() => M.govern(s!, id as M.GovAct), 'town'); return; }
   if (h === 'work') { const k = s.hero!.quest!.kind; void act(() => H.work(s!), k); return; }
   if (h === 'visit') { void act(() => H.visit(s!, id), 'yashiki'); return; }
   if (h === 'gift') { void act(() => H.giveGift(s!, id), 'yashiki'); return; }

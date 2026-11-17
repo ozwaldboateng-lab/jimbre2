@@ -4,6 +4,7 @@ import { MINATO_ART } from '../data/scenes';
 import { PORTRAITS } from '../data/portraits';
 import { STORY_PORTRAITS } from '../data/portraits_story';
 import * as D from '../data/story_toshiie';
+import { NODES } from '../data/story_toshiie2';
 import type { Beat, Choice } from '../data/story_toshiie';
 import * as S from '../engine/story';
 import { runClanAI } from '../engine/ai';
@@ -17,7 +18,7 @@ const KEY = 'sengoku-story-toshiie';
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const ART = (k: string) => { const key = D.STORY_BG[k] ?? k; return SCENE_ART[`story_${k}`] ?? SCENE_ART[key] ?? (key === 'minato' ? MINATO_ART : undefined); };
 // 場所の札（場面の絵から）
-const BG_NAME: Record<string, string> = { arako: '荒子', arako_night: '荒子の屋敷', sakaya: '荒子の酒屋', kiyosu_tsuji: '清洲の辻', kiyosu_niwa: '清洲城の庭', denchu: '清洲城 殿中', hiroma: '清洲城 広間', kayazu: '萱津', ino: '稲生', moribe: '森部', moribe_sen: '森部', jinmaku: '陣', okehazama: '桶狭間', okehazama_sen: '桶狭間', ta_yoru: '福島の田', fukushima: '福島の屋敷', atsuta: '熱田' };
+const BG_NAME: Record<string, string> = { arako: '荒子', arako_night: '荒子の屋敷', sakaya: '荒子の酒屋', kiyosu_tsuji: '清洲の辻', kiyosu_niwa: '清洲城の庭', denchu: '清洲城 殿中', hiroma: '清洲城 広間', kayazu: '萱津', ino: '稲生', moribe: '森部', moribe_sen: '森部', jinmaku: '陣', okehazama: '桶狭間', okehazama_sen: '桶狭間', ta_yoru: '福島の田', fukushima: '福島の屋敷', atsuta: '熱田', zashiki_arako: '荒子の屋敷', kanegasaki: '金ヶ崎', anegawa: '姉川', kita_michi: '北陸の道', fuchu: '越前府中', kieta_mura: '越前の村', hyojo: '府中の評定', fuyu_echizen: '冬の越前' };
 type Face = (id: string | null | undefined, w: number) => string;
 
 let face: Face = () => '';
@@ -53,7 +54,7 @@ function renderTitle() {
   root!.innerHTML = `<div><div class="hr-pick">
     <div class="hr-top"><button class="hr-btn ghost" data-s="quit">← タイトルへ</button><span class="hr-tag">武将で遊ぶ・物語</span></div>
     <h2>前田利家 ― 残り火</h2>
-    <p class="hr-lede">尾張荒子の前田家の四男、犬千代。長すぎる槍と、信長の庭。拾阿弥を斬って清洲を追われた男は、浪人の身から、もう一度あの庭へ戻れるか。<br>第一部「戻る道」: 序幕（犬千代の若き日）→ 第一幕「こぼれた火」（荒子の浪人）→ 無断参戦 → 帰参。原作: 小説『残り火』。</p>
+    <p class="hr-lede">尾張荒子の前田家の四男、犬千代。長すぎる槍と、信長の庭。拾阿弥を斬って清洲を追われた男は、浪人の身から、もう一度あの庭へ戻れるか。<br>第一部「戻る道」: 序幕（犬千代の若き日）→ 第一幕「こぼれた火」（荒子の浪人）→ 無断参戦 → 帰参 → 家督。<br>第二部「北へ立つ」: 前田家を率いて金ヶ崎・姉川へ。そして越前府中の城主に（府中三人衆）。原作: 小説『残り火』。</p>
     <div class="hr-cont">${storySaved() ? '<button class="hr-btn primary" data-s="continue">続きから</button> ' : ''}<button class="hr-btn${storySaved() ? '' : ' primary'}" data-s="new">はじめから（序幕）</button> <button class="hr-btn ghost" data-s="new-skip">序幕をとばす</button></div>
     <div style="margin-top:18px">${face('maeda_toshiie', 160)}</div>
   </div></div>`;
@@ -68,10 +69,10 @@ function begin(skip: boolean) {
 }
 
 // ───────── 描く ─────────
-const nameOf = (id: string) => D.STORY_CAST[id] ?? ({ maeda_toshiie: '前田利家', oda_nobunaga: '織田信長', ikeda_tsuneoki: '池田恒興', sassa_narimasa: '佐々成政', kinoshita_tokichiro: '木下藤吉郎', shibata_katsuie: '柴田勝家', maeda_toshimasu: '前田利益' } as Record<string, string>)[id] ?? id;
+const nameOf = (id: string) => D.STORY_CAST[id] ?? ({ fuwa_mitsuharu: '不破光治', tokugawa_ieyasu: '徳川家康', maeda_toshiie: '前田利家', oda_nobunaga: '織田信長', ikeda_tsuneoki: '池田恒興', sassa_narimasa: '佐々成政', kinoshita_tokichiro: '木下藤吉郎', shibata_katsuie: '柴田勝家', maeda_toshimasu: '前田利益' } as Record<string, string>)[id] ?? id;
 // 顔: 物語の人物は届いた絵、犬千代は利家の顔、三郎は信長の顔。なければ名の札
 function faceOf(id: string, w: number) {
-  const pid = id === 'maeda_toshiie' && !theaterDone && !st?.done ? 'inuchiyo' : id === 'sanro' ? 'nobunaga_young' : id; // 帰参までの利家は若き日の顔、辻の三郎はうつけの頃の信長
+  const pid = id === 'maeda_toshiie' && !theaterDone && !st?.done ? 'inuchiyo' : id === 'maeda_toshiie' && part2 && STORY_PORTRAITS.toshiie_mid ? 'toshiie_mid' : id === 'sanro' ? 'nobunaga_young' : id; // 帰参までの利家は若き日の顔、辻の三郎はうつけの頃の信長
   const src = STORY_PORTRAITS[pid] ?? PORTRAITS[pid];
   if (src) return `<img class="face" src="${src}" width="${w}" height="${Math.round(w * 1.25)}" alt="">`;
   return `<span class="hr-noface" style="width:${w}px;height:${Math.round(w * 1.25)}px;font-size:${Math.round(w / 4)}px">${esc(nameOf(id).slice(0, 3))}</span>`;
@@ -156,11 +157,21 @@ function sideHtml(s: S.StoryState) {
 
 // ───────── 第二幕の場面（武将で遊ぶの上に、物語の場面だけを画面いっぱいに見せる） ─────────
 let theaterDone: (() => void) | null = null;
-export function playTheater(beats: Beat[], done: () => void) {
+let theaterChoose: ((key: string, id: string) => Beat[]) | null = null;
+let part2 = false; // 家督のあとの利家（壮年の顔）
+let label = '残り火　第二幕';
+export function playTheater(beats: Beat[], done: () => void, choose?: (key: string, id: string) => Beat[], opt?: { part2?: boolean; label?: string }) {
   ensureRoot();
   root!.style.zIndex = '70';
-  queue = [...beats]; pending = null; theaterDone = done; lastArt = undefined;
+  queue = [...beats]; pending = null; theaterDone = done; theaterChoose = choose ?? null; lastArt = undefined;
+  part2 = !!opt?.part2; label = opt?.label ?? '残り火　第二幕';
   renderTheater();
+}
+// 場面の中の問い: 地の文（またはセリフ）に続けて、答えを並べる
+function askHtml(b: Beat) {
+  const n = NODES[b.ask!];
+  const head = b.who ? `<div class="hr-who">${faceOf(b.who, 128)}<div><b>${esc(nameOf(b.who))}</b><p class="st-line">「${esc(b.text)}」</p></div></div>` : `<p class="st-narr" style="margin-bottom:12px">${narr(b.text)}</p>`;
+  return `<div class="hr-say">${head}${b.who && n.text ? `<p class="st-narr" style="margin:10px 0">${esc(n.text)}。</p>` : ''}${n.choices.map((c) => `<button class="hr-spot" data-s="ask" data-k="${b.ask}" data-id="${c.id}"><b>${esc(c.label)}</b>${c.note ? `<span>${esc(c.note)}</span>` : ''}</button>`).join('')}</div>`;
 }
 function renderTheater() {
   const b = queue[0];
@@ -169,7 +180,7 @@ function renderTheater() {
   const art = ART(bg), changed = art !== lastArt; lastArt = art;
   root!.innerHTML = `<div><div class="hr-main" style="height:100vh"><div class="hr-body" style="grid-template-columns:1fr;flex:1"><section class="hr-scene st-scene" style="min-height:100vh">
     <div class="st-bg${changed ? ' fadein' : ''}" style="${art ? `background-image:url(${art})` : ''}"></div>
-    ${b.kind ? fxHtml(b) : `<div class="hr-town"><b>${esc(b.head ?? BG_NAME[bg] ?? '')}</b><span>残り火　第二幕</span></div>${beatHtml(b)}`}
+    ${b.kind ? fxHtml(b) : `<div class="hr-town"><b>${esc(b.head ?? BG_NAME[bg] ?? '')}</b><span>${esc(label)}</span></div>${b.ask ? askHtml(b) : beatHtml(b)}`}
   </section></div></div></div>`;
 }
 setTheater(playTheater); // 武将で遊ぶから呼べるように
@@ -184,9 +195,15 @@ function onClick(e: Event) {
   if (a === 'new') { begin(false); return; }
   if (a === 'new-skip') { begin(true); return; }
   if (a === 'continue') { try { st = JSON.parse(localStorage.getItem(KEY)!); } catch { st = null; } if (st) { queue = []; pending = st.battle ? null : S.pendingChoice(st) ?? null; render(); } return; }
+  if (a === 'ask' && theaterDone) { const b = queue.shift(); const more = theaterChoose?.(t.dataset.k ?? b?.ask ?? '', id) ?? []; queue.unshift(...more); renderTheater(); return; }
+  if (theaterDone && (a === 'next' || a === 'skip')) { // 問いのある場面は飛ばさない
+    if (a === 'next') { e.stopPropagation(); if (!queue[0]?.ask) queue.shift(); }
+    else { const i = queue.findIndex((x) => x.ask); queue = i >= 0 ? queue.slice(i) : []; }
+    renderTheater(); return;
+  }
   if (!st) return;
-  if (a === 'next') { e.stopPropagation(); queue.shift(); if (theaterDone) renderTheater(); else render(); return; }
-  if (a === 'skip') { queue = []; if (theaterDone) renderTheater(); else render(); return; }
+  if (a === 'next') { e.stopPropagation(); queue.shift(); render(); return; }
+  if (a === 'skip') { queue = []; render(); return; }
   if (a === 'pane') { pane = id as typeof pane; render(); return; }
   if (a === 'go') { st.place = id as S.Place; pane = 'acts'; bg = S.PLACE_BG[st.place]; render(); return; }
   if (a === 'act') { pane = id.endsWith('_t') ? 'yashiki' : 'acts'; show(S.act(st, id as S.ActId)); return; }

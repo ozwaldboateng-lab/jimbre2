@@ -5,6 +5,7 @@ import { HEXES, NEIGHBORS, PROVINCES, hexDist } from './map';
 import { pathTo, stepCost, type Reach } from './move';
 import { storeOf } from './supply';
 import { storyGuard } from './story2';
+import { ieMonth } from './maeda';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
 import * as R from './rules';
@@ -23,6 +24,7 @@ export interface Hero {
   diary: { turn: number; jun: number; text: string }[]; done: number; failed: number; trained: number; lastQuest?: number;
   over?: string; // 終わった（主人公の死・主家の滅亡など）。終わりの言葉
   story?: string; storyDone?: string[]; storyStart?: number; title?: string; // 物語（前田利家 ― 残り火）の第二幕: 起きた出来事・始まりの年月・肩書き
+  ie?: import('./maeda').Ie; sv?: Record<string, number>; fuchu?: number; until?: number; // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
 }
 export const HERO = {
   JUN: 3, PAY: [400, 200, 100, 50], // 身分ごとの月の俸禄（宿老・侍大将・足軽大将・足軽組頭）
@@ -364,12 +366,12 @@ function chased(s: GameState, text: string): Act {
 
 // ───────── 月の終わり（3旬が過ぎたら、大名たちの1か月の前に） ─────────
 export function heroMonth(s: GameState): string[] {
-  storyGuard(s);
+  const out: string[] = [...storyGuard(s)];
   const H = s.hero!, me = heroOf(s)!;
-  const out: string[] = [];
   if (!me || me.status === 'dead') return out;
   const pay = HERO.PAY[me.rank] ?? 50;
   H.gold += pay; out.push(`俸禄 ${pay}貫を受け取った（手元 ${H.gold}貫）。`);
+  out.push(...ieMonth(s));
   checkShutsujin(s);
   const q = H.quest;
   if (q && q.kind === 'shutsujin' && q.done < q.need && H.army !== q.army && q.army !== undefined && !s.armies[q.army]) { H.quest = null; out.push('加わるはずの軍勢が陣を払い、出陣の主命は取りやめになった。'); }
