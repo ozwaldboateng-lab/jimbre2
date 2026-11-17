@@ -74,7 +74,7 @@ function render() {
   if (!st || !root) return;
   const b = queue[0];
   if (b?.bg) bg = b.bg;
-  else if (!b) bg = S.PLACE_BG[st.place];
+  else if (!b && !pending) bg = S.PLACE_BG[st.place]; // 選択の間は直前の場面の絵のまま
   const art = ART(bg);
   const step = st.battle && !queue.length ? S.stepsOf(st)[st.battle.step] : null;
   const pro = queue.includes(D.EV_RETURN[0]) && queue[0] !== D.EV_RETURN[0]; // 序幕の間は日付を出さない

@@ -1391,3 +1391,4 @@ v1.0の表をそのまま採用。兵数補正は「AIの初期動員率±5ポ�
   - 第一幕の終わり: 1560年の世界（森部で許されたときは1年ぶん世の中を進める）の武将で遊ぶに切り替え、前田利家として主命と陣で働く。武勇・金・信長の覚え・恒興らとの親しさ・日記を引き継ぐ。第二幕（赤母衣・兄の座・家督）は作成中。
   - 物語だけの人物（まつ・利春・利久・拾阿弥・福島・榊原・又兵衛・若侍くずれ・古参など）は名の札で出し、注文の絵（ART_ORDER_TOSHIIE.txt）が届けば PORTRAITS に同じ id で入れる。場面の絵も届くまでは今ある場面画で代わりに。保存は 'sengoku-story-toshiie'。
 - 前田利家 ― 残り火: 物語の人物の顔12枚を取り込んだ（assets/story/portraits/<id>.png → tools/build-story-portraits.py → src/data/portraits_story.ts の STORY_PORTRAITS。武将の顔の portraits.ts とは別）。まつは 幼（序幕）・娘（第一幕）・妻（第二幕から）の3枚。帰参までの利家（maeda_toshiie の言葉と画面の上の顔）は若き日の犬千代の顔で出す。
+- 前田利家 ― 残り火: 場面の絵8枚を取り込んだ（tools/import-scenes.py が「S1_」〜「S8_」も読み、SCENE_ART の story_arako・story_ta_yoru・story_sakaya・story_kiyosu_tsuji・story_kiyosu_niwa・story_denchu・story_moribe・story_okehazama に）。物語の画面は story_<場面> があればそれを、なければ今の場面画を使う。選択の間は直前の場面の絵のまま。
