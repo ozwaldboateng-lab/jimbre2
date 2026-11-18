@@ -26,7 +26,7 @@ export interface Castle {
   store?: number; // 城の蔵（籠城の備えの兵糧、石）。飛び地では収穫もここに入る
 }
 
-export type GeneralStatus = 'free' | 'army' | 'camp' | 'governor' | 'captive' | 'dead' | 'ronin' | 'young' | 'tsukai' | 'bugyo' | 'hero'; // hero: 武将プレイの主人公（AIの編成・城主・奉行に使わない） // camp: 陣払い中の軍団（名簿）に属し、城にいる
+export type GeneralStatus = 'free' | 'army' | 'camp' | 'governor' | 'captive' | 'dead' | 'ronin' | 'young' | 'tsukai' | 'bugyo' | 'hero' | 'kashin'; // kashin: 武将で遊ぶの主人公の家臣（主家に属すが、大名のAIは使わない） // hero: 武将プレイの主人公（AIの編成・城主・奉行に使わない） // camp: 陣払い中の軍団（名簿）に属し、城にいる
 export interface General {
   id: string; name: string; clan: string | null;
   bra: number; int: number; lea: number; cha: number;

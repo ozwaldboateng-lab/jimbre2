@@ -9,6 +9,7 @@ import * as R from './rules';
 import { addLog, castleKoku, clanCastles, clanName, garrisonMax, rand } from './state';
 import { delegateOf } from './delegate';
 import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
+import { followersToRetainers, retainersToFollowers, yoriki } from './kashin';
 import type { Castle, GameState } from './types';
 
 export type Step = 'ie' | 'shiro' | 'kuni' | 'hitto';
@@ -116,12 +117,13 @@ export function grantShiro(s: GameState, c: Castle): CareerEvent {
   H.title = `${c.name}城主`; if (first) { addMerit(s, me.id, 20); H.gold += 500; }
   c.garrison = Math.max(c.garrison, Math.round(garrisonMax(c) * 0.5));
   addLog(s, `${me.name}が${c.name}を預かった。`, 'info', true);
+  const yo = first ? yoriki(s) : null; // 初めて城を預かった時、主君が与力を一人預けてくれる
   return { beats: [
     { kind: 'door', head: '城を預かる', text: '城を預かる', sub: `${s.year}年` },
     ...(lord ? [{ head: '広間', who: lord.id, bg: 'zashiki_day', text: `${me.name}。${c.name}を預ける。……城は、落とすより持つ方が重いぞ` }] : []),
     { head: c.name, bg: 'ishigaki', text: `${c.name}。石垣も、櫓も、門も、昨日までは主君の城だった。今日からは、${me.name}が持たせる城だ。城の後ろには村があり、道があり、人がいる。` },
     { who: me.id, bg: 'ishigaki', text: '……広いな' },
-  ], lines: [`${c.name}を預かった（城持ち${first ? '。功績+20・金500貫' : ''}）。城下で「国を治める」ができる。治めた城の石高に応じて知行が入る`] };
+  ], lines: [`${c.name}を預かった（城持ち${first ? '。功績+20・金500貫' : ''}）。${yo ? `与力として${yo.name}を預けられ、家臣に加わった。` : ''}城下で「国を治める」ができる。治めた城の石高に応じて知行が入る`] };
 }
 // 登城して城を願い出る（条件を満たしていれば）
 export function canAskCastle(s: GameState) { const H = s.hero!, me = s.generals[H.id]; return freeHero(s) && hasStep(s, 'ie') && !hasStep(s, 'shiro') && me.rank <= 1 && me.merit >= CAREER.SHIRO_MERIT * 0.8 && H.favor >= CAREER.SHIRO_FAVOR - 10; }
@@ -164,6 +166,7 @@ export function becomeRonin(s: GameState): string {
   if (old) (car.served ??= []).includes(old) || car.served!.push(old);
   car.best = [...new Set([...(car.best ?? []), ...car.steps])];
   car.steps = car.steps.filter((k) => k === 'ie'); car.since = undefined; car.kuniAt = undefined;
+  retainersToFollowers(s); // 家臣は配下になってついて来る
   me.clan = null; me.status = 'hero'; me.army = null; H.fuchu = undefined; H.ryo = []; H.quest = null; H.title = '浪人'; H.favor = 0; H.army = null;
   car.ronin = s.turn;
   // 世の中の月の処理は、生き残っている一番大きな家の側から回す（遊び手の家が滅んだままだと月が進まない）
@@ -193,7 +196,8 @@ export function askService(s: GameState): { ok: boolean; text: string; who?: str
     me.rank = Math.min(me.rank, serviceRank(s)); if (me.rank < 1) me.rank = 1; // 新参は侍大将まで
     me.merit = Math.max(me.merit, R.MERIT_AT[me.rank]);
     H.favor = 35 + Math.round(fameOf(s) / 4) + Math.min(3, H.kubi ?? 0) * 3; H.title = undefined; H.kubi = 0;
-    for (const g of fol) { g.clan = clan; g.status = 'free'; g.loc = L.loc; g.rank = Math.max(2, g.rank); }
+    const kept = followersToRetainers(s); // 配下は家臣に（上限まで）。あふれた者は主家の武将に
+    for (const g of fol) if (!kept.includes(g.name)) { g.clan = clan; g.status = 'free'; g.loc = L.loc; g.rank = Math.max(2, g.rank); }
     H.followers = [];
     const d = delegateOf(s); for (const k of Object.keys(d) as (keyof typeof d)[]) d[k] = true; // 家の政は大名（AI）が行う
     addLog(s, `${me.name}が${C.name}家に仕官した。`, 'info', true);

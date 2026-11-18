@@ -9,6 +9,7 @@ import { ieMonth } from './maeda';
 import { bandits, tradeMonth } from './trade';
 import { frozen } from './story5';
 import { addFame, roninMonth } from './roninplay';
+import { battleBoost, kashinMonth } from './kashin';
 import { becomeRonin, chigyo, followClan, freeHero, lifeSummary } from './career';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
@@ -20,7 +21,7 @@ import { addLog, castleAt, castleKoku, clanCastles, clanName, garrisonMax, hosti
 import type { Army, Castle, GameState, General } from './types';
 
 export type QuestKind = 'fushin' | 'teisatsu' | 'choryaku' | 'shutsujin' | 'kenkin' | 'kenjo' | 'tsukaiban' | 'monomi' | 'toyo' | 'kouryaku' | 'joban' | 'negaeri'; // kenkin 献金（金を納める）・kenjo 献上（進物を納める）
-export interface Quest { kind: QuestKind; castle: number; need: number; done: number; until: number; ok?: boolean; note?: string; army?: number; target?: string; joined?: boolean } // target: 登用する浪人。joined: 攻略の軍勢に加わったか
+export interface Quest { kind: QuestKind; castle: number; need: number; done: number; until: number; ok?: boolean; note?: string; army?: number; target?: string; joined?: boolean; proxy?: string; proxyAt?: number } // proxy: 遣わした家臣 // target: 登用する浪人。joined: 攻略の軍勢に加わったか
 export interface Hero {
   id: string; town: number; jun: number; gold: number; favor: number; goods: number;
   rel: Record<string, number>; met: Record<string, number>; // 親しさ（0〜100）と、最後に会った旬（turn*3+jun）
@@ -31,6 +32,7 @@ export interface Hero {
   story?: string; storyDone?: string[]; storyStart?: number; title?: string; // 物語（前田利家 ― 残り火）の第二幕: 起きた出来事・始まりの年月・肩書き
   cargo?: Record<string, import('./trade').Cargo>; glut?: Record<string, number>; // 商い: 持っている荷（産地の城の id → 数と仕入れ値）と、町ごとの値崩れ
   ie?: import('./maeda').Ie; sv?: Record<string, number>; fuchu?: number; ryo?: number[]; until?: number;
+  retainers?: string[]; daikan?: Record<number, string>; lent?: { army: number; shu: number; troops: number }; // 家臣団・城代・陣に連れて行った手勢
   fame?: number; kubi?: number; followers?: string[]; scouted?: Record<number, number>; merc?: { army: number; clan: string; since: number; fought: number }; // 名声（世に聞こえた名 0〜100）・首級・配下の浪人・探った国衆の城・陣借り
   career?: { steps: import('./career').Step[]; since?: number; kuniAt?: number; ronin?: number; lostAt?: number; best?: import('./career').Step[]; served?: string[]; tried?: Record<string, number> }; // 出世の階段（物語の外）: 越えた節目と、城を預かった月 // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
 }
@@ -87,7 +89,7 @@ export function spotsOf(s: GameState, c: Castle): Spot[] {
 // この町にいる武将（会える者）
 export function townsfolk(s: GameState, ci: number): General[] {
   const H = s.hero!;
-  return Object.values(s.generals).filter((g) => g.id !== H.id && g.loc === ci && (g.status === 'free' || g.status === 'governor' || g.status === 'bugyo' || g.status === 'tsukai' || g.status === 'camp' || g.status === 'ronin'));
+  return Object.values(s.generals).filter((g) => g.id !== H.id && g.loc === ci && (g.status === 'free' || g.status === 'governor' || g.status === 'bugyo' || g.status === 'tsukai' || g.status === 'camp' || g.status === 'ronin' || g.status === 'kashin'));
 }
 const relOf = (s: GameState, id: string) => s.hero!.rel[id] ?? 0;
 export const RELNAME = (v: number) => (v >= 80 ? '刎頸の交わり' : v >= HERO.FRIEND ? '友' : v >= 40 ? '親しい' : v >= 15 ? '顔見知り' : '初対面');
@@ -231,6 +233,10 @@ export function joinArmy(s: GameState, id: number): Act {
   me.status = 'free';
   if (!attachAuto(s, a, me)) attach(s, a, a.main, me);
   H.army = a.id; H.joined = s.turn; H.dest = null;
+  // 手勢を連れて加わる（家臣の統率で士気も上がる）
+  const shu = H.story !== 'toshiie' ? Math.min(H.ie?.shu ?? 0, 2000) : 0;
+  if (shu > 0) { a.troops += shu; H.lent = { army: a.id, shu, troops: a.troops }; H.ie!.shu -= shu; }
+  const boost = battleBoost(s); if (boost > 0) a.morale = Math.min(1.5, a.morale + boost);
   followArmy(s, a);
   used(s);
   const L = s.generals[a.main];
@@ -243,9 +249,21 @@ export function leaveCamp(s: GameState): Act {
   if (Object.values(s.armies).some((x) => hostile(s, me.clan!, x.clan) && hexDist(x.hex, a.hex) <= 2)) return { ok: false, text: '敵が近く、陣を離れれば逃げたと見なされる' };
   if (!leaveArmy(s, me)) removeArmy(s, a);
   H.army = null; me.army = null; me.boss = undefined; me.status = 'hero';
+  const back = returnLent(s);
   used(s);
   note(s, `${placeOf(s, H.hex)}で陣を離れた。`);
-  return { ok: true, text: `陣を離れた。${H.field ? '野にいる。旅を続けよ。' : `${s.castles[H.town].name}の城下にいる。`}` };
+  return { ok: true, text: `陣を離れた。${back.join('')}${H.field ? '野にいる。旅を続けよ。' : `${s.castles[H.town].name}の城下にいる。`}` };
+}
+// 陣に連れて行った手勢を家へ戻す（軍勢が減っていれば、その割合で）。軍勢が消えていれば多くを失う
+function returnLent(s: GameState): string[] {
+  const H = s.hero!, L = H.lent;
+  if (!L || !H.ie) return [];
+  const a = s.armies[L.army];
+  if (a && H.army === L.army) return []; // まだ陣中
+  const back = a ? Math.round(L.shu * Math.max(0, Math.min(1, a.troops / L.troops))) : Math.round(L.shu * 0.3);
+  if (a) a.troops = Math.max(1, a.troops - back);
+  H.ie.shu += back; H.lent = undefined;
+  return [`陣に連れて行った手勢が戻った（${back}／${L.shu}人）。`];
 }
 export function campWait(s: GameState): Act {
   const a = inArmy(s);
@@ -497,6 +515,8 @@ export function heroMonth(s: GameState): string[] {
   H.gold += pay + chi; out.push(`俸禄 ${pay}貫${chi ? `と知行 ${chi}貫` : ''}を受け取った（手元 ${H.gold}貫）。`);
   out.push(...ieMonth(s));
   out.push(...roninMonth(s));
+  out.push(...kashinMonth(s));
+  out.push(...returnLent(s));
   tradeMonth(s);
   checkShutsujin(s);
   checkQuestWorld(s);

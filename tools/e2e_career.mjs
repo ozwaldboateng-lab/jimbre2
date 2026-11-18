@@ -52,6 +52,14 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   console.log(vp.tag, 'gov', govs.join(' | '));
   await snap('gov');
   const k = await p.$('#hero [data-h="gov"][data-id="kaikon"]:not([disabled])'); if (k) { await k.click(); await p.waitForTimeout(150); console.log(vp.tag, 'kaikon:', await p.$eval('#hero .hr-text', (e) => e.textContent)); }
+  // 家臣団（kashin-check）: 与力が家臣に加わったか、屋敷に家臣の一覧、城代のボタン
+  await idle(); await ok();
+  const dk = await p.$$eval('#hero [data-h="daikan"] b', (es) => es.map((e) => e.textContent)); console.log(vp.tag, 'daikan', dk.join(' | '));
+  const d1 = await p.$('#hero [data-h="daikan"]'); if (d1) { await d1.click(); await p.waitForTimeout(100); console.log(vp.tag, 'daikan set:', await p.$eval('#hero .hr-text', (e) => e.textContent)); }
+  await p.click('#hero [data-h="pane"][data-id="yashiki"]'); await p.waitForTimeout(100);
+  console.log(vp.tag, 'kashin', (await p.$$eval('#hero .hr-pane .hr-note', (es) => es.map((e) => e.textContent))).join(' / ').slice(0, 160));
+  await snap('kashin');
+  await p.click('#hero [data-h="pane"][data-id="spots"]'); await p.waitForTimeout(80);
   // 家中の進言（家老・家臣の言葉か）
   await idle(); await ok();
   const adv = await p.$('#hero [data-h="advice"]');

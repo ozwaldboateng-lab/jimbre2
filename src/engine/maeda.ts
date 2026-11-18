@@ -111,7 +111,8 @@ export const genText = (x: string) => x.replace(/前田の蔵/g, '家の蔵').re
 export function localize(s: GameState, beats: Beat[]): Beat[] {
   const H = s.hero;
   if (!H || H.story === 'toshiie') return beats;
-  return beats.map((b) => ({ ...b, who: b.who === 'maeda_toshiie' ? H.id : b.who ? WHO_GEN[b.who] ?? b.who : b.who, bg: b.bg ? BG_GEN[b.bg] ?? b.bg : b.bg, text: genText(b.text) }));
+  const rs = H.retainers ?? [], alias: Record<string, string | undefined> = { ie_karo: rs[0], ie_kerai: rs[1] ?? rs[0] }; // 家臣がいれば、家老・家臣の役はその者が
+  return beats.map((b) => ({ ...b, who: b.who === 'maeda_toshiie' ? H.id : b.who ? alias[WHO_GEN[b.who] ?? ''] ?? WHO_GEN[b.who] ?? b.who : b.who, bg: b.bg ? BG_GEN[b.bg] ?? b.bg : b.bg, text: genText(b.text) }));
 }
 export function nextAdvice(s: GameState): { beats: Beat[]; head: string } | null {
   const H = s.hero!, ie = H.ie!;
