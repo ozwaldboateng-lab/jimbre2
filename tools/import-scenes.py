@@ -8,7 +8,8 @@ KEYS = {1: 'fire_castle', 2: 'night_fire', 3: 'zashiki_day', 4: 'zashiki_night',
         201: 'story_arako', 202: 'story_ta_yoru', 203: 'story_sakaya', 204: 'story_kiyosu_tsuji', 205: 'story_kiyosu_niwa', 206: 'story_denchu', 207: 'story_moribe', 208: 'story_okehazama', 209: 'story_kayazu', 210: 'story_ino', 211: 'story_okehazama_sen', 212: 'story_moribe_sen',
         213: 'story_zashiki_arako', 214: 'story_kanegasaki', 215: 'story_anegawa', 216: 'story_kita_michi', 217: 'story_fuchu', 218: 'story_kieta_mura', 219: 'story_hyojo', 220: 'story_fuyu_echizen',
         221: 'story_kitanosho', 222: 'story_tedorigawa', 223: 'story_hokuriku_jin', 224: 'story_nanao', 225: 'story_nanao_minato', 226: 'story_uozu', 227: 'story_honnoji_ho', 228: 'story_shizugatake',
-        229: 'story_kanazawa', 230: 'story_kaga_ta', 231: 'story_suemori', 232: 'story_gouu', 233: 'story_suemori_asa', 234: 'story_tateyama', 235: 'story_toyama_jin', 236: 'story_moriyama'}  # 201〜: 前田利家 ― 残り火（ART_ORDER_TOSHIIE.txt の S1〜S12、ART_ORDER_TOSHIIE_PART2.txt の S13〜S20、ART_ORDER_TOSHIIE_PART3.txt の S21〜S28、ART_ORDER_TOSHIIE_PART4.txt の S29〜S36。ファイル名の先頭「S1_」も読む）
+        229: 'story_kanazawa', 230: 'story_kaga_ta', 231: 'story_suemori', 232: 'story_gouu', 233: 'story_suemori_asa', 234: 'story_tateyama', 235: 'story_toyama_jin', 236: 'story_moriyama',
+        237: 'story_kanazawa_asa', 238: 'story_kanazawa_niwa', 239: 'story_kyushu', 240: 'story_osaka_hiroma', 241: 'story_nagoya', 242: 'story_fushimi', 243: 'story_byosho', 244: 'story_yukiakari'}  # 201〜: 前田利家 ― 残り火（ART_ORDER_TOSHIIE.txt の S1〜S12、ART_ORDER_TOSHIIE_PART2.txt の S13〜S20、ART_ORDER_TOSHIIE_PART3.txt の S21〜S28、ART_ORDER_TOSHIIE_PART4.txt の S29〜S36、ART_ORDER_TOSHIIE_PART5.txt の S37〜S44。ファイル名の先頭「S1_」も読む）
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out = os.path.join(root, 'assets', 'scenes')
 os.makedirs(out, exist_ok=True)
