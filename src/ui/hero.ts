@@ -248,7 +248,9 @@ async function monthStep(st: GameState, lines: string[]): Promise<string | null>
   const n0 = st.log.length;
   await runClanAI(st, st.player);
   await endTurn(st);
+  const won = st.over === 'win'; // 主家が天下を一つにした（本体の勝ち）
   st.over = null; st.scenes = []; st.events = [];
+  if (won) { calendarStep(st); if (CR.freeHero(st) && st.hero && !st.hero.over) { const ls = CR.lifeSummary(st, 'tenka'); st.hero.over = ls.join('　'); lines.push(...ls); } } // 勝ちの判定で月が止まらないよう、暦は進める
   lines.push(...st.log.slice(n0).filter((l) => l.mine && (l.kind === 'battle' || l.kind === 'castle' || l.kind === 'death')).map((l) => l.text).slice(-10));
   return H.heroEnd(st);
 }

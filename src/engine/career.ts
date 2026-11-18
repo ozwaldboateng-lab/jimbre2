@@ -61,7 +61,9 @@ export function careerMonth(s: GameState): CareerEvent | null {
   for (const c of domain(s)) if (c.owner !== me.clan) {
     if (H.fuchu === c.i) { H.fuchu = H.ryo?.shift(); car.since = H.fuchu !== undefined ? s.turn : undefined; } else H.ryo = (H.ryo ?? []).filter((i) => i !== c.i);
     H.favor = Math.max(0, H.favor - 15);
-    return { beats: [], lines: [`預かっていた${c.name}を敵に奪われた。主君の覚え−15。`] };
+    // 治める城を全部失ったら、城を預かるところから登り直す（越えた節目は「これまでの到達」に残す）
+    if (H.fuchu === undefined) { car.lostAt = s.turn; car.best = [...new Set([...(car.best ?? []), ...car.steps])]; car.steps = car.steps.filter((k) => k === 'ie'); car.kuniAt = undefined; H.title = undefined; }
+    return { beats: [], lines: [`預かっていた${c.name}を敵に奪われた。主君の覚え−15。${H.fuchu === undefined ? '治める城がなくなった。また手柄を立てれば、城を預けられる。' : ''}`] };
   }
   const L = lordId(s), lord = L ? s.generals[L] : null, fam = houseName(s);
   if (!hasStep(s, 'ie') && me.rank <= 1) {
@@ -74,7 +76,7 @@ export function careerMonth(s: GameState): CareerEvent | null {
       { who: me.id, bg: 'zashiki_day', text: '面倒だな' },
     ], lines: [`${fam}を立てた。手勢${H.ie.shu}・蔵${H.ie.kura}石。城下の「家中の進言」で家のことを決められる`] };
   }
-  if (hasStep(s, 'ie') && !hasStep(s, 'shiro') && me.rank <= 1 && me.merit >= CAREER.SHIRO_MERIT && H.favor >= CAREER.SHIRO_FAVOR) {
+  if (hasStep(s, 'ie') && !hasStep(s, 'shiro') && me.rank <= 1 && me.merit >= CAREER.SHIRO_MERIT && H.favor >= CAREER.SHIRO_FAVOR && s.turn - (car.lostAt ?? -99) >= 12) { // 城を失って1年は預けられない
     const c = pickCastle(s);
     if (!c) return null;
     return grantShiro(s, c);
@@ -107,9 +109,10 @@ export function careerMonth(s: GameState): CareerEvent | null {
 // 城を預かる（主君から声がかかるか、登城して願い出る）
 export function grantShiro(s: GameState, c: Castle): CareerEvent {
   const H = s.hero!, me = s.generals[H.id], car = (H.career ??= { steps: [] }), L = lordId(s), lord = L ? s.generals[L] : null;
+  const first = !(car.best ?? []).includes('shiro'); // 褒美は初めて城を預かった時だけ
   car.steps.push('shiro'); H.fuchu = c.i; car.since = s.turn;
   const sv = (H.sv ??= {}); sv.fchian = c.chian; sv.fember = c.ember ?? 0; sv.fturn = s.turn;
-  H.title = `${c.name}城主`; addMerit(s, me.id, 20); H.gold += 500;
+  H.title = `${c.name}城主`; if (first) { addMerit(s, me.id, 20); H.gold += 500; }
   c.garrison = Math.max(c.garrison, Math.round(garrisonMax(c) * 0.5));
   addLog(s, `${me.name}が${c.name}を預かった。`, 'info', true);
   return { beats: [
@@ -117,7 +120,7 @@ export function grantShiro(s: GameState, c: Castle): CareerEvent {
     ...(lord ? [{ head: '広間', who: lord.id, bg: 'zashiki_day', text: `${me.name}。${c.name}を預ける。……城は、落とすより持つ方が重いぞ` }] : []),
     { head: c.name, bg: 'ishigaki', text: `${c.name}。石垣も、櫓も、門も、昨日までは主君の城だった。今日からは、${me.name}が持たせる城だ。城の後ろには村があり、道があり、人がいる。` },
     { who: me.id, bg: 'ishigaki', text: '……広いな' },
-  ], lines: [`${c.name}を預かった（城持ち。功績+20・金500貫）。城下で「国を治める」ができる。治めた城の石高に応じて知行が入る`] };
+  ], lines: [`${c.name}を預かった（城持ち${first ? '。功績+20・金500貫' : ''}）。城下で「国を治める」ができる。治めた城の石高に応じて知行が入る`] };
 }
 // 登城して城を願い出る（条件を満たしていれば）
 export function canAskCastle(s: GameState) { const H = s.hero!, me = s.generals[H.id]; return freeHero(s) && hasStep(s, 'ie') && !hasStep(s, 'shiro') && me.rank <= 1 && me.merit >= CAREER.SHIRO_MERIT * 0.8 && H.favor >= CAREER.SHIRO_FAVOR - 10; }
@@ -132,7 +135,7 @@ export function chigyo(s: GameState): number {
 const ORDER: Step[] = ['ie', 'shiro', 'kuni', 'hitto'];
 const bestOf = (s: GameState) => { const car = s.hero!.career; const all = [...(car?.steps ?? []), ...(car?.best ?? [])]; return ORDER.filter((k) => all.includes(k)); };
 export const topOf = (s: GameState) => { const st = bestOf(s); return st.includes('hitto') ? '家中第一の臣' : st.includes('kuni') ? '国持ち' : st.includes('shiro') ? '一城の主' : st.includes('ie') ? '一家の主' : '槍一筋'; };
-export function lifeSummary(s: GameState, how: 'retire' | 'death' | 'fall'): string[] {
+export function lifeSummary(s: GameState, how: 'retire' | 'death' | 'fall' | 'tenka'): string[] {
   const H = s.hero!, me = s.generals[H.id];
   const top = topOf(s);
   const dom = domain(s).filter((c) => c.owner === me.clan);
@@ -141,7 +144,7 @@ export function lifeSummary(s: GameState, how: 'retire' | 'death' | 'fall'): str
   const years = Math.floor((s.turn - 1) / 12);
   const verdict = top === '家中第一の臣' ? '主家の柱として名を残した。' : top === '国持ち' ? '国を持たせた大名として名を残した。' : top === '一城の主' ? '一城を預かる身として、家を後へつないだ。' : top === '一家の主' ? '侍大将として家を立て、後へつないだ。' : '槍一筋に生き、名を残した。';
   const serve = (H.career?.served ?? []).length ? `仕えた家: ${[...(H.career!.served ?? [])].join('・')}。` : '';
-  const how0 = how === 'retire' ? `${me.name}は家督を譲って隠居した` : how === 'death' ? `${me.name}は世を去った` : `${clanName(s, me.clan ?? s.player)}家は滅んだ`;
+  const how0 = how === 'tenka' ? `主家の${clanName(s, me.clan ?? s.player)}家が天下を一つにした。${me.name}はその世を見届けた` : how === 'retire' ? `${me.name}は家督を譲って隠居した` : how === 'death' ? `${me.name}は世を去った` : `${clanName(s, me.clan ?? s.player)}家は滅んだ`;
   return [`${how0}（${s.year}年・${ageOf(s)}歳、${years}年を生きた）。到達: ${top}。${verdict}${serve}`,
     `功績${Math.round(me.merit)}・主君の覚え${H.favor}・果たした主命${H.done}${H.ie ? `・家中${H.ie.kachu}・手勢${H.ie.shu}` : ''}${chian !== null ? `・治めた城の治安${chian}` : ''}・友${friends}人`];
 }
