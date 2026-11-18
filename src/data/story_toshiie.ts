@@ -12,6 +12,8 @@ export const STORY_CAST: Record<string, string> = {
   okumura: '奥村永福', murai: '村井長頼', toshiie_mid: '前田利家', muraosa: '越前の村役', monto: '門徒の若い男', arako_wakamono: '荒子衆の若者', nene: 'ねね', kurayaku: '蔵役',
   // 第三部
   cho_tsuratatsu: '長連龍', go: '豪', toshihisa_old: '前田利久', noto_kokujin: '能登の国人',
+  // 第四部
+  okumura_yasu: '奥村安', hideyoshi_tenka: '羽柴秀吉', narimasa_yuki: '佐々成政', kaga_dogo: '加賀の土豪',
 };
 // 場面の絵（注文の絵が届くまでは今ある絵で代わりに）
 export const STORY_BG: Record<string, string> = {
@@ -21,6 +23,8 @@ export const STORY_BG: Record<string, string> = {
   zashiki_arako: 'zashiki_day', kanegasaki: 'amemichi', anegawa: 'senjo', kita_michi: 'yukimichi', fuchu: 'ishigaki', kieta_mura: 'mura', hyojo: 'zashiki_night', fuyu_echizen: 'yukimichi',
   // 第三部（ART_ORDER_TOSHIIE_PART3.txt の S21〜S28 が届くまで）
   kitanosho: 'zashiki_day', tedorigawa: 'amemichi', hokuriku_jin: 'jinmaku', nanao: 'ishigaki', nanao_minato: 'minato', uozu: 'jinmaku', honnoji_ho: 'night_fire', shizugatake: 'senjo',
+  // 第四部（ART_ORDER_TOSHIIE_PART4.txt の S29〜S36 が届くまで）
+  kanazawa: 'ishigaki', kaga_ta: 'mura', suemori: 'night_fire', gouu: 'amemichi', suemori_asa: 'senjo', tateyama: 'yukimichi', toyama_jin: 'jinmaku', moriyama: 'ishigaki',
 };
 
 // ───────── 序幕（第一章「火の庭」。見せるだけ） ─────────

@@ -119,10 +119,11 @@ export const GOV_NAME: Record<GovAct, [string, string]> = {
   shimeru: ['締め上げる', '治安+8・残り火−5。村の開発が痩せる（成政の道）（1旬）'],
   choubo: ['城兵を集める', '金150貫で城兵+300（1旬）'],
 };
-export const canGovern = (s: GameState) => { const c = fuchuOf(s), H = s.hero; return !!c && !!H && !H.field && !H.army && H.town === c.i && c.owner === s.generals[H.id].clan; };
+export const govCastle = (s: GameState): Castle | null => { const H = s.hero; if (!H || H.field || H.army) return null; const ok = H.town === H.fuchu || (H.ryo ?? []).includes(H.town); const c = s.castles[H.town]; return ok && c.owner === s.generals[H.id].clan ? c : null; };
+export const canGovern = (s: GameState) => !!govCastle(s);
 export function govern(s: GameState, k: GovAct): Act {
-  const H = s.hero!, me = s.generals[H.id], c = fuchuOf(s)!;
-  if (!canGovern(s)) return { ok: false, text: `${c.name}の城下にいなければ治められない` };
+  const H = s.hero!, me = s.generals[H.id], c = govCastle(s)!;
+  if (!c) return { ok: false, text: '治める城の城下にいなければ治められない' };
   const sv = (H.sv ??= {});
   if (k === 'mimawari') { c.chian = clamp(c.chian + 3); c.ember = clamp((c.ember ?? 0) - 2); }
   else if (k === 'hidane') { const d = Math.round(3 + me.int / 15 + rand(s) * 3); c.ember = clamp((c.ember ?? 0) - d); }
@@ -136,4 +137,4 @@ export function govern(s: GameState, k: GovAct): Act {
 // 府中を持たせたか（第二部の締め）
 export const FUCHU_OK = { CHIAN: 50, EMBER: 30 };
 export const fuchuHeld = (s: GameState) => { const c = fuchuOf(s); return !!c && c.owner === s.generals[s.hero!.id].clan && c.chian >= FUCHU_OK.CHIAN && (c.ember ?? 0) <= FUCHU_OK.EMBER; };
-export const fuchuText = (s: GameState) => { const c = fuchuOf(s); if (!c) return ''; const goal = !(s.hero!.storyDone ?? []).includes('ryo'); return `${c.name}: 治安${Math.round(c.chian)}${goal ? `／${FUCHU_OK.CHIAN}以上` : ''}・残り火${Math.round(c.ember ?? 0)}${goal ? `／${FUCHU_OK.EMBER}以下` : ''}・城兵${c.garrison}・${Math.round(castleKoku(c))}万石`; };
+export const fuchuText = (s: GameState) => { const c = govCastle(s) ?? fuchuOf(s); if (!c) return ''; const goal = !(s.hero!.storyDone ?? []).includes('ryo'); return `${c.name}: 治安${Math.round(c.chian)}${goal ? `／${FUCHU_OK.CHIAN}以上` : ''}・残り火${Math.round(c.ember ?? 0)}${goal ? `／${FUCHU_OK.EMBER}以下` : ''}・城兵${c.garrison}・${Math.round(castleKoku(c))}万石`; };
