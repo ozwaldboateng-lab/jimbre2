@@ -107,7 +107,7 @@ function render() {
       <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>前田家</dt><dd title="荒子衆・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}</dd>` : ''}</dl>
       <button class="hr-btn ghost" data-h="quit" title="保存してタイトルへ">中断</button>
     </header>
-    ${Hh.fuchu !== undefined && !(Hh.storyDone ?? []).includes('ryo') ? `<div class="hr-quest"><b>府中</b> ${esc(M.fuchuText(st))}</div>` : ''}
+    ${Hh.fuchu !== undefined ? `<div class="hr-quest"><b>${(Hh.storyDone ?? []).includes('ryo') ? '領国' : '府中'}</b> ${esc(M.fuchuText(st))}</div>` : ''}
     <div class="hr-quest">${q ? `<b>主命</b> ${esc(H.QUEST_NAME[q.kind])}：${esc(H.questText(st, q))} <span>${q.done >= q.need ? '<em>果たした。登城して報告せよ</em>' : `期日まで${Math.max(0, q.until - st.turn)}か月`}</span>` : `<b>主命</b> なし。${L ? `主君${esc(L.name)}は${esc(st.castles[L.loc].name)}にいる。登城すれば主命を受けられる。` : ''}`}</div>
     <div class="hr-body">
       <section class="hr-scene${mapMode(st) ? ' map' : ''}" style="${art && !mapMode(st) ? `background-image:url(${art})` : ''}">
@@ -263,7 +263,7 @@ type Theater = (beats: Beat[], done: () => void, choose?: (key: string, id: stri
 let theater: Theater | null = null;
 export function setTheater(f: Theater) { theater = f; }
 const chooser = (st: GameState) => (key: string, id: string) => { const r = M.storyChoose(st, key, id); for (const x of r.lines) H.note(st, x); return r.lines.length ? [...r.beats, { text: `（${r.lines.join('。')}）`, bg: r.beats[r.beats.length - 1]?.bg }] : r.beats; };
-const opt = (st: GameState) => ({ part2: (st.hero!.storyDone ?? []).includes('katoku'), label: (st.hero!.storyDone ?? []).includes('katoku') ? '残り火　第二部' : '残り火　第二幕' });
+const opt = (st: GameState) => { const d = st.hero!.storyDone ?? []; return { part2: d.includes('katoku'), label: d.includes('ryo') ? '残り火　第三部' : d.includes('katoku') ? '残り火　第二部' : '残り火　第二幕' }; };
 function runStory() {
   if (!s || !theater || busy) return;
   const ev = storyDue(s);
@@ -285,7 +285,7 @@ function resetWorld(sc: string) {
   carryHero(old, g);
   s = g; bg = 'town'; pane = 'spots'; recenter = true; view = null; mapCanvas = null;
   const c = g.castles[g.hero!.town];
-  say = { text: `${g.year}年${g.month}月。世の中は「${sc === '1572' ? '元亀三年 信長包囲網' : sc}」の形になった。${c.name}の城下にいる。` };
+  say = { text: `${g.year}年${g.month}月。世の中は「${({ '1572': '元亀三年 信長包囲網', '1582': '天正十年 本能寺の変' } as Record<string, string>)[sc] ?? sc}」の形になった。${clanName(g, g.generals[g.hero!.id].clan!)}家の者として、${c.name}の城下にいる。` };
   H.note(g, say.text);
   save(); render();
   runStory();

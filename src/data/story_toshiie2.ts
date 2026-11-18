@@ -11,7 +11,7 @@ export interface Eff {
   pt?: number; road?: 'hard' | 'son' | 'mochi';
 }
 export interface NChoice extends Choice { res: Beat[]; eff?: Eff; next?: string }
-export interface Node { text: string; choices: NChoice[] }
+export interface Node { text: string; choices: NChoice[]; tag?: string } // tag: 戦の点を貯める名（金ヶ崎・姉川・手取川）
 
 const T = 'maeda_toshiie', OK = 'okumura', MU = 'murai', NA = 'sassa_narimasa', FU = 'fuwa_mitsuharu', KA = 'shibata_katsuie', HI = 'kinoshita_tokichiro';
 
@@ -272,7 +272,7 @@ export const P2_RYO: Beat[] = [
   { who: T, bg: 'fuchu', text: '前へ出るだけじゃ足りねえな' },
   { bg: 'fuchu', text: '自分は甘くなったのではない。斬るべきものと、残すべきものを分ける男になり始めたのだ。家を持つ。その先に、土地を持たせる。その重さが、越前でようやく利家の骨の一部になり始めていた。' },
   { kind: 'chapter', head: '第二部　了', text: '北へ立つ', sub: '残り火' },
-  { bg: 'fuchu', text: '（第二部「北へ立つ」はここまで。第三部「裂け目」（七尾・手取川・能登・本能寺・賤ヶ岳）は作成中。ここからは府中の城主として、引き続き働ける）' },
+  { bg: 'fuchu', text: '（第二部「北へ立つ」はここまで。第三部「裂け目」は天正五年（1577年）、七尾落城の報から始まる。それまでは府中の城主として働ける。「月日を送る」で跳ぶこともできる）' },
 ];
 // 持たせられなかった（もう一度）
 export const P2_RETRY: Beat[] = [
@@ -290,7 +290,7 @@ export const P2_SAI_NG: Beat[] = [
   { who: KA, bg: 'fuchu', text: '火を残すなと言うた。だが、お前の見たものが間違うておったとは言わぬ。……次は、持たせよ' },
   { bg: 'fuchu', text: '勝家の兵が村に入った。煙が上がった。利家はそれを、城の上から黙って見ていた。国は、城を落としただけでは手に入らない。そして、持たせられなかった土地は、他人の手で焼かれる。' },
   { kind: 'chapter', head: '第二部　了', text: '北へ立つ', sub: '残り火' },
-  { bg: 'fuchu', text: '（第二部「北へ立つ」はここまで。第三部「裂け目」は作成中。ここからは府中の城主として、引き続き働ける）' },
+  { bg: 'fuchu', text: '（第二部「北へ立つ」はここまで。第三部「裂け目」は天正五年（1577年）、七尾落城の報から始まる。それまでは府中の城主として働ける）' },
 ];
 
 // ───────── 選ばせる問い ─────────

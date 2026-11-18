@@ -162,7 +162,7 @@ function topHtml() {
   return `${brand()}
   <nav class="ttl-menu" aria-label="タイトル">
     <button type="button" class="ttl-item" data-act="t-new"><b>新しく始める</b><span>時代と家を選んで出陣する</span></button>
-    <button type="button" class="ttl-item" data-act="t-story"><b>前田利家 ― 残り火</b><span>浪人の身から、もう一度信長の庭へ。そして北へ（物語・第一部〜第二部）</span></button>
+    <button type="button" class="ttl-item" data-act="t-story"><b>前田利家 ― 残り火</b><span>浪人の身から、もう一度信長の庭へ。そして北へ（物語・第一部〜第三部）</span></button>
     <button type="button" class="ttl-item" data-act="t-hero"><b>武将で遊ぶ<small>（試作）</small></b><span>織田家の家臣として城下を歩き、出世を目指す</span></button>
     ${d.auto ? `<button type="button" class="ttl-item" data-act="t-continue"><b>続きから</b><span>${esc(d.autoLabel)}</span></button>` : ''}
     <button type="button" class="ttl-item" data-act="t-help"><b>遊び方</b><span>操作・用語・仕組み</span></button>

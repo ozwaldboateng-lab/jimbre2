@@ -4,6 +4,7 @@ import * as D2 from '../data/story_toshiie2';
 import type { Beat } from '../data/story_toshiie';
 import { leaveArmy } from './corps';
 import { FUCHU_ID, FUCHU_NAME, fuchuHeld, fuchuOf, newIe } from './maeda';
+import { ACT3 } from './story3';
 import { captureCastle, removeArmy } from './ops';
 import { addMerit } from './ranks';
 import * as R from './rules';
@@ -46,6 +47,7 @@ export const ACT2: Ev[] = [
   { id: 'saimotase', beats: (s) => fuchuHeld(s) ? D2.P2_RYO : D2.P2_SAI_NG, when: '府中を持たせるか、天正四年十月', at: (s) => s.hero!.until ?? at(1576, 10), due: (s) => (s.hero!.storyDone ?? []).includes('ryo') || fuchuHeld(s) || ym(s) >= (s.hero!.until ?? 0),
     apply: (s) => (s.hero!.storyDone ?? []).includes('ryo') ? [] : endPart2(s, fuchuHeld(s)) },
 ];
+ACT2.push(...ACT3); // 第三部（第七・八章）は第二部の締めのあとに続く
 // 府中三人衆: 一乗谷を「越前府中城」として織田のものにし、利家をその城主にする（世の中がどう動いていても、物語の形に合わせる）
 function setupFuchu(s: GameState): string[] {
   const H = s.hero!, me = s.generals[H.id];
@@ -91,7 +93,7 @@ export function storyDue(s: GameState): StoryEvent | null {
 // 世の中を合わせ直す（部の切れ目）: 新しい世の中 g へ、利家と前田家の状態を移す
 export function carryHero(old: GameState, g: GameState) {
   const O = old.hero!, me0 = old.generals[O.id], me = g.generals[O.id], H = g.hero!;
-  for (const k of ['gold', 'favor', 'goods', 'rel', 'diary', 'done', 'failed', 'trained', 'story', 'storyDone', 'storyStart', 'title', 'ie', 'sv'] as const) (H as unknown as Record<string, unknown>)[k] = structuredClone((O as unknown as Record<string, unknown>)[k]);
+  for (const k of ['gold', 'favor', 'goods', 'rel', 'diary', 'done', 'failed', 'trained', 'story', 'storyDone', 'storyStart', 'title', 'ie', 'sv', 'fuchu', 'cargo', 'glut', 'until'] as const) (H as unknown as Record<string, unknown>)[k] = structuredClone((O as unknown as Record<string, unknown>)[k]);
   me.bra = me0.bra; me.int = me0.int; me.lea = me0.lea; me.cha = me0.cha; me.rank = me0.rank; me.merit = me0.merit;
   // 暦はそのまま（シナリオの形だけを借りる）
   g.year = old.year; g.month = old.month; g.startYear = old.year; g.startMonth = old.month; g.turn = 1;
@@ -109,28 +111,29 @@ export function nextStory(s: GameState) {
 export const STORY_GUARD = { GARRISON: 0.8, GOLD: 2000 };
 export function storyGuard(s: GameState): string[] {
   const H = s.hero;
-  if (!H || H.story !== 'toshiie' || (H.storyDone ?? []).includes('ryo')) return []; // 第二部の終わりまで
-  const C = s.clans.oda;
+  if (!H || H.story !== 'toshiie' || (H.storyDone ?? []).includes('ryo3')) return []; // 第三部の終わり（賤ヶ岳）まで
+  const clan = s.generals[H.id]?.clan ?? 'oda';
+  const C = s.clans[clan];
   if (!C?.alive) return [];
   const out: string[] = [];
   const f = fuchuOf(s);
-  for (const c of clanCastles(s, 'oda')) c.garrison = Math.max(c.garrison, Math.round(garrisonMax(c) * STORY_GUARD.GARRISON));
+  for (const c of clanCastles(s, clan)) c.garrison = Math.max(c.garrison, Math.round(garrisonMax(c) * STORY_GUARD.GARRISON));
   C.gold += STORY_GUARD.GOLD;
   if (f) {
     // 府中を落とされた（または落とされて取り返した）: 柴田の後詰めで織田に戻し、治めは先月の控えから少し悪くした所へ（主君の覚えは下がる）
     const sv = (H.sv ??= {});
-    const lost = f.owner !== 'oda' || (f.prevTurn !== undefined && f.prevTurn >= (sv.fturn ?? 0));
+    const lost = f.owner !== clan || (f.prevTurn !== undefined && f.prevTurn >= (sv.fturn ?? 0));
     if (lost) {
-      if (f.owner !== 'oda') captureCastle(s, f, 'oda');
+      if (f.owner !== clan) captureCastle(s, f, clan);
       s.shioki = (s.shioki ?? []).filter((x) => x.castle !== f.i);
-      f.chian = Math.max(0, (sv.fchian ?? 30) - 15); f.ember = Math.min(100, (sv.fember ?? 60) + 15); f.oldOwner = 'asakura'; f.prevTurn = undefined;
+      f.chian = Math.max(0, (sv.fchian ?? 30) - 15); f.ember = Math.min(100, (sv.fember ?? 60) + 15); f.prevTurn = undefined;
       H.favor = Math.max(0, H.favor - 8);
-      out.push(`府中を一時、敵に奪われた。柴田勝家の後詰めが取り返したが、府中の治めは後戻りした（治安${Math.round(f.chian)}・残り火${Math.round(f.ember)}）。主君の覚え−8。`);
+      out.push(`${f.name}を一時、敵に奪われた。味方の後詰めが取り返したが、治めは後戻りした（治安${Math.round(f.chian)}・残り火${Math.round(f.ember)}）。主君の覚え−8。`);
     }
     sv.fchian = f.chian; sv.fember = f.ember ?? 0; sv.fturn = s.turn;
     // 府中は柴田の北の要: 普請を固め、城兵を満たす（荒子衆も加わる）。府中の山場は戦ではなく治め方
     f.fort = Math.max(f.fort ?? 0, 3); f.garrison = garrisonMax(f); f.gMorale = 1; f.gate = 1;
-    if (f.naioBy && f.naioBy !== 'oda') { f.naio = undefined; f.naioBy = undefined; } // 府中の山場は治め方。他家の内応で落とさせない
+    if (f.naioBy && f.naioBy !== clan) { f.naio = undefined; f.naioBy = undefined; } // 府中の山場は治め方。他家の内応で落とさせない
   }
   return out;
 }

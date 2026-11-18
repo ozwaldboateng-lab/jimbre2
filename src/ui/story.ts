@@ -18,7 +18,7 @@ const KEY = 'sengoku-story-toshiie';
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const ART = (k: string) => { const key = D.STORY_BG[k] ?? k; return SCENE_ART[`story_${k}`] ?? SCENE_ART[key] ?? (key === 'minato' ? MINATO_ART : undefined); };
 // 場所の札（場面の絵から）
-const BG_NAME: Record<string, string> = { arako: '荒子', arako_night: '荒子の屋敷', sakaya: '荒子の酒屋', kiyosu_tsuji: '清洲の辻', kiyosu_niwa: '清洲城の庭', denchu: '清洲城 殿中', hiroma: '清洲城 広間', kayazu: '萱津', ino: '稲生', moribe: '森部', moribe_sen: '森部', jinmaku: '陣', okehazama: '桶狭間', okehazama_sen: '桶狭間', ta_yoru: '福島の田', fukushima: '福島の屋敷', atsuta: '熱田', zashiki_arako: '荒子の屋敷', kanegasaki: '金ヶ崎', anegawa: '姉川', kita_michi: '北陸の道', fuchu: '越前府中', kieta_mura: '越前の村', hyojo: '府中の評定', fuyu_echizen: '冬の越前' };
+const BG_NAME: Record<string, string> = { arako: '荒子', arako_night: '荒子の屋敷', sakaya: '荒子の酒屋', kiyosu_tsuji: '清洲の辻', kiyosu_niwa: '清洲城の庭', denchu: '清洲城 殿中', hiroma: '清洲城 広間', kayazu: '萱津', ino: '稲生', moribe: '森部', moribe_sen: '森部', jinmaku: '陣', okehazama: '桶狭間', okehazama_sen: '桶狭間', ta_yoru: '福島の田', fukushima: '福島の屋敷', atsuta: '熱田', zashiki_arako: '荒子の屋敷', kanegasaki: '金ヶ崎', anegawa: '姉川', kita_michi: '北陸の道', fuchu: '越前府中', kieta_mura: '越前の村', hyojo: '府中の評定', fuyu_echizen: '冬の越前', kitanosho: '北ノ庄', tedorigawa: '手取川', hokuriku_jin: '北陸の陣', nanao: '七尾城', nanao_minato: '七尾の港', uozu: '魚津の陣', honnoji_ho: '魚津の陣', shizugatake: '賤ヶ岳' };
 type Face = (id: string | null | undefined, w: number) => string;
 
 let face: Face = () => '';
@@ -54,7 +54,7 @@ function renderTitle() {
   root!.innerHTML = `<div><div class="hr-pick">
     <div class="hr-top"><button class="hr-btn ghost" data-s="quit">← タイトルへ</button><span class="hr-tag">武将で遊ぶ・物語</span></div>
     <h2>前田利家 ― 残り火</h2>
-    <p class="hr-lede">尾張荒子の前田家の四男、犬千代。長すぎる槍と、信長の庭。拾阿弥を斬って清洲を追われた男は、浪人の身から、もう一度あの庭へ戻れるか。<br>第一部「戻る道」: 序幕（犬千代の若き日）→ 第一幕「こぼれた火」（荒子の浪人）→ 無断参戦 → 帰参 → 家督。<br>第二部「北へ立つ」: 前田家を率いて金ヶ崎・姉川へ。そして越前府中の城主に（府中三人衆）。原作: 小説『残り火』。</p>
+    <p class="hr-lede">尾張荒子の前田家の四男、犬千代。長すぎる槍と、信長の庭。拾阿弥を斬って清洲を追われた男は、浪人の身から、もう一度あの庭へ戻れるか。<br>第一部「戻る道」: 序幕（犬千代の若き日）→ 第一幕「こぼれた火」（荒子の浪人）→ 無断参戦 → 帰参 → 家督。<br>第二部「北へ立つ」: 前田家を率いて金ヶ崎・姉川へ。そして越前府中の城主に（府中三人衆）。<br>第三部「裂け目」: 七尾落城・手取川・能登の国主・本能寺、そして賤ヶ岳。原作: 小説『残り火』。</p>
     <div class="hr-cont">${storySaved() ? '<button class="hr-btn primary" data-s="continue">続きから</button> ' : ''}<button class="hr-btn${storySaved() ? '' : ' primary'}" data-s="new">はじめから（序幕）</button> <button class="hr-btn ghost" data-s="new-skip">序幕をとばす</button></div>
     <div style="margin-top:18px">${face('maeda_toshiie', 160)}</div>
   </div></div>`;
@@ -69,7 +69,7 @@ function begin(skip: boolean) {
 }
 
 // ───────── 描く ─────────
-const nameOf = (id: string) => D.STORY_CAST[id] ?? ({ fuwa_mitsuharu: '不破光治', tokugawa_ieyasu: '徳川家康', maeda_toshiie: '前田利家', oda_nobunaga: '織田信長', ikeda_tsuneoki: '池田恒興', sassa_narimasa: '佐々成政', kinoshita_tokichiro: '木下藤吉郎', shibata_katsuie: '柴田勝家', maeda_toshimasu: '前田利益' } as Record<string, string>)[id] ?? id;
+const nameOf = (id: string) => id === 'kinoshita_tokichiro' && label.includes('第三部') ? '羽柴秀吉' : D.STORY_CAST[id] ?? ({ fuwa_mitsuharu: '不破光治', tokugawa_ieyasu: '徳川家康', maeda_toshiie: '前田利家', oda_nobunaga: '織田信長', ikeda_tsuneoki: '池田恒興', sassa_narimasa: '佐々成政', kinoshita_tokichiro: '木下藤吉郎', shibata_katsuie: '柴田勝家', maeda_toshimasu: '前田利益' } as Record<string, string>)[id] ?? id;
 // 顔: 物語の人物は届いた絵、犬千代は利家の顔、三郎は信長の顔。なければ名の札
 function faceOf(id: string, w: number) {
   const pid = id === 'maeda_toshiie' && !theaterDone && !st?.done ? 'inuchiyo' : id === 'maeda_toshiie' && part2 && STORY_PORTRAITS.toshiie_mid ? 'toshiie_mid' : id === 'sanro' ? 'nobunaga_young' : id; // 帰参までの利家は若き日の顔、辻の三郎はうつけの頃の信長

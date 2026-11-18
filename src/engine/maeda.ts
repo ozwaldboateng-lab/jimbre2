@@ -71,13 +71,15 @@ export function applyEff(s: GameState, e: Eff | undefined, tag?: string): string
 export function storyChoose(s: GameState, key: string, id: string): { beats: Beat[]; lines: string[] } {
   const n = NODES[key], ch = n?.choices.find((c) => c.id === id);
   if (!n || !ch) return { beats: [], lines: [] };
-  const tag = key.startsWith('kg') ? 'kanegasaki' : key.startsWith('ag') ? 'anegawa' : undefined;
+  const tag = n.tag ?? (key.startsWith('kg') ? 'kanegasaki' : key.startsWith('ag') ? 'anegawa' : undefined);
   const lines = applyEff(s, ch.eff, tag);
   const beats = [...ch.res];
-  if (ch.next?.startsWith('@')) beats.push(...battleEnd(s, ch.next.slice(1)));
+  if (ch.next?.startsWith('@')) { const k = ch.next.slice(1); beats.push(...(STORY_ENDS[k] ? STORY_ENDS[k](s) : battleEnd(s, k))); }
   else if (ch.next) beats.push({ text: NODES[ch.next].text, ask: ch.next, bg: ch.res[ch.res.length - 1]?.bg });
   return { beats, lines };
 }
+// 問いの締め（第三部以降の分かれ道など）。engine/story3.ts が足す
+export const STORY_ENDS: Record<string, (s: GameState) => Beat[]> = {};
 // 金ヶ崎・姉川の締め: 点（選んだ答え）と、家中・統率で決まる
 function battleEnd(s: GameState, k: 'kanegasaki' | 'anegawa' | string): Beat[] {
   const H = s.hero!, me = s.generals[H.id], ie = H.ie!, sv = (H.sv ??= {});
@@ -120,7 +122,7 @@ export const GOV_NAME: Record<GovAct, [string, string]> = {
 export const canGovern = (s: GameState) => { const c = fuchuOf(s), H = s.hero; return !!c && !!H && !H.field && !H.army && H.town === c.i && c.owner === s.generals[H.id].clan; };
 export function govern(s: GameState, k: GovAct): Act {
   const H = s.hero!, me = s.generals[H.id], c = fuchuOf(s)!;
-  if (!canGovern(s)) return { ok: false, text: '府中の城下にいなければ治められない' };
+  if (!canGovern(s)) return { ok: false, text: `${c.name}の城下にいなければ治められない` };
   const sv = (H.sv ??= {});
   if (k === 'mimawari') { c.chian = clamp(c.chian + 3); c.ember = clamp((c.ember ?? 0) - 2); }
   else if (k === 'hidane') { const d = Math.round(3 + me.int / 15 + rand(s) * 3); c.ember = clamp((c.ember ?? 0) - d); }
@@ -133,5 +135,5 @@ export function govern(s: GameState, k: GovAct): Act {
 }
 // 府中を持たせたか（第二部の締め）
 export const FUCHU_OK = { CHIAN: 50, EMBER: 30 };
-export const fuchuHeld = (s: GameState) => { const c = fuchuOf(s); return !!c && c.owner === 'oda' && c.chian >= FUCHU_OK.CHIAN && (c.ember ?? 0) <= FUCHU_OK.EMBER; };
-export const fuchuText = (s: GameState) => { const c = fuchuOf(s); return c ? `${c.name}: 治安${Math.round(c.chian)}／${FUCHU_OK.CHIAN}以上・残り火${Math.round(c.ember ?? 0)}／${FUCHU_OK.EMBER}以下・城兵${c.garrison}・${Math.round(castleKoku(c))}万石` : ''; };
+export const fuchuHeld = (s: GameState) => { const c = fuchuOf(s); return !!c && c.owner === s.generals[s.hero!.id].clan && c.chian >= FUCHU_OK.CHIAN && (c.ember ?? 0) <= FUCHU_OK.EMBER; };
+export const fuchuText = (s: GameState) => { const c = fuchuOf(s); if (!c) return ''; const goal = !(s.hero!.storyDone ?? []).includes('ryo'); return `${c.name}: 治安${Math.round(c.chian)}${goal ? `／${FUCHU_OK.CHIAN}以上` : ''}・残り火${Math.round(c.ember ?? 0)}${goal ? `／${FUCHU_OK.EMBER}以下` : ''}・城兵${c.garrison}・${Math.round(castleKoku(c))}万石`; };

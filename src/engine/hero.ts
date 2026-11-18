@@ -426,7 +426,7 @@ export function heroEnd(s: GameState): string | null {
 function heroEnd0(s: GameState): string | null {
   const me = heroOf(s);
   if (s.hero?.over) return s.hero.over;
-  if (s.hero?.story === 'toshiie' && me && me.status !== 'dead' && me.clan !== 'oda') return '織田家を失い、利家の物語はここで途切れた。';
+  if (s.hero?.story === 'toshiie' && me && me.status !== 'dead' && !['oda', 'shibata', 'hashiba'].includes(me.clan ?? '')) return '主家を失い、利家の物語はここで途切れた。';
   if (!me || me.status === 'dead') return `${me?.name ?? '主人公'}は世を去った。`;
   if (!me.clan || !s.clans[me.clan]?.alive) return `${clanName(s, s.player)}家は滅んだ。`;
   if (me.status === 'captive') return `${me.name}は敵に捕らえられた。`;
