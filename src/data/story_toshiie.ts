@@ -8,6 +8,8 @@ export const STORY_CAST: Record<string, string> = {
   matsu: 'まつ', matsu_young: 'まつ', matsu_wife: 'まつ', inuchiyo: '犬千代', toshiharu: '前田利春', toshihisa: '前田利久', juami: '拾阿弥', fukushima: '福島', sakakibara: '榊原',
   matabe: '又兵衛', wakazamurai: '若侍くずれ', koshin: '前田家の古参', kerai: '前田家の家臣', monban: '門番', kosan: '勝家配下の古参', tsukai: '使い',
   sanro: '三郎', nobunaga_young: '織田信長', nobunaga_1560: '織田信長',
+  // 物語の外（武将で遊ぶの家）
+  ie_karo: '家老', ie_kerai: '家臣', mura_wakamono: '村の若者',
   // 第二部
   okumura: '奥村永福', murai: '村井長頼', toshiie_mid: '前田利家', muraosa: '越前の村役', monto: '門徒の若い男', arako_wakamono: '荒子衆の若者', nene: 'ねね', kurayaku: '蔵役',
   // 第三部

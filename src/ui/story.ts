@@ -69,11 +69,11 @@ function begin(skip: boolean) {
 }
 
 // ───────── 描く ─────────
-const nameOf = (id: string) => id === 'kinoshita_tokichiro' && label.includes('第五部') ? '豊臣秀吉' : id === 'kinoshita_tokichiro' && /第[三四]部/.test(label) ? '羽柴秀吉' : D.STORY_CAST[id] ?? ({ fuwa_mitsuharu: '不破光治', tokugawa_ieyasu: '徳川家康', maeda_toshinaga: '前田利長', maeda_toshiie: '前田利家', oda_nobunaga: '織田信長', ikeda_tsuneoki: '池田恒興', sassa_narimasa: '佐々成政', kinoshita_tokichiro: '木下藤吉郎', shibata_katsuie: '柴田勝家', maeda_toshimasu: '前田利益' } as Record<string, string>)[id] ?? id;
+const nameOf = (id: string) => castNames[id] ?? (id === 'kinoshita_tokichiro' && label.includes('第五部') ? '豊臣秀吉' : id === 'kinoshita_tokichiro' && /第[三四]部/.test(label) ? '羽柴秀吉' : D.STORY_CAST[id] ?? ({ fuwa_mitsuharu: '不破光治', tokugawa_ieyasu: '徳川家康', maeda_toshinaga: '前田利長', maeda_toshiie: '前田利家', oda_nobunaga: '織田信長', ikeda_tsuneoki: '池田恒興', sassa_narimasa: '佐々成政', kinoshita_tokichiro: '木下藤吉郎', shibata_katsuie: '柴田勝家', maeda_toshimasu: '前田利益' } as Record<string, string>)[id] ?? id);
 // 顔: 物語の人物は届いた絵、犬千代は利家の顔、三郎は信長の顔。なければ名の札
 function faceOf(id: string, w: number) {
   const pid = id === 'maeda_toshiie' && !theaterDone && !st?.done ? 'inuchiyo' : id === 'maeda_toshiie' && part2 && STORY_PORTRAITS.toshiie_mid ? 'toshiie_mid' : id === 'sanro' ? 'nobunaga_young' : id; // 帰参までの利家は若き日の顔、辻の三郎はうつけの頃の信長
-  const ALIAS: Record<string, string> = { narimasa_yuki: 'sassa_narimasa', hideyoshi_tenka: 'kinoshita_tokichiro', toshihisa_old: 'toshihisa' }; // 届くまでは元の顔で
+  const ALIAS: Record<string, string> = { ie_karo: 'koshin', ie_kerai: 'wakazamurai', mura_wakamono: 'arako_wakamono', narimasa_yuki: 'sassa_narimasa', hideyoshi_tenka: 'kinoshita_tokichiro', toshihisa_old: 'toshihisa' }; // 届くまでは元の顔で
   const late = label.includes('第五部');
   const pid2 = late && ({ kinoshita_tokichiro: 'hideyoshi_old', maeda_toshiie: 'toshiie_old', matsu_wife: 'matsu_old', maeda_toshimasu: 'toshimasu_kabuki' } as Record<string, string>)[pid] && STORY_PORTRAITS[({ kinoshita_tokichiro: 'hideyoshi_old', maeda_toshiie: 'toshiie_old', matsu_wife: 'matsu_old', maeda_toshimasu: 'toshimasu_kabuki' } as Record<string, string>)[pid]] ? ({ kinoshita_tokichiro: 'hideyoshi_old', maeda_toshiie: 'toshiie_old', matsu_wife: 'matsu_old', maeda_toshimasu: 'toshimasu_kabuki' } as Record<string, string>)[pid] : pid === 'kinoshita_tokichiro' && /第[四五]部/.test(label) && STORY_PORTRAITS.hideyoshi_tenka ? 'hideyoshi_tenka' : pid;
   const src = STORY_PORTRAITS[pid2] ?? PORTRAITS[pid2] ?? (ALIAS[pid2] ? STORY_PORTRAITS[ALIAS[pid2]] ?? PORTRAITS[ALIAS[pid2]] : undefined);
@@ -162,19 +162,21 @@ function sideHtml(s: S.StoryState) {
 let theaterDone: (() => void) | null = null;
 let theaterChoose: ((key: string, id: string) => Beat[]) | null = null;
 let part2 = false; // 家督のあとの利家（壮年の顔）
+let castNames: Record<string, string> = {}; // 物語の外の主人公・主君などの名
+let tx: (x: string) => string = (x) => x; // 物語の外では前田家の名を置き換える
 let label = '残り火　第二幕';
-export function playTheater(beats: Beat[], done: () => void, choose?: (key: string, id: string) => Beat[], opt?: { part2?: boolean; label?: string }) {
+export function playTheater(beats: Beat[], done: () => void, choose?: (key: string, id: string) => Beat[], opt?: { part2?: boolean; label?: string; cast?: Record<string, string>; tx?: (x: string) => string }) {
   ensureRoot();
   root!.style.zIndex = '70';
   queue = [...beats]; pending = null; theaterDone = done; theaterChoose = choose ?? null; lastArt = undefined;
-  part2 = !!opt?.part2; label = opt?.label ?? '残り火　第二幕';
+  part2 = !!opt?.part2; label = opt?.label ?? '残り火　第二幕'; castNames = opt?.cast ?? {}; tx = opt?.tx ?? ((x) => x);
   renderTheater();
 }
 // 場面の中の問い: 地の文（またはセリフ）に続けて、答えを並べる
 function askHtml(b: Beat) {
   const n = NODES[b.ask!];
   const head = b.who ? `<div class="hr-who">${faceOf(b.who, 128)}<div><b>${esc(nameOf(b.who))}</b><p class="st-line">「${esc(b.text)}」</p></div></div>` : `<p class="st-narr" style="margin-bottom:12px">${narr(b.text)}</p>`;
-  return `<div class="hr-say">${head}${b.who && n.text ? `<p class="st-narr" style="margin:10px 0">${esc(n.text)}。</p>` : ''}${n.choices.map((c) => `<button class="hr-spot" data-s="ask" data-k="${b.ask}" data-id="${c.id}"><b>${esc(c.label)}</b>${c.note ? `<span>${esc(c.note)}</span>` : ''}</button>`).join('')}</div>`;
+  return `<div class="hr-say">${head}${b.who && n.text ? `<p class="st-narr" style="margin:10px 0">${esc(tx(n.text))}。</p>` : ''}${n.choices.map((c) => `<button class="hr-spot" data-s="ask" data-k="${b.ask}" data-id="${c.id}"><b>${esc(tx(c.label))}</b>${c.note ? `<span>${esc(tx(c.note))}</span>` : ''}</button>`).join('')}</div>`;
 }
 function renderTheater() {
   const b = queue[0];

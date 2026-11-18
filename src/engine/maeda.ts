@@ -4,6 +4,8 @@ import type { Eff } from '../data/story_toshiie2';
 import type { Beat } from '../data/story_toshiie';
 import { addMerit } from './ranks';
 import { castleKoku, garrisonMax, rand } from './state';
+import { FORT_NAME, fortCost, fortOf, shindenCost, shindenDone } from './invest';
+import * as R from './rules';
 import type { Castle, GameState } from './types';
 import type { Act } from './hero';
 
@@ -57,7 +59,7 @@ export function applyEff(s: GameState, e: Eff | undefined, tag?: string): string
   if (e.kaze) sv.kaze = (sv.kaze ?? 0) + e.kaze;
   const parts: string[] = [];
   if (e.kura) parts.push(`蔵${e.kura > 0 ? '+' : ''}${e.kura}`);
-  if (e.shu) parts.push(`荒子衆${e.shu > 0 ? '+' : ''}${e.shu}`);
+  if (e.shu) parts.push(`${H.story === 'toshiie' ? '荒子衆' : '手勢'}${e.shu > 0 ? '+' : ''}${e.shu}`);
   if (e.kachu) parts.push(`家中${e.kachu > 0 ? '+' : ''}${e.kachu}`);
   if (e.mura) parts.push(`村の疲れ${e.mura > 0 ? '+' : ''}${e.mura}`);
   if (e.chian && c) parts.push(`府中の治安${e.chian > 0 ? '+' : ''}${e.chian}`);
@@ -78,7 +80,7 @@ export function storyChoose(s: GameState, key: string, id: string): { beats: Bea
   const beats = [...ch.res];
   if (ch.next?.startsWith('@')) { const k = ch.next.slice(1); beats.push(...(STORY_ENDS[k] ? STORY_ENDS[k](s) : battleEnd(s, k))); }
   else if (ch.next) beats.push({ text: NODES[ch.next].text, ask: ch.next, bg: ch.res[ch.res.length - 1]?.bg });
-  return { beats, lines };
+  return { beats: localize(s, beats), lines };
 }
 // 場面のあとで城下に出す言葉（結果の数値など。物語の画面には出さない）
 export const storyNotes: string[] = [];
@@ -101,7 +103,16 @@ function battleEnd(s: GameState, k: 'kanegasaki' | 'anegawa' | string): Beat[] {
 }
 
 // ───────── 家中の進言（月に一度） ─────────
-export const canAdvice = (s: GameState) => !!s.hero?.ie && (s.hero.storyDone ?? []).includes('kaze') && s.hero.ie.adv !== s.turn && !s.hero.army;
+export const canAdvice = (s: GameState) => !!s.hero?.ie && (s.hero.story !== 'toshiie' || (s.hero.storyDone ?? []).includes('kaze')) && s.hero.ie.adv !== s.turn && !s.hero.army;
+// 物語の外（前田利家でない主人公）では、前田家の人と土地の名を、その武将の家のものに置き換える
+const WHO_GEN: Record<string, string> = { okumura: 'ie_karo', murai: 'ie_kerai', arako_wakamono: 'mura_wakamono', kurayaku: 'kurayaku' };
+const BG_GEN: Record<string, string> = { arako: 'mura', zashiki_arako: 'zashiki_day' };
+export const genText = (x: string) => x.replace(/前田の蔵/g, '家の蔵').replace(/（成政の道）/g, '').replace(/荒子衆/g, '手勢').replace(/前田様/g, '殿').replace(/利家様/g, '殿').replace(/前田の蔵/g, '家の蔵').replace(/荒子/g, '村');
+export function localize(s: GameState, beats: Beat[]): Beat[] {
+  const H = s.hero;
+  if (!H || H.story === 'toshiie') return beats;
+  return beats.map((b) => ({ ...b, who: b.who === 'maeda_toshiie' ? H.id : b.who ? WHO_GEN[b.who] ?? b.who : b.who, bg: b.bg ? BG_GEN[b.bg] ?? b.bg : b.bg, text: genText(b.text) }));
+}
 export function nextAdvice(s: GameState): { beats: Beat[]; head: string } | null {
   const H = s.hero!, ie = H.ie!;
   if (!canAdvice(s)) return null;
@@ -110,20 +121,32 @@ export function nextAdvice(s: GameState): { beats: Beat[]; head: string } | null
   if (!pool.length) { ie.seen = []; pool = ADVICE; }
   const a = pool[s.turn % pool.length];
   ie.seen!.push(a.id); ie.adv = s.turn; H.jun++;
-  return { head: a.head, beats: [{ kind: 'door', head: a.head, text: a.head, sub: '家中の進言' }, ...a.beats] };
+  return { head: a.head, beats: localize(s, [{ kind: 'door', head: a.head, text: a.head, sub: '家中の進言' }, ...a.beats]) };
 }
 
 // ───────── 府中の城主 ─────────
 export const FUCHU_ID = 'ichijodani', FUCHU_NAME = '越前府中城';
 export const fuchuOf = (s: GameState): Castle | null => { const i = s.hero?.fuchu; return i === undefined ? null : s.castles[i]; };
-export type GovAct = 'mimawari' | 'hidane' | 'hodokosu' | 'shimeru' | 'choubo';
+export type GovAct = 'mimawari' | 'hidane' | 'hodokosu' | 'shimeru' | 'choubo' | 'kaikon' | 'fushin' | 'meshi';
 export const GOV_NAME: Record<GovAct, [string, string]> = {
   mimawari: ['村を見回る', '治安+3・残り火−2（1旬）'],
   hidane: ['火元を探る', '知略しだいで残り火を減らす（1旬）'],
   hodokosu: ['村に施す', '前田の蔵60石。残り火−4・治安+1・村の開発を戻す（1旬）'],
   shimeru: ['締め上げる', '治安+8・残り火−5。村の開発が痩せる（成政の道）（1旬）'],
   choubo: ['城兵を集める', '金150貫で城兵+300（1旬）'],
+  kaikon: ['新田を開く', '自分の金で新田開発（12か月で石高+8%。知行も増える）（1旬）'],
+  fushin: ['城を普請する', '自分の金で石垣・櫓・天守を築く（守りと城兵の上限が上がる）（1旬）'],
+  meshi: ['人を召し抱える', '金500貫で手勢+50・家中+1（1旬）'],
 };
+// 治めの投資の額（城の画面と同じ値）。足りなければ理由を返す
+export function govCost(s: GameState, k: GovAct): { cost: number; block: string | null } {
+  const c = govCastle(s), H = s.hero!;
+  if (!c) return { cost: 0, block: '治める城の城下で' };
+  if (k === 'kaikon') { const cost = shindenCost(c); return { cost, block: c.shinden ? '開発中' : shindenDone(c) >= R.SHINDEN_MAX ? 'もう開けない' : H.gold < cost ? `金${cost}貫が要る` : null }; }
+  if (k === 'fushin') { const cost = fortOf(c) >= FORT_NAME.length - 1 ? 0 : fortCost(c); return { cost, block: c.fortBuild ? '普請中' : fortOf(c) >= FORT_NAME.length - 1 ? 'これ以上は築けない' : H.gold < cost ? `金${cost}貫が要る` : null }; }
+  if (k === 'meshi') return { cost: 500, block: !H.ie ? '家を立ててから' : H.gold < 500 ? '金500貫が要る' : null };
+  return { cost: 0, block: null };
+}
 export const govCastle = (s: GameState): Castle | null => { const H = s.hero; if (!H || H.field || H.army) return null; const ok = H.town === H.fuchu || (H.ryo ?? []).includes(H.town); const c = s.castles[H.town]; return ok && c.owner === s.generals[H.id].clan ? c : null; };
 export const canGovern = (s: GameState) => !!govCastle(s);
 export function govern(s: GameState, k: GovAct): Act {
@@ -134,6 +157,14 @@ export function govern(s: GameState, k: GovAct): Act {
   else if (k === 'hidane') { const d = Math.round(3 + me.int / 15 + rand(s) * 3); c.ember = clamp((c.ember ?? 0) - d); }
   else if (k === 'hodokosu') { if (!H.ie || H.ie.kura < 60) return { ok: false, text: '前田の蔵が足りない（60石）' }; H.ie.kura -= 60; c.ember = clamp((c.ember ?? 0) - 4); c.chian = clamp(c.chian + 1); c.dev = Math.min(1, c.dev * 1.03); sv.road_son = (sv.road_son ?? 0) + 0.25; }
   else if (k === 'shimeru') { c.chian = clamp(c.chian + 8); c.ember = clamp((c.ember ?? 0) - 5); c.dev = Math.max(0.2, c.dev * 0.96); sv.road_hard = (sv.road_hard ?? 0) + 0.25; }
+  else if (k === 'kaikon' || k === 'fushin' || k === 'meshi') {
+    const { cost, block } = govCost(s, k);
+    if (block) return { ok: false, text: block };
+    H.gold -= cost;
+    if (k === 'kaikon') c.shinden = { clan: me.clan!, until: s.turn + R.SHINDEN_MONTHS };
+    else if (k === 'fushin') c.fortBuild = { clan: me.clan!, until: s.turn + R.FORT_MONTHS[fortOf(c) + 1] };
+    else { H.ie!.shu += 50; H.ie!.kachu = clamp(H.ie!.kachu + 1); }
+  }
   else if (k === 'choubo') { if (H.gold < 150) return { ok: false, text: '金が足りない（150貫）' }; H.gold -= 150; c.garrison = Math.min(garrisonMax(c), c.garrison + 300); }
   H.jun++;
   const t = `${GOV_NAME[k][0]}。${c.name}: 治安${Math.round(c.chian)}・残り火${Math.round(c.ember ?? 0)}・城兵${c.garrison}。`;
@@ -142,4 +173,4 @@ export function govern(s: GameState, k: GovAct): Act {
 // 府中を持たせたか（第二部の締め）
 export const FUCHU_OK = { CHIAN: 50, EMBER: 30 };
 export const fuchuHeld = (s: GameState) => { const c = fuchuOf(s); return !!c && c.owner === s.generals[s.hero!.id].clan && c.chian >= FUCHU_OK.CHIAN && (c.ember ?? 0) <= FUCHU_OK.EMBER; };
-export const fuchuText = (s: GameState) => { const c = govCastle(s) ?? fuchuOf(s); if (!c) return ''; const goal = !(s.hero!.storyDone ?? []).includes('ryo'); return `${c.name}: 治安${Math.round(c.chian)}${goal ? `／${FUCHU_OK.CHIAN}以上` : ''}・残り火${Math.round(c.ember ?? 0)}${goal ? `／${FUCHU_OK.EMBER}以下` : ''}・城兵${c.garrison}・${Math.round(castleKoku(c))}万石`; };
+export const fuchuText = (s: GameState) => { const c = govCastle(s) ?? fuchuOf(s); if (!c) return ''; const goal = s.hero!.story === 'toshiie' && !(s.hero!.storyDone ?? []).includes('ryo'); return `${c.name}: 治安${Math.round(c.chian)}${goal ? `／${FUCHU_OK.CHIAN}以上` : ''}・残り火${Math.round(c.ember ?? 0)}${goal ? `／${FUCHU_OK.EMBER}以下` : ''}・城兵${c.garrison}・${Math.round(castleKoku(c))}万石`; };

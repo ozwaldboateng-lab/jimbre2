@@ -8,6 +8,7 @@ import { storyGuard } from './story2';
 import { ieMonth } from './maeda';
 import { bandits, tradeMonth } from './trade';
 import { frozen } from './story5';
+import { becomeRonin, chigyo, followClan, freeHero, lifeSummary } from './career';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
 import * as R from './rules';
@@ -27,7 +28,8 @@ export interface Hero {
   over?: string; // 終わった（主人公の死・主家の滅亡など）。終わりの言葉
   story?: string; storyDone?: string[]; storyStart?: number; title?: string; // 物語（前田利家 ― 残り火）の第二幕: 起きた出来事・始まりの年月・肩書き
   cargo?: Record<string, import('./trade').Cargo>; glut?: Record<string, number>; // 商い: 持っている荷（産地の城の id → 数と仕入れ値）と、町ごとの値崩れ
-  ie?: import('./maeda').Ie; sv?: Record<string, number>; fuchu?: number; ryo?: number[]; until?: number; // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
+  ie?: import('./maeda').Ie; sv?: Record<string, number>; fuchu?: number; ryo?: number[]; until?: number;
+  career?: { steps: import('./career').Step[]; since?: number; kuniAt?: number; ronin?: number; best?: import('./career').Step[]; served?: string[]; tried?: Record<string, number> }; // 出世の階段（物語の外）: 越えた節目と、城を預かった月 // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
 }
 export const HERO = {
   JUN: 3, PAY: [400, 200, 100, 50], // 身分ごとの月の俸禄（宿老・侍大将・足軽大将・足軽組頭）
@@ -402,8 +404,9 @@ export function heroMonth(s: GameState): string[] {
   const out: string[] = [...storyGuard(s)];
   const H = s.hero!, me = heroOf(s)!;
   if (!me || me.status === 'dead') return out;
-  const pay = HERO.PAY[me.rank] ?? 50;
-  H.gold += pay; out.push(`俸禄 ${pay}貫を受け取った（手元 ${H.gold}貫）。`);
+  const pay = me.clan ? HERO.PAY[me.rank] ?? 50 : 0; // 浪人に俸禄はない
+  const chi = chigyo(s);
+  H.gold += pay + chi; out.push(`俸禄 ${pay}貫${chi ? `と知行 ${chi}貫` : ''}を受け取った（手元 ${H.gold}貫）。`);
   out.push(...ieMonth(s));
   tradeMonth(s);
   checkShutsujin(s);
@@ -421,7 +424,8 @@ export function heroMonth(s: GameState): string[] {
 }
 // 武将が生きて家にいるか（いなければ試作はそこで終わり）
 export function heroEnd(s: GameState): string | null {
-  const e = heroEnd0(s);
+  let e = heroEnd0(s);
+  if (e && s.hero && !s.hero.over && freeHero(s)) { const me = heroOf(s); e = lifeSummary(s, !me || me.status === 'dead' ? 'death' : 'fall').join('　'); } // 物語の外: 一生の締め
   if (e && s.hero) s.hero.over = e;
   return e;
 }
@@ -430,6 +434,9 @@ function heroEnd0(s: GameState): string | null {
   if (s.hero?.over) return s.hero.over;
   if (s.hero?.story === 'toshiie' && me && me.status !== 'dead' && !['oda', 'shibata', 'hashiba'].includes(me.clan ?? '')) return '主家を失い、利家の物語はここで途切れた。';
   if (!me || me.status === 'dead') return `${me?.name ?? '主人公'}は世を去った。`;
+  if (freeHero(s) && me.status !== 'captive' && (me.status === 'ronin' || (me.clan && !s.clans[me.clan]?.alive) || (!me.clan && s.hero!.career?.ronin === undefined))) { note(s, becomeRonin(s)); return null; } // 物語の外: 主家が滅べば浪人に（本体の処理で浪人にされたときも）
+  if (freeHero(s) && !me.clan) return null; // 浪人の身
+  if (freeHero(s)) { const f = followClan(s); if (f) note(s, f); } // 本体の処理で家が替わった（降伏など）
   if (!me.clan || !s.clans[me.clan]?.alive) return `${clanName(s, s.player)}家は滅んだ。`;
   if (me.status === 'captive') return `${me.name}は敵に捕らえられた。`;
   const H = s.hero!;

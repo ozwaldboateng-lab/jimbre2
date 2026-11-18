@@ -10,6 +10,7 @@ import { carryHero, nextStory, storyDue, storyJump } from '../engine/story2';
 import { calendarStep, frozen } from '../engine/story5';
 import * as M from '../engine/maeda';
 import * as T from '../engine/trade';
+import * as CR from '../engine/career';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
 import { STORY_PORTRAITS } from '../data/portraits_story';
@@ -104,13 +105,14 @@ function render() {
   const art = townArt && (Hh.fuchu === Hh.town || (Hh.ryo ?? []).includes(Hh.town)) ? townArt : ART(H.inArmy(st) ? 'jinmaku' : BG[bg] ?? 'ichi');
   root.innerHTML = `<div class="hr-main">
     <header class="hr-head">
-      <div class="hr-id">${myFace(st, 56)}<div><b>${esc(me.name)}</b><span>${clanName(st, me.clan!)}家・${R.RANK_NAME[me.rank]}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
+      <div class="hr-id">${myFace(st, 56)}<div><b>${esc(me.name)}</b><span>${me.clan ? `${clanName(st, me.clan)}家・${R.RANK_NAME[me.rank]}` : '浪人'}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
       <div class="hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div>
       <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd><dt>進物</dt><dd>${Hh.goods}</dd><dt>主君の覚え</dt><dd>${Hh.favor}</dd><dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
-      <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>前田家</dt><dd title="荒子衆・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}</dd>` : ''}</dl>
+      <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>${Hh.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}</dt><dd title="荒子衆・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}</dd>` : ''}</dl>
       <button class="hr-btn ghost" data-h="quit" title="保存してタイトルへ">中断</button>
     </header>
-    ${Hh.fuchu !== undefined ? `<div class="hr-quest"><b>${(Hh.storyDone ?? []).includes('ryo') ? '領国' : '府中'}</b> ${esc(M.fuchuText(st))}</div>` : ''}
+    ${Hh.fuchu !== undefined ? `<div class="hr-quest"><b>${Hh.story !== 'toshiie' ? '領地' : (Hh.storyDone ?? []).includes('ryo') ? '領国' : '府中'}</b> ${esc(M.fuchuText(st))}</div>` : ''}
+    ${CR.freeHero(st) && !Hh.over ? `<div class="hr-quest"><b>目標</b> ${esc(CR.goalText(st))}</div>` : ''}
     <div class="hr-quest">${q ? `<b>主命</b> ${esc(H.QUEST_NAME[q.kind])}：${esc(H.questText(st, q))} <span>${q.done >= q.need ? '<em>果たした。登城して報告せよ</em>' : `期日まで${Math.max(0, q.until - st.turn)}か月`}</span>` : `<b>主命</b> なし。${L ? `主君${esc(L.name)}は${esc(st.castles[L.loc].name)}にいる。登城すれば主命を受けられる。` : ''}`}</div>
     <div class="hr-body">
       <section class="hr-scene${mapMode(st) ? ' map' : ''}" style="${art && !mapMode(st) ? `background-image:url(${art})` : ''}">
@@ -167,11 +169,14 @@ function spotsHtml(st: GameState) {
   const spots = H.spotsOf(st, c);
   const work = H.canWork(st) ? `<button class="hr-spot main" data-h="work"><b>主命を果たす</b><span>${esc(H.QUEST_NAME[st.hero!.quest!.kind])}（1旬）</span></button>` : '';
   const desc: Record<H.Spot, string> = { tojo: '主命を受ける・報告する', yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
-  const gov = M.canGovern(st) ? `<p class="hr-note">${esc(M.fuchuText(st))}</p>${(Object.keys(M.GOV_NAME) as M.GovAct[]).map((k) => `<button class="hr-spot${k === 'mimawari' ? ' main' : ''}" data-h="gov" data-id="${k}"><b>${M.GOV_NAME[k][0]}</b><span>${M.GOV_NAME[k][1]}</span></button>`).join('')}` : '';
-  const adv = M.canAdvice(st) ? `<button class="hr-spot" data-h="advice"><b>家中の進言</b><span>奥村・村井の話を聞いて、前田家のことを決める（月に一度・1旬）</span></button>` : '';
+  const gov = M.canGovern(st) ? `<p class="hr-note">${esc(M.fuchuText(st))}</p>${(Object.keys(M.GOV_NAME) as M.GovAct[]).filter((k) => k !== 'meshi' || st.hero!.ie).map((k) => { const g = M.govCost(st, k); return `<button class="hr-spot${k === 'mimawari' ? ' main' : ''}" data-h="gov" data-id="${k}" ${g.block ? 'disabled' : ''}><b>${M.GOV_NAME[k][0]}${g.cost ? `（${g.cost.toLocaleString('ja-JP')}貫）` : ''}</b><span>${g.block ? esc(g.block) : esc(st.hero!.story === 'toshiie' ? M.GOV_NAME[k][1] : M.genText(M.GOV_NAME[k][1]))}</span></button>`; }).join('')}` : '';
+  const adv = M.canAdvice(st) ? `<button class="hr-spot" data-h="advice"><b>家中の進言</b><span>${st.hero!.story === 'toshiie' ? '奥村・村井' : '家老・家臣'}の話を聞いて、${st.hero!.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}のことを決める（月に一度・1旬）</span></button>` : '';
   const trade = T.canTrade(st, c) ? `<button class="hr-spot" data-h="pane" data-id="akinai"><b>商い</b><span>${T.buyOffer(st, c) ? `特産「${esc(T.buyOffer(st, c)!.name)}」を仕入れる。` : ''}荷を売る（荷駄 ${T.loadOf(st)}/${T.capOf(st)}）</span></button>` : '';
-  return `${work}${gov}${join}${adv}${trade}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
-    <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
+  const shikan = CR.lordHere(st) ? `<button class="hr-spot main" data-h="shikan"><b>仕官を願う</b><span>${esc(clanName(st, CR.lordHere(st)!))}家の当主に目通りを願う（1旬）</span></button>` : '';
+  const ask = CR.canAskCastle(st) && !H.questBlock(st) ? `<button class="hr-spot main" data-h="askshiro"><b>城を願い出る</b><span>主君に城を預けてほしいと願い出る（1旬）</span></button>` : '';
+  const ret = CR.canRetire(st) ? `<button class="hr-spot dim" data-h="retire"><b>${retireArm ? 'まことに隠居する' : '隠居する'}</b><span>${retireArm ? 'もう一度押すと家督を譲り、一生を締める' : '家督を譲って一生を締める（評価が出る）'}</span></button>` : '';
+  return `${shikan}${work}${gov}${ask}${join}${adv}${trade}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
+    <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${ret}${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
 function peopleHtml(st: GameState) {
   const me = H.heroOf(st)!;
@@ -250,24 +255,29 @@ async function monthStep(st: GameState, lines: string[]): Promise<string | null>
 async function advance() {
   const st = s!;
   const lines: string[] = [];
+  const monthPassed = st.hero!.jun >= H.HERO.JUN;
   if (st.hero!.jun >= H.HERO.JUN) {
     busy = true; render();
     const end = await monthStep(st, lines);
     busy = false;
-    if (end) { report = [...lines, end, '試作はここまで。']; render(); try { localStorage.removeItem(KEY); } catch { /* 続ける */ } return; }
+    if (end) { report = [...lines, end, CR.freeHero(st) ? '一生を終えた。' : '試作はここまで。']; render(); try { localStorage.removeItem(KEY); } catch { /* 続ける */ } return; }
   }
+  const cev = monthPassed && CR.careerMonth(st);
+  if (cev) { lines.push(...cev.lines); for (const x of cev.lines) H.note(st, x); }
   if (lines.length) report = [...new Set(lines)];
   // 城下に着いたら、城下の画面へ戻る
   if (bg === 'tabi' && !st.hero!.field && (st.hero!.dest === null || st.hero!.dest === undefined)) { bg = 'town'; pane = 'spots'; }
   save(); render();
+  if (cev && cev.beats.length && theater) { theater(cev.beats, () => { save(); render(); }, undefined, opt(st)); return; } // 出世の節目の場面
   runStory();
 }
 // 物語（前田利家 ― 残り火）: 時期の来た場面を、物語の画面で見せる
-type Theater = (beats: Beat[], done: () => void, choose?: (key: string, id: string) => Beat[], opt?: { part2?: boolean; label?: string }) => void;
+type Theater = (beats: Beat[], done: () => void, choose?: (key: string, id: string) => Beat[], opt?: { part2?: boolean; label?: string; cast?: Record<string, string>; tx?: (x: string) => string }) => void;
 let theater: Theater | null = null;
 export function setTheater(f: Theater) { theater = f; }
 const chooser = (st: GameState) => (key: string, id: string) => M.storyChoose(st, key, id).beats; // 結果の数値は物語の画面に出さず、場面のあとで城下に
-const opt = (st: GameState) => { const d = st.hero!.storyDone ?? []; return { part2: d.includes('katoku'), label: d.includes('ryo4') ? '残り火　第五部' : d.includes('ryo3') ? '残り火　第四部' : d.includes('ryo') ? '残り火　第三部' : d.includes('katoku') ? '残り火　第二部' : '残り火　第二幕' }; };
+const opt0 = (st: GameState) => { const d = st.hero!.storyDone ?? []; return { part2: d.includes('katoku'), label: d.includes('ryo4') ? '残り火　第五部' : d.includes('ryo3') ? '残り火　第四部' : d.includes('ryo') ? '残り火　第三部' : d.includes('katoku') ? '残り火　第二部' : '残り火　第二幕' }; };
+const opt = (st: GameState) => CR.freeHero(st) ? { part2: false, label: CR.houseName(st), cast: Object.fromEntries(Object.values(st.generals).map((g) => [g.id, g.name])), tx: M.genText } : opt0(st);
 function runStory() {
   if (!s || !theater || busy) return;
   const ev = storyDue(s);
@@ -294,13 +304,26 @@ function resetWorld(sc: string, pre: string[] = []) {
   save(); render();
   runStory();
 }
+// 城を願い出る: 足りていれば城を預かり、足りなければ主君にたしなめられる（1旬）
+let retireArm = false;
+function askShiro() {
+  const st = s!, Hh = st.hero!, me = H.heroOf(st)!, L = H.lordOf(st);
+  Hh.jun++;
+  if (me.merit >= CR.CAREER.SHIRO_MERIT && Hh.favor >= CR.CAREER.SHIRO_FAVOR) {
+    const c = st.castles.filter((x) => x.owner === me.clan && x.i !== L?.loc).sort((a, b) => a.chian - b.chian)[0];
+    if (c) { const ev = CR.grantShiro(st, c); for (const x of ev.lines) H.note(st, x); say = { text: ev.lines.join('') }; save(); render(); if (theater) theater(ev.beats, () => { void advance(); }, undefined, opt(st)); else void advance(); return; }
+  }
+  Hh.favor = Math.max(0, Hh.favor - 2);
+  say = { who: L?.id, line: '城を持つには、まだ早い。手柄を立て、わしの目にかなうてからにせよ。', text: `城はまだ預けられなかった（功績${Math.round(me.merit)}／${CR.CAREER.SHIRO_MERIT}・覚え${Hh.favor}／${CR.CAREER.SHIRO_FAVOR}）。主君の覚え−2。` };
+  void advance();
+}
 // 家中の進言: 奥村・村井の話（物語の画面で）
 function advice() {
   const st = s!;
   const a = M.nextAdvice(st);
   if (!a || !theater) return;
   save();
-  theater(a.beats, () => { const n = M.takeNotes(); for (const x of n) H.note(st, x); say = { text: `家中の進言（${a.head}）を聞いた。${n.length ? n.join('。') + '。' : ''}` }; void advance(); }, chooser(st), { part2: true, label: '前田家　家中の進言' });
+  theater(a.beats, () => { const n = M.takeNotes(); for (const x of n) H.note(st, x); say = { text: `家中の進言（${a.head}）を聞いた。${n.length ? n.join('。') + '。' : ''}` }; void advance(); }, chooser(st), { ...opt(st), part2: st.hero!.story === 'toshiie', label: `${st.hero!.story === 'toshiie' ? '前田家' : CR.houseName(st)}　家中の進言` });
 }
 // 月日を送る（物語）: 次の場面の年月まで暦だけを跳ぶ（世の中はそのまま）
 function skipTime() {
@@ -325,6 +348,9 @@ function onClick(e: Event) {
   if (h === 'rest') { void act(() => H.rest(s!), 'town'); return; }
   if (h === 'skip') { skipTime(); return; }
   if (h === 'advice') { advice(); return; }
+  if (h === 'askshiro') { askShiro(); return; }
+  if (h === 'shikan') { void act(() => CR.askService(s!), 'tojo'); return; }
+  if (h === 'retire') { if (!retireArm) { retireArm = true; say = { text: '家督を譲れば、一生はそこで締めになる。もう一度押すと隠居する。' }; render(); return; } retireArm = false; const ls = CR.retire(s); for (const x of ls) H.note(s, x); report = [...ls, '一生を終えた。']; save(); render(); return; }
   if (h === 'buy') { pane = 'akinai'; void act(() => T.buy(s!, +id), 'ichi'); return; }
   if (h === 'sell') { pane = 'akinai'; void act(() => T.sell(s!, id), 'ichi'); return; }
   if (h === 'gov') { void act(() => M.govern(s!, id as M.GovAct), 'town'); return; }
