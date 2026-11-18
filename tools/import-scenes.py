@@ -6,7 +6,8 @@ KEYS = {1: 'fire_castle', 2: 'night_fire', 3: 'zashiki_day', 4: 'zashiki_night',
         9: 'minato', 10: 'ichi', 11: 'ishigaki', 12: 'tsukiyo', 13: 'gosho', 14: 'mura', 15: 'jinmaku', 16: 'amemichi',
         101: 'kaijo', 102: 'tenshu_dawn', 103: 'utage', 104: 'kuyo',  # 101〜: エンディングの場面（tools/import-ending.py が置く）
         201: 'story_arako', 202: 'story_ta_yoru', 203: 'story_sakaya', 204: 'story_kiyosu_tsuji', 205: 'story_kiyosu_niwa', 206: 'story_denchu', 207: 'story_moribe', 208: 'story_okehazama', 209: 'story_kayazu', 210: 'story_ino', 211: 'story_okehazama_sen', 212: 'story_moribe_sen',
-        213: 'story_zashiki_arako', 214: 'story_kanegasaki', 215: 'story_anegawa', 216: 'story_kita_michi', 217: 'story_fuchu', 218: 'story_kieta_mura', 219: 'story_hyojo', 220: 'story_fuyu_echizen'}  # 201〜: 前田利家 ― 残り火（ART_ORDER_TOSHIIE.txt の S1〜S12、ART_ORDER_TOSHIIE_PART2.txt の S13〜S20。ファイル名の先頭「S1_」も読む）
+        213: 'story_zashiki_arako', 214: 'story_kanegasaki', 215: 'story_anegawa', 216: 'story_kita_michi', 217: 'story_fuchu', 218: 'story_kieta_mura', 219: 'story_hyojo', 220: 'story_fuyu_echizen',
+        221: 'story_kitanosho', 222: 'story_tedorigawa', 223: 'story_hokuriku_jin', 224: 'story_nanao', 225: 'story_nanao_minato', 226: 'story_uozu', 227: 'story_honnoji_ho', 228: 'story_shizugatake'}  # 201〜: 前田利家 ― 残り火（ART_ORDER_TOSHIIE.txt の S1〜S12、ART_ORDER_TOSHIIE_PART2.txt の S13〜S20、ART_ORDER_TOSHIIE_PART3.txt の S21〜S28。ファイル名の先頭「S1_」も読む）
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out = os.path.join(root, 'assets', 'scenes')
 os.makedirs(out, exist_ok=True)
