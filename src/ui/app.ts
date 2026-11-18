@@ -1,5 +1,5 @@
 // 画面の組み立てと操作
-import { openHero } from './hero';
+import { openHero, setDaimyo } from './hero';
 import { openStory } from './story';
 import { coalitionAgainst, GEKI, gekiBlock, gekiCandidates, gekiChance, issueGeki, leaveCoalition, sameCoalition, setGekiHook } from '../engine/coalition';
 import { defenderSupports, estimate, supportArmies } from '../engine/combat';
@@ -273,6 +273,8 @@ function mapMood(st: GameState) {
   const fighting = (C.foughtTurn ?? -9) >= st.turn - 2 || Object.values(st.armies).some((a) => a.clan !== st.player && hostile(st, a.clan, st.player) && clanCastles(st, st.player).some((c) => hexDist(a.hex, c.hex) <= 1));
   mood(fighting ? 'war' : 'peace');
 }
+// 武将で遊ぶで旗揚げしたら、その家の当主として大名プレイへ
+setDaimyo((st) => { startWith(st); store(AUTO_KEY, JSON.stringify(st)); toast(`${st.clans[st.player].name}家の当主として、大名プレイを始める`); });
 function startWith(state: GameState) {
   // 旧版のセーブにも外交の欄を足す
   state.treaties ??= []; state.dipTried ??= {}; state.lastClash ??= {}; state.orders ??= []; state.revealed = (state.revealed ?? []).filter((id) => state.generals[id]);

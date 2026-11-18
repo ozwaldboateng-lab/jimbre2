@@ -55,7 +55,7 @@ function organize(s: GameState, clan: string) {
   aiNinja(s, clan);
   // 在野武将の登用
   for (const g of Object.values(s.generals)) {
-    if (g.status === 'ronin' && s.castles[g.loc].owner === clan && g.triedTurn !== s.turn && rand(s) < 0.3) recruitRonin(s, g, clan);
+    if (g.status === 'ronin' && !s.hero?.followers?.includes(g.id) && s.castles[g.loc].owner === clan && g.triedTurn !== s.turn && rand(s) < 0.3) recruitRonin(s, g, clan); // 主人公の配下の浪人は登用しない
   }
   // 動員余力が大きければ城主を野戦軍の大将に回す
   for (;;) {

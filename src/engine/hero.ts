@@ -8,6 +8,7 @@ import { storyGuard } from './story2';
 import { ieMonth } from './maeda';
 import { bandits, tradeMonth } from './trade';
 import { frozen } from './story5';
+import { addFame, roninMonth } from './roninplay';
 import { becomeRonin, chigyo, followClan, freeHero, lifeSummary } from './career';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
@@ -29,6 +30,7 @@ export interface Hero {
   story?: string; storyDone?: string[]; storyStart?: number; title?: string; // 物語（前田利家 ― 残り火）の第二幕: 起きた出来事・始まりの年月・肩書き
   cargo?: Record<string, import('./trade').Cargo>; glut?: Record<string, number>; // 商い: 持っている荷（産地の城の id → 数と仕入れ値）と、町ごとの値崩れ
   ie?: import('./maeda').Ie; sv?: Record<string, number>; fuchu?: number; ryo?: number[]; until?: number;
+  fame?: number; kubi?: number; followers?: string[]; scouted?: Record<number, number>; merc?: { army: number; clan: string; since: number; fought: number }; // 名声（世に聞こえた名 0〜100）・首級・配下の浪人・探った国衆の城・陣借り
   career?: { steps: import('./career').Step[]; since?: number; kuniAt?: number; ronin?: number; lostAt?: number; best?: import('./career').Step[]; served?: string[]; tried?: Record<string, number> }; // 出世の階段（物語の外）: 越えた節目と、城を預かった月 // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
 }
 export const HERO = {
@@ -280,7 +282,7 @@ export function tojo(s: GameState): Act {
       // 献金・献上は納めた額に応じて功績と覚えを足す（額の平方根で緩やかに。金で出世を買えないように）
       const extra = q.kind === 'kenkin' ? Math.floor(Math.sqrt(q.need / 100)) : q.kind === 'kenjo' ? Math.floor(Math.sqrt(q.need)) : 0;
       const merit = HERO.MERIT[q.kind] + extra * 4, favor = HERO.FAVOR_OK[q.kind] + extra * 2;
-      addMerit(s, me.id, merit); H.favor = clamp(H.favor + favor); H.gold += HERO.PAYOUT[q.kind]; H.done++;
+      addMerit(s, me.id, merit); H.favor = clamp(H.favor + favor); H.gold += HERO.PAYOUT[q.kind]; H.done++; addFame(s, q.kind === 'choryaku' || q.kind === 'shutsujin' ? 2 : 1);
       note(s, `主命（${QUEST_NAME[q.kind]}・${s.castles[q.castle].name}）を果たし、${L.name}に報告した。${HERO.PAYOUT[q.kind] ? `褒美に金${HERO.PAYOUT[q.kind]}貫。` : ''}`);
       H.quest = null;
       return { ok: true, who: L.id, line: pickLine(s, PRAISE[q.kind]), text: `主命の首尾を申し上げた。功績+${merit}、主君の覚え+${favor}${HERO.PAYOUT[q.kind] ? `、金+${HERO.PAYOUT[q.kind]}貫` : ''}。${q.note ?? ''}` };
@@ -408,6 +410,7 @@ export function heroMonth(s: GameState): string[] {
   const chi = chigyo(s);
   H.gold += pay + chi; out.push(`俸禄 ${pay}貫${chi ? `と知行 ${chi}貫` : ''}を受け取った（手元 ${H.gold}貫）。`);
   out.push(...ieMonth(s));
+  out.push(...roninMonth(s));
   tradeMonth(s);
   checkShutsujin(s);
   const q = H.quest;

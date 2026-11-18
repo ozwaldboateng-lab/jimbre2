@@ -8,6 +8,7 @@ import { addMerit } from './ranks';
 import * as R from './rules';
 import { addLog, castleKoku, clanCastles, clanName, garrisonMax, rand } from './state';
 import { delegateOf } from './delegate';
+import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
 import type { Castle, GameState } from './types';
 
 export type Step = 'ie' | 'shiro' | 'kuni' | 'hitto';
@@ -31,7 +32,7 @@ const domain = (s: GameState) => { const H = s.hero!; return [...(H.fuchu !== un
 export function goalText(s: GameState): string {
   const H = s.hero!, me = s.generals[H.id];
   if (!freeHero(s)) return '';
-  if (!me.clan) return `浪人の身。旅をして、大名のいる城下で仕官を願い出る（これまでの到達: ${topOf(s)}）`;
+  if (!me.clan) return `浪人の身。名を上げ、大名の城下で仕官を願うか、配下と手勢を集めて国衆の城で旗揚げする（名声${fameOf(s)}・配下${followersOf(s).length}・手勢${H.ie?.shu ?? 0}。これまでの到達: ${topOf(s)}）`;
   if (!hasStep(s, 'ie')) return `侍大将に取り立てられ、自分の家を立てる（いま${R.RANK_NAME[me.rank]}・功績${Math.round(me.merit)}／${R.MERIT_AT[1]}）`;
   if (!hasStep(s, 'shiro')) return `城を預かる（功績${Math.round(me.merit)}／${CAREER.SHIRO_MERIT}・主君の覚え${H.favor}／${CAREER.SHIRO_FAVOR}。登城して願い出るか、主君から声がかかる）`;
   if (!hasStep(s, 'kuni')) { const c = domain(s)[0], held = H.career!.since !== undefined ? s.turn - H.career!.since : 0; return `国持ちになる（宿老に上がり${me.rank === 0 ? '済み' : 'まだ'}・${c ? `${c.name}を${Math.min(held, CAREER.KUNI_MONTHS)}／${CAREER.KUNI_MONTHS}か月持ち、治安${Math.round(c.chian)}／${CAREER.KUNI_CHIAN}` : '城を取り戻す'}・覚え${H.favor}／${CAREER.KUNI_FAVOR}）`; }
@@ -67,7 +68,7 @@ export function careerMonth(s: GameState): CareerEvent | null {
   }
   const L = lordId(s), lord = L ? s.generals[L] : null, fam = houseName(s);
   if (!hasStep(s, 'ie') && me.rank <= 1) {
-    car.steps.push('ie'); H.ie ??= newIe();
+    car.steps.push('ie'); H.ie ??= newIe(); addFame(s, 5);
     return { beats: [
       { kind: 'door', head: '家を立てる', text: '家を立てる', sub: `${s.year}年` },
       { head: '屋敷', bg: 'zashiki_day', text: `侍大将に取り立てられた。もう一人の槍ではない。手勢を抱え、蔵を持ち、家中を養う。${fam}は、ここから家になる。` },
@@ -84,7 +85,7 @@ export function careerMonth(s: GameState): CareerEvent | null {
   if (hasStep(s, 'shiro') && !hasStep(s, 'kuni') && me.rank === 0 && H.fuchu !== undefined && car.since !== undefined && s.turn - car.since >= CAREER.KUNI_MONTHS && s.castles[H.fuchu].chian >= CAREER.KUNI_CHIAN && H.favor >= CAREER.KUNI_FAVOR) {
     const c = pickCastle(s, s.castles[H.fuchu]);
     if (!c) return null;
-    car.steps.push('kuni'); car.kuniAt = s.turn; (H.ryo ??= []).push(c.i); addMerit(s, me.id, 40); H.gold += 1000;
+    car.steps.push('kuni'); car.kuniAt = s.turn; addFame(s, 12); (H.ryo ??= []).push(c.i); addMerit(s, me.id, 40); H.gold += 1000;
     if (H.ie) H.ie.kachu = Math.min(100, H.ie.kachu + 5);
     H.title = `国持ち（${s.castles[H.fuchu].name}・${c.name}）`;
     addLog(s, `${me.name}が${c.name}も預かり、国持ちとなった。`, 'info', true);
@@ -96,7 +97,7 @@ export function careerMonth(s: GameState): CareerEvent | null {
     ], lines: [`${c.name}も治める城に加わった（国持ち。功績+40・金1000貫）`] };
   }
   if (hasStep(s, 'kuni') && !hasStep(s, 'hitto') && s.turn - (car.kuniAt ?? s.turn) >= CAREER.HITTO_MONTHS && H.favor >= CAREER.HITTO_FAVOR && me.merit >= CAREER.HITTO_MERIT) {
-    car.steps.push('hitto'); H.title = `家中第一の臣（${H.title ?? ''}）`;
+    car.steps.push('hitto'); addFame(s, 15); H.title = `家中第一の臣（${H.title ?? ''}）`;
     addLog(s, `${me.name}は${clanName(s, me.clan)}家の家中第一の臣と目されるようになった。`, 'info', true);
     return { beats: [
       { kind: 'door', head: '家中第一の臣', text: '家中第一の臣', sub: `${s.year}年` },
@@ -110,7 +111,7 @@ export function careerMonth(s: GameState): CareerEvent | null {
 export function grantShiro(s: GameState, c: Castle): CareerEvent {
   const H = s.hero!, me = s.generals[H.id], car = (H.career ??= { steps: [] }), L = lordId(s), lord = L ? s.generals[L] : null;
   const first = !(car.best ?? []).includes('shiro'); // 褒美は初めて城を預かった時だけ
-  car.steps.push('shiro'); H.fuchu = c.i; car.since = s.turn;
+  car.steps.push('shiro'); H.fuchu = c.i; car.since = s.turn; if (first) addFame(s, 8);
   const sv = (H.sv ??= {}); sv.fchian = c.chian; sv.fember = c.ember ?? 0; sv.fturn = s.turn;
   H.title = `${c.name}城主`; if (first) { addMerit(s, me.id, 20); H.gold += 500; }
   c.garrison = Math.max(c.garrison, Math.round(garrisonMax(c) * 0.5));
@@ -185,16 +186,20 @@ export function askService(s: GameState): { ok: boolean; text: string; who?: str
   const tried = (H.career ??= { steps: [] }).tried ??= {};
   if (tried[clan] === s.turn) return { ok: true, who: L.id, line: '今日は会わぬ。', text: '門前で待たされたまま、日が暮れた。' };
   tried[clan] = s.turn;
-  const p = 0.35 + me.merit / 1500 + me.cha / 300 + (H.rel[L.id] ?? 0) / 200;
-  if (rand(s) < Math.min(0.9, p)) {
+  const p = serviceChance(s, clan);
+  if (rand(s) < p) {
+    const fol = followersOf(s);
     me.clan = clan; s.player = clan; me.status = 'hero'; H.career!.ronin = undefined;
-    if (me.rank < 1) me.rank = 1; // 新参は侍大将まで
-    H.favor = 40; H.title = undefined;
+    me.rank = Math.min(me.rank, serviceRank(s)); if (me.rank < 1) me.rank = 1; // 新参は侍大将まで
+    me.merit = Math.max(me.merit, R.MERIT_AT[me.rank]);
+    H.favor = 35 + Math.round(fameOf(s) / 4) + Math.min(3, H.kubi ?? 0) * 3; H.title = undefined; H.kubi = 0;
+    for (const g of fol) { g.clan = clan; g.status = 'free'; g.loc = L.loc; g.rank = Math.max(2, g.rank); }
+    H.followers = [];
     const d = delegateOf(s); for (const k of Object.keys(d) as (keyof typeof d)[]) d[k] = true; // 家の政は大名（AI）が行う
     addLog(s, `${me.name}が${C.name}家に仕官した。`, 'info', true);
-    return { ok: true, who: L.id, line: `${me.name}か。名は聞いておる。……わが家で働け。`, text: `${C.name}家に仕官した（${R.RANK_NAME[me.rank]}）。主君は${L.name}。` };
+    return { ok: true, who: L.id, line: fameOf(s) >= 40 ? `${me.name}か。名は聞いておる。……わが家で働け。` : `よかろう。働きしだいで取り立ててやる。`, text: `${C.name}家に仕官した（${R.RANK_NAME[me.rank]}）。主君は${L.name}。${fol.length ? `配下の${fol.map((g) => g.name).join('・')}も召し抱えられた。` : ''}` };
   }
-  return { ok: true, who: L.id, line: '浪人を抱える余裕はない。……また参れ。', text: `${C.name}家への仕官はかなわなかった。月を改めて、また願い出ることができる。` };
+  return { ok: true, who: L.id, line: fameOf(s) < 20 ? '聞かぬ名だな。……名を上げてから参れ。' : '今は浪人を抱える余裕はない。……また参れ。', text: `${C.name}家への仕官はかなわなかった（見込み${Math.round(p * 100)}%）。月を改めて、また願い出ることができる。` };
 }
 
 // 本体の処理（降伏・寝返りなど）で主人公の家が替わったとき: 遊び手の家をそちらへ移し、軍勢から外して主人公に戻す
