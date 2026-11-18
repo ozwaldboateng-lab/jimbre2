@@ -15,11 +15,12 @@ import { addMerit } from './ranks';
 import * as R from './rules';
 import { attach, attachAuto, leaveArmy, membersOf } from './corps';
 import { removeArmy } from './ops';
+import { captureCastle } from './ops';
 import { addLog, castleAt, castleKoku, clanCastles, clanName, garrisonMax, hostile, learnCastle, rand } from './state';
 import type { Army, Castle, GameState, General } from './types';
 
-export type QuestKind = 'fushin' | 'teisatsu' | 'choryaku' | 'shutsujin' | 'kenkin' | 'kenjo'; // kenkin 献金（金を納める）・kenjo 献上（進物を納める）
-export interface Quest { kind: QuestKind; castle: number; need: number; done: number; until: number; ok?: boolean; note?: string; army?: number }
+export type QuestKind = 'fushin' | 'teisatsu' | 'choryaku' | 'shutsujin' | 'kenkin' | 'kenjo' | 'tsukaiban' | 'monomi' | 'toyo' | 'kouryaku' | 'joban' | 'negaeri'; // kenkin 献金（金を納める）・kenjo 献上（進物を納める）
+export interface Quest { kind: QuestKind; castle: number; need: number; done: number; until: number; ok?: boolean; note?: string; army?: number; target?: string; joined?: boolean } // target: 登用する浪人。joined: 攻略の軍勢に加わったか
 export interface Hero {
   id: string; town: number; jun: number; gold: number; favor: number; goods: number;
   rel: Record<string, number>; met: Record<string, number>; // 親しさ（0〜100）と、最後に会った旬（turn*3+jun）
@@ -35,15 +36,18 @@ export interface Hero {
 }
 export const HERO = {
   JUN: 3, PAY: [400, 200, 100, 50], // 身分ごとの月の俸禄（宿老・侍大将・足軽大将・足軽組頭）
-  QUEST_MONTHS: 3, FAVOR_OK: { fushin: 6, teisatsu: 5, choryaku: 10, shutsujin: 8, kenkin: 4, kenjo: 4 }, FAVOR_NG: 8,
-  MERIT: { fushin: 15, teisatsu: 12, choryaku: 25, shutsujin: 10, kenkin: 8, kenjo: 8 }, PAYOUT: { fushin: 100, teisatsu: 80, choryaku: 200, shutsujin: 150, kenkin: 0, kenjo: 0 },
+  QUEST_MONTHS: 3, FAVOR_OK: { fushin: 6, teisatsu: 5, choryaku: 10, shutsujin: 8, kenkin: 4, kenjo: 4, tsukaiban: 3, monomi: 4, toyo: 8, kouryaku: 12, joban: 6, negaeri: 14 }, FAVOR_NG: 8,
+  MERIT: { fushin: 15, teisatsu: 12, choryaku: 25, shutsujin: 10, kenkin: 8, kenjo: 8, tsukaiban: 6, monomi: 8, toyo: 18, kouryaku: 40, joban: 15, negaeri: 45 }, PAYOUT: { fushin: 100, teisatsu: 80, choryaku: 200, shutsujin: 150, kenkin: 0, kenjo: 0, tsukaiban: 30, monomi: 50, toyo: 100, kouryaku: 300, joban: 100, negaeri: 300 },
+  // 身分ごとに出る主命（宿老・侍大将・足軽大将・足軽組頭）。上の身分ほど格の高い主命、下の主命は出なくなる
+  QUESTS: [['fushin', 'choryaku', 'negaeri', 'kouryaku', 'joban', 'shutsujin', 'kenkin', 'kenjo'], ['fushin', 'teisatsu', 'toyo', 'choryaku', 'kouryaku', 'joban', 'shutsujin', 'kenkin', 'kenjo'], ['fushin', 'monomi', 'tsukaiban', 'teisatsu', 'toyo', 'choryaku', 'shutsujin', 'kenkin', 'kenjo'], ['fushin', 'monomi', 'tsukaiban', 'shutsujin', 'kenjo']] as QuestKind[][],
+  KOURYAKU_MONTHS: 6, JOBAN_JUN: 3,
   // 献金・献上: 身分ごとの基の額（宿老〜足軽組頭）。手元の金が多いほど額が上がる（手元の3割まで、基の8倍まで）。功績と覚えは額に応じて足す
   KENKIN: [800, 400, 200, 100], KENKIN_SHARE: 0.3, KENKIN_MAX: 8, KENJO: [6, 4, 3, 2], KENJO_BUY: 2, // 献上の進物が足りなければ、市の2倍の値で調えて納める
   KENKIN_RICH: 1500, // 手元にこれ以上あると、献金の主命が出やすい // 出陣は合戦そのものの功績が別に入る
   VISIT: 8, GIFT_COST: 50, GIFT_REL: 12, GOODS_COST: 50, FRIEND: 70, TRAIN_COST: 30, TRAIN_P: 0.35, STAT_CAP: 95,
   MP: R.hx(6), // 1旬に進める道のり（平地1・森と川2・山3。部隊の一月より少し多い）
 };
-export const QUEST_NAME: Record<QuestKind, string> = { fushin: '普請', teisatsu: '偵察', choryaku: '調略', shutsujin: '出陣', kenkin: '献金', kenjo: '献上' };
+export const QUEST_NAME: Record<QuestKind, string> = { fushin: '普請', teisatsu: '偵察', choryaku: '調略', shutsujin: '出陣', kenkin: '献金', kenjo: '献上', tsukaiban: '使い番', monomi: '物見', toyo: '登用', kouryaku: '攻略', joban: '城番', negaeri: '寝返り' };
 
 export const heroOf = (s: GameState) => (s.hero ? s.generals[s.hero.id] : null);
 export const lordOf = (s: GameState) => { const g = heroOf(s); const l = g?.clan ? s.clans[g.clan].leader : null; return l ? s.generals[l] : null; };
@@ -304,8 +308,14 @@ export function questText(s: GameState, q: Quest) {
   const own = c.owner ? `${clanName(s, c.owner)}家の` : '';
   if (q.kind === 'kenkin') return `${c.name}へ金${q.need}貫を納めよ（${c.name}の城下で、主命を果たす）。`;
   if (q.kind === 'kenjo') return `${c.name}へ進物${q.need}つを献上せよ（足りなければ金で調える。1つ${HERO.GOODS_COST * HERO.KENJO_BUY}貫）。`;
+  if (q.kind === 'tsukaiban') return `${c.name}の城代へ主君の文を届けよ。`;
+  if (q.kind === 'monomi') return `${c.name}へ出向き、近くの敵の様子を見てまいれ。`;
+  if (q.kind === 'toyo') { const g = q.target ? s.generals[q.target] : null; return g ? `${c.name}の城下にいる浪人・${g.name}を口説き、召し抱えよ。` : '口説くはずの浪人は、もういない。'; }
+  if (q.kind === 'kouryaku') return `${own}${c.name}の攻略に加われ。軍勢に加わり、${monthsLeft(s, q)}か月のうちに城を落とせ。`;
+  if (q.kind === 'joban') return `${c.name}の城番を務め、守りを固めよ（${q.need}旬）。`;
+  if (q.kind === 'negaeri') { const g = c.governor ? s.generals[c.governor] : null; return `${own}${c.name}の${g ? `城主・${g.name}` : '城の者'}に内応を持ちかけよ。`; }
   if (q.kind === 'shutsujin') { const a = q.army !== undefined ? s.armies[q.army] : undefined; return a ? `${s.generals[a.main]?.name ?? ''}の軍勢（いま${placeOf(s, a.hex)}）に加わり、戦で手柄を立てよ。` : '加わるはずの軍勢はもう陣を払った。'; }
-  return q.kind === 'fushin' ? `${c.name}へ出向き、普請を差配せよ（${q.need}旬）。` : q.kind === 'teisatsu' ? `${own}${c.name}の城下に入り、城の様子を探れ。` : `${own}${c.name}に入り込み、城兵を切り崩せ。`;
+  return q.kind === 'fushin' ? `${c.name}へ出向き、普請を差配せよ（${q.need}旬）。` : q.kind === 'teisatsu' ? `${own}${c.name}の城下に入り、城の様子を探れ。` : !c.owner ? `国衆の${c.name}に入り込み、こちらへ寝返らせよ。` : `${own}${c.name}に入り込み、城兵を切り崩せ。`;
 }
 function makeQuest(s: GameState): Quest | null {
   const me = heroOf(s)!, clan = me.clan!, C = s.clans[clan];
@@ -328,6 +338,24 @@ function makeQuest(s: GameState): Quest | null {
     const near = mine.sort((x, y) => hexDist(x.hex, a.hex) - hexDist(y.hex, a.hex))[0];
     if (near) { pool.push({ kind: 'shutsujin', castle: near.i, need: 1, done: 0, until, army: a.id }); pool.push(pool[pool.length - 1]); } // 戦のときは出陣の主命が出やすい
   }
+  // 使い番・物見（下の身分）: 自家の城へ文を届ける・境の城から敵を見る
+  const others = mine.filter((c) => c.i !== lordOf(s)?.loc);
+  if (others.length) pool.push({ kind: 'tsukaiban', castle: others[Math.floor(rand(s) * others.length)].i, need: 1, done: 0, until });
+  const border = others.filter((c) => foes.some((f) => hexDist(f.hex, c.hex) <= R.hx(5))).sort((a, b) => Math.min(...foes.map((f) => hexDist(f.hex, a.hex))) - Math.min(...foes.map((f) => hexDist(f.hex, b.hex))));
+  if (border[0]) { pool.push({ kind: 'monomi', castle: border[0].i, need: 1, done: 0, until }); pool.push({ kind: 'joban', castle: border[0].i, need: HERO.JOBAN_JUN, done: 0, until }); }
+  // 登用: 近くの城下の浪人を口説く
+  const here = s.castles[s.hero!.town];
+  const ronins = Object.values(s.generals).filter((g) => g.status === 'ronin' && !s.hero!.followers?.includes(g.id) && hexDist(s.castles[g.loc].hex, here.hex) <= R.hx(10)).sort((a, b) => (b.bra + b.int + b.lea) - (a.bra + a.int + a.lea));
+  if (ronins[0]) pool.push({ kind: 'toyo', castle: ronins[0].loc, need: 1, done: 0, until, target: ronins[0].id });
+  // 国衆の調略（足軽大将から）: 持ち主のない近くの城を寝返らせる
+  const kuni = s.castles.filter((c) => !c.owner && mine.some((m) => hexDist(m.hex, c.hex) <= R.hx(6)));
+  if (kuni[0] && me.rank === 2) pool.push({ kind: 'choryaku', castle: kuni[0].i, need: 1, done: 0, until });
+  // 攻略（侍大将から）: 家の狙う城を落とす軍勢に加わる
+  const kt = (tgt.length ? tgt : near)[0];
+  if (kt) pool.push({ kind: 'kouryaku', castle: kt.i, need: 1, done: 0, until: s.turn + HERO.KOURYAKU_MONTHS });
+  // 寝返り（宿老）: 敵の城主に内応を持ちかける
+  const govd = near.filter((c) => c.governor);
+  if (govd[0]) pool.push({ kind: 'negaeri', castle: govd[0].i, need: 1, done: 0, until });
   // 献金・献上: 主君の城へ納める（手元の金が多いほど出やすく、額も上がる）
   const L = lordOf(s), H0 = s.hero!;
   if (L) {
@@ -337,13 +365,16 @@ function makeQuest(s: GameState): Quest | null {
     if (H0.gold >= amt) { pool.push(kk); if (H0.gold >= HERO.KENKIN_RICH) pool.push(kk); if (H0.gold >= HERO.KENKIN_RICH * 3) pool.push(kk, kk); } // 払える額のときだけ
     pool.push({ kind: 'kenjo', castle: L.loc, need: HERO.KENJO[me.rank] ?? 2, done: 0, until });
   }
-  if (frozen(s)) { const keep = pool.filter((q) => q.kind === 'fushin' || q.kind === 'kenkin' || q.kind === 'kenjo'); pool.length = 0; pool.push(...keep); } // 天下の静けさ（物語の第五部）: 戦の主命は出ない
+  // 身分で出る主命を絞る（国衆の調略は足軽大将、大名の城の調略は侍大将から）
+  const allow = HERO.QUESTS[me.rank] ?? HERO.QUESTS[3];
+  { const keep = pool.filter((q) => allow.includes(q.kind) && !(q.kind === 'choryaku' && me.rank === 2 && s.castles[q.castle].owner) && !(q.kind === 'choryaku' && me.rank <= 1 && !s.castles[q.castle].owner)); pool.length = 0; pool.push(...keep); }
+  if (frozen(s)) { const keep = pool.filter((q) => q.kind === 'fushin' || q.kind === 'kenkin' || q.kind === 'kenjo' || q.kind === 'tsukaiban'); pool.length = 0; pool.push(...keep); } // 天下の静けさ（物語の第五部）: 戦の主命は出ない
   if (!pool.length) return null;
   const pick = pool[Math.floor(rand(s) * pool.length)];
   s.hero!.lastQuest = pick.castle;
   return pick;
 }
-export const canWork = (s: GameState) => { const H = s.hero!; return !H.field && !H.army && !!H.quest && H.quest.kind !== 'shutsujin' && H.quest.done < H.quest.need && H.quest.castle === H.town; };
+export const canWork = (s: GameState) => { const H = s.hero!; return !H.field && !H.army && !!H.quest && H.quest.kind !== 'shutsujin' && H.quest.kind !== 'kouryaku' && H.quest.done < H.quest.need && H.quest.castle === H.town; };
 // 主命を果たす（その町で1旬）
 export function work(s: GameState): Act {
   const H = s.hero!, me = heroOf(s)!, q = H.quest!;
@@ -361,6 +392,44 @@ export function work(s: GameState): Act {
     return { ok: true, text: `進物${q.need}つを献上した${lack ? `（足りない${lack}つは金${cost}貫で調えた）` : ''}。登城して報告せよ。` };
   }
   used(s);
+  if (q.kind === 'tsukaiban') { q.done = q.need; q.ok = true; q.note = `${c.name}へ文を届けた。`; return { ok: true, text: `${c.name}の城代に主君の文を届けた。登城して報告せよ。` }; }
+  if (q.kind === 'monomi') {
+    const seen = s.castles.filter((f) => f.owner && f.owner !== me.clan && hexDist(f.hex, c.hex) <= R.hx(5));
+    for (const f of seen) learnCastle(s, f.i, me.clan!);
+    q.done = q.need; q.ok = true; q.note = seen.length ? `${seen.map((f) => `${f.name}（兵${Math.round(f.garrison / 100) * 100}）`).join('・')}を見た。` : '近くに敵の動きはなかった。';
+    return { ok: true, text: `${c.name}の櫓から物見をした。${q.note}登城して報告せよ。` };
+  }
+  if (q.kind === 'joban') {
+    if (c.owner !== me.clan) { q.done = q.need; q.ok = false; q.note = '城が人手に渡った。'; return { ok: true, text: q.note }; }
+    q.done++; c.garrison = Math.min(garrisonMax(c), c.garrison + Math.round(garrisonMax(c) * 0.04)); c.gMorale = Math.min(1.2, c.gMorale + 0.05); c.chian = clamp(c.chian + 1);
+    if (q.done >= q.need) { q.ok = true; q.note = `${c.name}の城番を務め上げた。`; return { ok: true, text: `城番を務め上げ、${c.name}の守りを固めた。登城して報告せよ。` }; }
+    return { ok: true, text: `${c.name}の城番を務めた（${q.done}/${q.need}旬）。` };
+  }
+  if (q.kind === 'toyo') {
+    const g = q.target ? s.generals[q.target] : null;
+    if (!g || g.status !== 'ronin' || g.loc !== c.i) { q.done = q.need; q.ok = false; q.note = '口説くはずの浪人は、もうここにいなかった。'; return { ok: true, text: q.note }; }
+    const p = 0.3 + me.cha / 250 + (s.hero!.fame ?? 0) / 150 + relOf(s, g.id) / 200;
+    if (rand(s) < Math.min(0.9, p)) {
+      const L = lordOf(s); g.clan = me.clan; g.status = 'free'; g.loc = L?.loc ?? g.loc; g.rank = Math.max(2, g.rank);
+      q.done = q.need; q.ok = true; q.note = `浪人の${g.name}を口説き落とし、召し抱えた。`;
+      addLog(s, `${me.name}の口利きで、${g.name}が${clanName(s, me.clan!)}家に仕官した。`, 'info', true);
+      return { ok: true, who: g.id, line: 'おぬしがそこまで言うなら、もう一度仕えてみるか。', text: `${q.note}登城して報告せよ。` };
+    }
+    return { ok: true, who: g.id, line: '……宮仕えは、もう懲りた。', text: '浪人は首を縦に振らなかった。日を改めて、また口説くこともできる。' };
+  }
+  if (q.kind === 'negaeri') {
+    const gov = c.governor ? s.generals[c.governor] : null;
+    const p = 0.08 + (me.int + me.cha) / 600 + (s.hero!.fame ?? 0) / 250 + (gov ? relOf(s, gov.id) / 200 : 0.05);
+    if (rand(s) < Math.min(0.75, p)) {
+      learnCastle(s, c.i, me.clan!); q.done = q.need; q.ok = true;
+      if (gov && rand(s) < 0.3 + relOf(s, gov.id) / 200) {
+        captureCastle(s, c, me.clan!); gov.clan = me.clan; gov.status = 'governor'; gov.loc = c.i; c.governor = gov.id; s.shioki = (s.shioki ?? []).filter((x) => x.castle !== c.i);
+        q.note = `${gov.name}が城ごと寝返り、${c.name}は戦わずにわが家のものとなった。`; addLog(s, `${c.name}の${gov.name}が${clanName(s, me.clan!)}家に寝返った。`, 'castle', true);
+      } else { c.naio = s.turn + 1; c.naioBy = me.clan!; q.note = `${c.name}の中に内応の約束を取り付けた（次の月まで、攻めれば門が開く）。`; }
+      return { ok: true, text: `${q.note}登城して報告せよ。` };
+    }
+    return chased(s, '内応を持ちかけたが、相手は乗ってこなかった。');
+  }
   if (q.kind === 'fushin') {
     if (c.owner !== me.clan) { q.done = q.need; q.ok = false; q.note = '城が人手に渡り、普請はかなわなかった。'; return { ok: true, text: q.note }; }
     q.done++;
@@ -378,6 +447,12 @@ export function work(s: GameState): Act {
     }
     return chased(s, '城下を探ったが、怪しまれて引き上げた。');
   }
+  // 国衆の調略: 持ち主のない城を寝返らせる
+  if (!c.owner) {
+    const p = 0.3 + (me.int + me.cha) / 400 + (s.hero!.fame ?? 0) / 200;
+    if (rand(s) < Math.min(0.85, p)) { const gar = c.garrison; captureCastle(s, c, me.clan!); c.garrison = gar; s.shioki = (s.shioki ?? []).filter((x) => x.castle !== c.i); q.done = q.need; q.ok = true; q.note = `国衆の${c.name}がわが家に従った。`; addLog(s, `${me.name}の調略で、${c.name}の国人衆が${clanName(s, me.clan!)}家に寝返った。`, 'castle', true); return { ok: true, text: `${q.note}登城して報告せよ。` }; }
+    return chased(s, '国衆に話を持ちかけたが、まだ様子を見ると言われた。');
+  }
   // 調略
   const gov = c.governor ? s.generals[c.governor] : null;
   const p = 0.25 + (me.int + me.cha) / 400 - (gov ? gov.int / 400 : 0) + (gov ? relOf(s, gov.id) / 300 : 0);
@@ -389,6 +464,17 @@ export function work(s: GameState): Act {
     return { ok: true, text: `${q.note}登城して報告せよ。` };
   }
   return chased(s, '調略の手を伸ばしたが、相手は乗ってこなかった。');
+}
+// 毎月: 世の中の動きで主命の首尾が決まるもの（攻略・登用の浪人の居場所）
+function checkQuestWorld(s: GameState) {
+  const H = s.hero!, q = H.quest, me = heroOf(s)!;
+  if (!q || q.done >= q.need) return;
+  if (q.kind === 'kouryaku') {
+    if (H.army !== null && H.army !== undefined) q.joined = true;
+    const c = s.castles[q.castle];
+    if (c.owner === me.clan) { q.done = q.need; q.ok = !!q.joined; q.note = q.joined ? `${c.name}は落ちた。攻略の軍勢の一手として働いた。` : `${c.name}は落ちたが、攻略の軍勢には加わらなかった。`; note(s, q.note + '登城して報告せよ。'); }
+  }
+  if (q.kind === 'toyo' && q.target) { const g = s.generals[q.target]; if (g?.status === 'ronin') q.castle = g.loc; }
 }
 // 不首尾: 3割で追われて一つ前の町へ（期日に余裕があれば、また試せる）
 function chased(s: GameState, text: string): Act {
@@ -413,6 +499,7 @@ export function heroMonth(s: GameState): string[] {
   out.push(...roninMonth(s));
   tradeMonth(s);
   checkShutsujin(s);
+  checkQuestWorld(s);
   const q = H.quest;
   if (q && q.kind === 'shutsujin' && q.done < q.need && H.army !== q.army && q.army !== undefined && !s.armies[q.army]) { H.quest = null; out.push('加わるはずの軍勢が陣を払い、出陣の主命は取りやめになった。'); }
   else if (q && q.done < q.need && s.turn >= q.until) { H.favor = clamp(H.favor - HERO.FAVOR_NG); H.failed++; H.quest = null; out.push(`主命（${QUEST_NAME[q.kind]}）の期日が過ぎた。主君の覚え−${HERO.FAVOR_NG}。`); note(s, `主命（${QUEST_NAME[q.kind]}）の期日を過ぎてしまった。`); }
@@ -501,6 +588,12 @@ const PRAISE: Record<QuestKind, string[]> = {
   choryaku: ['でかした！ 城を落とす前に、城の心を落としたな。', '舌先三寸で城兵を崩すとは。そなた、なかなかの曲者よ。'],
   kenkin: ['うむ、確かに受け取った。戦は銭でするものでもあるからな。', '殊勝である。この銭、無駄にはせぬ。'],
   kenjo: ['ほう、よい品じゃ。目が利くな。', '気の利いた献上よ。覚えておくぞ。'],
+  tsukaiban: ['うむ、確かに届いたか。足が速いのはよいことだ。'],
+  monomi: ['よう見た。境の目は、そなたのような者に限る。'],
+  toyo: ['よい者を連れてきたな。人こそ城よ。', 'そなたの口利きなら、間違いはあるまい。'],
+  kouryaku: ['城を落としたか！ よう働いた。', 'あの城が落ちたのは、そなたらの働きよ。'],
+  joban: ['境の城を守り通したか。頼もしい。'],
+  negaeri: ['でかした！ 血を流さずに城を取るのが上の上よ。', '城主の心を取ったか。そなたの舌は槍より鋭い。'],
 };
 const SCOLD = ['……そうか。次はしくじるなよ。', '不首尾か。言い訳は聞かぬ。次で取り返せ。'];
 const ORDER_LINE: Record<QuestKind, string> = {
@@ -510,4 +603,10 @@ const ORDER_LINE: Record<QuestKind, string> = {
   choryaku: '{castle}の侍どもに手を回し、城の守りを内から崩してまいれ。',
   kenkin: '近頃は何かと物入りでな。{castle}の蔵へ、そなたからも銭を納めてもらいたい。',
   kenjo: '近く客人を迎える。{castle}へ、引き出物になる品を調えて献上せよ。',
+  tsukaiban: 'この文を{castle}へ届けよ。急ぎじゃ。',
+  monomi: '{castle}の櫓から、近くの敵の様子を見てまいれ。',
+  toyo: '{castle}の城下に、腕の立つ浪人がおるそうな。口説いて連れて参れ。',
+  kouryaku: '{castle}を落とす。攻めの軍勢に加わり、手柄を立ててまいれ。',
+  joban: '{castle}は境の城じゃ。しばらく城番を務め、守りを固めよ。',
+  negaeri: '{castle}の城主に手を回せ。こちらへ寝返らせれば、大手柄ぞ。',
 };
