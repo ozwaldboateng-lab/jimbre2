@@ -54,6 +54,7 @@ export function applyEff(s: GameState, e: Eff | undefined, tag?: string): string
   const sv = (H.sv ??= {});
   if (e.pt && tag) sv[tag] = (sv[tag] ?? 0) + e.pt;
   if (e.road) sv['road_' + e.road] = (sv['road_' + e.road] ?? 0) + 1;
+  if (e.kaze) sv.kaze = (sv.kaze ?? 0) + e.kaze;
   const parts: string[] = [];
   if (e.kura) parts.push(`蔵${e.kura > 0 ? '+' : ''}${e.kura}`);
   if (e.shu) parts.push(`荒子衆${e.shu > 0 ? '+' : ''}${e.shu}`);

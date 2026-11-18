@@ -8,7 +8,7 @@ export interface Eff {
   shu?: number; kura?: number; kachu?: number; mura?: number;
   chian?: number; ember?: number; dev?: number;
   favor?: number; merit?: number; gold?: number; rel?: Record<string, number>;
-  pt?: number; road?: 'hard' | 'son' | 'mochi';
+  pt?: number; road?: 'hard' | 'son' | 'mochi'; kaze?: number; // kaze: 家に残した「風」（利益・若い頃の火）
 }
 export interface NChoice extends Choice { res: Beat[]; eff?: Eff; next?: string }
 export interface Node { text: string; choices: NChoice[]; tag?: string } // tag: 戦の点を貯める名（金ヶ崎・姉川・手取川）

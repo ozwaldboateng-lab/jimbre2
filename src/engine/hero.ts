@@ -7,6 +7,7 @@ import { storeOf } from './supply';
 import { storyGuard } from './story2';
 import { ieMonth } from './maeda';
 import { bandits, tradeMonth } from './trade';
+import { frozen } from './story5';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
 import * as R from './rules';
@@ -332,6 +333,7 @@ function makeQuest(s: GameState): Quest | null {
     if (H0.gold >= amt) { pool.push(kk); if (H0.gold >= HERO.KENKIN_RICH) pool.push(kk); if (H0.gold >= HERO.KENKIN_RICH * 3) pool.push(kk, kk); } // 払える額のときだけ
     pool.push({ kind: 'kenjo', castle: L.loc, need: HERO.KENJO[me.rank] ?? 2, done: 0, until });
   }
+  if (frozen(s)) { const keep = pool.filter((q) => q.kind === 'fushin' || q.kind === 'kenkin' || q.kind === 'kenjo'); pool.length = 0; pool.push(...keep); } // 天下の静けさ（物語の第五部）: 戦の主命は出ない
   if (!pool.length) return null;
   const pick = pool[Math.floor(rand(s) * pool.length)];
   s.hero!.lastQuest = pick.castle;

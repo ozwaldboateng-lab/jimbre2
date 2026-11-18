@@ -14,6 +14,8 @@ export const STORY_CAST: Record<string, string> = {
   cho_tsuratatsu: '長連龍', go: '豪', toshihisa_old: '前田利久', noto_kokujin: '能登の国人',
   // 第四部
   okumura_yasu: '奥村安', hideyoshi_tenka: '羽柴秀吉', narimasa_yuki: '佐々成政', kaga_dogo: '加賀の土豪',
+  // 第五部
+  toshiie_old: '前田利家', matsu_old: 'まつ', hideyoshi_old: '豊臣秀吉', toshimasu_kabuki: '前田利益',
 };
 // 場面の絵（注文の絵が届くまでは今ある絵で代わりに）
 export const STORY_BG: Record<string, string> = {
@@ -25,6 +27,8 @@ export const STORY_BG: Record<string, string> = {
   kitanosho: 'zashiki_day', tedorigawa: 'amemichi', hokuriku_jin: 'jinmaku', nanao: 'ishigaki', nanao_minato: 'minato', uozu: 'jinmaku', honnoji_ho: 'night_fire', shizugatake: 'senjo',
   // 第四部（ART_ORDER_TOSHIIE_PART4.txt の S29〜S36 が届くまで）
   kanazawa: 'ishigaki', kaga_ta: 'mura', suemori: 'night_fire', gouu: 'amemichi', suemori_asa: 'senjo', tateyama: 'yukimichi', toyama_jin: 'jinmaku', moriyama: 'ishigaki',
+  // 第五部（ART_ORDER_TOSHIIE_PART5.txt の S37〜S44 が届くまで）
+  kanazawa_asa: 'ichi', kanazawa_niwa: 'ishigaki', kyushu: 'jinmaku', osaka_hiroma: 'gosho', nagoya: 'minato', fushimi: 'zashiki_night', byosho: 'zashiki_day', yukiakari: 'yukimichi',
 };
 
 // ───────── 序幕（第一章「火の庭」。見せるだけ） ─────────

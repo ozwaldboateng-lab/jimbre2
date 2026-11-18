@@ -6,6 +6,7 @@ import { leaveArmy } from './corps';
 import { FUCHU_ID, FUCHU_NAME, fuchuHeld, newIe } from './maeda';
 import { ACT3 } from './story3';
 import { ACT4, domainOf } from './story4';
+import { ACT5 } from './story5';
 import { captureCastle, removeArmy } from './ops';
 import { addMerit } from './ranks';
 import * as R from './rules';
@@ -48,7 +49,7 @@ export const ACT2: Ev[] = [
   { id: 'saimotase', beats: (s) => fuchuHeld(s) ? D2.P2_RYO : D2.P2_SAI_NG, when: '府中を持たせるか、天正四年十月', at: (s) => s.hero!.until ?? at(1576, 10), due: (s) => (s.hero!.storyDone ?? []).includes('ryo') || fuchuHeld(s) || ym(s) >= (s.hero!.until ?? 0),
     apply: (s) => (s.hero!.storyDone ?? []).includes('ryo') ? [] : endPart2(s, fuchuHeld(s)) },
 ];
-ACT2.push(...ACT3, ...ACT4); // 第三部（第七・八章）・第四部（第九章）が続く
+ACT2.push(...ACT3, ...ACT4, ...ACT5); // 第三部（第七・八章）・第四部（第九章）が続く
 // 府中三人衆: 一乗谷を「越前府中城」として織田のものにし、利家をその城主にする（世の中がどう動いていても、物語の形に合わせる）
 function setupFuchu(s: GameState): string[] {
   const H = s.hero!, me = s.generals[H.id];

@@ -7,6 +7,7 @@ import * as H from '../engine/hero';
 import { HEXES, PROVINCES } from '../engine/map';
 import { MapView } from './render';
 import { carryHero, nextStory, storyDue, storyJump } from '../engine/story2';
+import { calendarStep, frozen } from '../engine/story5';
 import * as M from '../engine/maeda';
 import * as T from '../engine/trade';
 import type { Beat } from '../data/story_toshiie';
@@ -39,7 +40,8 @@ let heroImg: HTMLImageElement | null = null;
 let recenter = true; // 地図を主人公のマスへ寄せ直すか（旅を始めたとき・進んだとき）
 // 物語の利家は、家督のあと壮年の顔に
 const midAge = (st: GameState) => st.hero?.story === 'toshiie' && (st.hero.storyDone ?? []).includes('katoku') && !!STORY_PORTRAITS.toshiie_mid;
-const myFace = (st: GameState, w: number) => midAge(st) ? `<img class="face" src="${STORY_PORTRAITS.toshiie_mid}" width="${w}" height="${Math.round(w * 1.25)}" alt="">` : face(st.hero!.id, w);
+const oldAge = (st: GameState) => midAge(st) && (st.hero!.storyDone ?? []).includes('ryo4') && !!STORY_PORTRAITS.toshiie_old;
+const myFace = (st: GameState, w: number) => oldAge(st) ? `<img class="face" src="${STORY_PORTRAITS.toshiie_old}" width="${w}" height="${Math.round(w * 1.25)}" alt="">` : midAge(st) ? `<img class="face" src="${STORY_PORTRAITS.toshiie_mid}" width="${w}" height="${Math.round(w * 1.25)}" alt="">` : face(st.hero!.id, w);
 const mapMode = (st: GameState) => pane === 'tabi' || (!!st.hero!.field && !H.inArmy(st));
 
 export function heroSaved(): boolean { try { return !!localStorage.getItem(KEY); } catch { return false; } }
@@ -139,7 +141,7 @@ function attachMap(st: GameState) {
   view.sel = { army: null, hex: null, reach: busy ? null : H.heroReach(st), targets: [] };
   const dest = Hh.dest !== null && Hh.dest !== undefined ? Hh.dest : null;
   view.marks = dest !== null ? { hexes: [dest], arrows: [[Hh.hex, dest]] } : null; // 点滅する輪は行き先に
-  const src = midAge(st) ? STORY_PORTRAITS.toshiie_mid : PORTRAITS[Hh.id];
+  const src = oldAge(st) ? STORY_PORTRAITS.toshiie_old : midAge(st) ? STORY_PORTRAITS.toshiie_mid : PORTRAITS[Hh.id];
   if (src) { if (!heroImg || heroImg.dataset.id !== src.slice(-24)) { heroImg = new Image(); heroImg.dataset.id = src.slice(-24); heroImg.src = src; } view.heroMark = { hex: Hh.hex, img: heroImg }; }
   else { view.heroMark = null; view.marks = { hexes: [Hh.hex, ...(dest !== null ? [dest] : [])], arrows: view.marks?.arrows ?? [] }; } // 顔がなければ輪で
   if (recenter) { view.centerOn(Hh.hex, Math.min(2.2, Math.max(1.3, view.w / 520))); recenter = false; }
@@ -237,6 +239,7 @@ async function act(fn: () => H.Act, scene?: string) {
 // 1か月を進める（大名たちの月の処理）。主人公が死ぬか家が滅べば終わりの言葉を返す
 async function monthStep(st: GameState, lines: string[]): Promise<string | null> {
   lines.push(...H.heroMonth(st));
+  if (frozen(st)) { calendarStep(st); return H.heroEnd(st); } // 第五部: 天下は定まり、世の中は動かない（暦と家・領国のことだけ）
   const n0 = st.log.length;
   await runClanAI(st, st.player);
   await endTurn(st);
@@ -264,7 +267,7 @@ type Theater = (beats: Beat[], done: () => void, choose?: (key: string, id: stri
 let theater: Theater | null = null;
 export function setTheater(f: Theater) { theater = f; }
 const chooser = (st: GameState) => (key: string, id: string) => { const r = M.storyChoose(st, key, id); for (const x of r.lines) H.note(st, x); return r.lines.length ? [...r.beats, { text: `（${r.lines.join('。')}）`, bg: r.beats[r.beats.length - 1]?.bg }] : r.beats; };
-const opt = (st: GameState) => { const d = st.hero!.storyDone ?? []; return { part2: d.includes('katoku'), label: d.includes('ryo3') ? '残り火　第四部' : d.includes('ryo') ? '残り火　第三部' : d.includes('katoku') ? '残り火　第二部' : '残り火　第二幕' }; };
+const opt = (st: GameState) => { const d = st.hero!.storyDone ?? []; return { part2: d.includes('katoku'), label: d.includes('ryo4') ? '残り火　第五部' : d.includes('ryo3') ? '残り火　第四部' : d.includes('ryo') ? '残り火　第三部' : d.includes('katoku') ? '残り火　第二部' : '残り火　第二幕' }; };
 function runStory() {
   if (!s || !theater || busy) return;
   const ev = storyDue(s);
