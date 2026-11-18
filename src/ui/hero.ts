@@ -14,6 +14,8 @@ import * as CR from '../engine/career';
 import * as RP from '../engine/roninplay';
 import * as KS from '../engine/kashin';
 import * as HC from '../engine/heroCastle';
+import * as HA from '../engine/heroArmy';
+import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
 import { STORY_PORTRAITS } from '../data/portraits_story';
@@ -49,6 +51,8 @@ const myFace = (st: GameState, w: number) => oldAge(st) ? `<img class="face" src
 const mapMode = (st: GameState) => pane === 'tabi' || (!!st.hero!.field && !H.inArmy(st));
 
 export function heroSaved(): boolean { try { return !!localStorage.getItem(KEY); } catch { return false; } }
+// 合戦の采配の既定: 自ら（自動テストの間は任せる）
+function cmdDefault(st: GameState) { if (st.hero && st.hero.selfCommand === undefined) { let ask = true; try { ask = !navigator.webdriver || localStorage.getItem('sengoku-herobattle') === 'ask'; } catch { /* 続ける */ } st.hero.selfCommand = ask; } }
 function save() { try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 保存できなくても続ける */ } }
 
 // 入り口: 主人公を選ぶ画面から
@@ -86,14 +90,14 @@ function renderPick() {
 export function openHeroWith(f: Face, quit: () => void, st: GameState, first: { who?: string; line?: string; text: string }) {
   face = f; onQuit = quit;
   mount();
-  s = st; pane = 'spots'; bg = 'town'; report = null; recenter = true; say = first;
+  s = st; pane = 'spots'; bg = 'town'; report = null; recenter = true; say = first; cmdDefault(st);
   save(); render();
   runStory();
 }
 // ───────── 本体 ─────────
 function begin(id: string) {
   s = pickState ?? newGame('oda', 'normal', undefined, '1560');
-  H.startHero(s, id);
+  H.startHero(s, id); cmdDefault(s);
   bg = 'town'; pane = 'spots';
   const me = H.heroOf(s)!, L = H.lordOf(s);
   say = { who: L?.id, line: `${me.name}か。この清洲の城下で励め。主命は登城して受けよ。`, text: `${me.name}として、${s.castles[s.hero!.town].name}の城下に立った。` };
@@ -143,7 +147,8 @@ function attachMap(st: GameState) {
   view.state = st;
   view.resize();
   const Hh = st.hero!;
-  view.sel = { army: null, hex: null, reach: busy ? null : H.heroReach(st), targets: [] };
+  const ld = HA.leading(st);
+  view.sel = ld ? { army: ld.id, hex: ld.hex, reach: busy ? null : reachable(st, ld), targets: busy ? [] : attackTargets(st, ld) } : { army: null, hex: null, reach: busy ? null : H.heroReach(st), targets: [] };
   const dest = Hh.dest !== null && Hh.dest !== undefined ? Hh.dest : null;
   view.marks = dest !== null ? { hexes: [dest], arrows: [[Hh.hex, dest]] } : null; // 点滅する輪は行き先に
   const src = oldAge(st) ? STORY_PORTRAITS.toshiie_old : midAge(st) ? STORY_PORTRAITS.toshiie_mid : PORTRAITS[Hh.id];
@@ -156,13 +161,21 @@ function onHex(hex: number) {
   if (!s || busy || report) return;
   if (hex === s.hero!.hex) { const c = castleAt(s, hex); say = { text: c ? `ここは${c.name}の城下。` : 'ここで足を止めている。' }; render(); return; }
   recenter = true;
+  if (HA.leading(s)) { void act(() => HA.commandHex(s!, hex), 'tabi'); return; }
   void act(() => H.moveTo(s!, hex), 'tabi').then(() => { if (root && window.innerWidth <= 820) root.scrollTo({ top: 0 }); }); // 狭い画面では地図へ戻す
 }
 function spotsHtml(st: GameState) {
   if (st.hero!.over) return `<p class="hr-note">${esc(st.hero!.over)}</p><button class="hr-spot main" data-h="quit"><b>タイトルへ</b><span>この遊びは終わった</span></button>`;
   const rn = roninSpots(st); if (rn !== null) return rn;
+  const ld = HA.leading(st);
+  const cmdBtn = `<button class="hr-spot" data-h="selfcmd"><b>合戦の采配: ${st.hero!.selfCommand ? '自ら' : '任せる'}</b><span>${st.hero!.selfCommand ? '合戦の画面で自分の隊（総大将なら軍勢の全部隊）を動かす。押すと任せる' : '合戦はAIに任せる。押すと自ら采配する'}</span></button>`;
+  if (ld) return `<p class="hr-note">総大将として軍勢（兵${ld.troops.toLocaleString('ja-JP')}・士気${ld.morale.toFixed(2)}・残りの足${ld.mp}）を率いている。地図で行き先を押せば進み、敵の城か軍勢を押せば出陣を命じる（月の終わりに合戦）。${st.hero!.order !== undefined ? `出陣先: ${esc(castleAt(st, st.hero!.order)?.name ?? '敵の軍勢')}` : ''}</p>
+    ${st.hero!.order !== undefined ? `<p class="hr-note"><b>出陣を命じてある</b>（${esc(castleAt(st, st.hero!.order)?.name ?? '敵の軍勢')}）。陣中で過ごせば、月の終わりに合戦となる。</p>` : st.hero!.quest?.kind === 'kouryaku' ? (() => { const qc = st.castles[st.hero!.quest!.castle], adj = attackTargets(st, ld).some((x) => x.hex === qc.hex); return `<button class="hr-spot main" data-h="advance" data-id="${qc.i}"><b>${adj ? `${esc(qc.name)}を攻める` : `${esc(qc.name)}へ進む`}</b><span>${adj ? '隣まで来た。出陣を命じる（月の終わりに合戦）' : '攻略の城へ、今月の足の分だけ近づく'}</span></button>`; })() : ''}
+    <button class="hr-spot" data-h="pane" data-id="tabi"><b>地図で軍勢を動かす</b><span>行き先・出陣先を選ぶ</span></button>${cmdBtn}
+    <button class="hr-spot" data-h="rest"><b>陣中で過ごす</b><span>1旬。月の終わりに軍勢が動き、合戦が起きる</span></button>
+    <button class="hr-spot dim" data-h="disband"><b>軍勢を解く</b><span>兵は近くの城へ、手勢は家へ戻す</span></button>`;
   const a = H.inArmy(st);
-  if (a) return `<p class="hr-note">${esc(st.generals[a.main]?.name ?? '')}の軍勢にいる。軍勢は大名（AI）の采配で動き、合戦もこの軍勢とともに戦う（勝てば功績が入る）。</p>
+  if (a) return `${cmdBtn}<p class="hr-note">${esc(st.generals[a.main]?.name ?? '')}の軍勢にいる。軍勢は大名（AI）の采配で動き、合戦もこの軍勢とともに戦う（勝てば功績が入る）。</p>
     <button class="hr-spot" data-h="campwait"><b>陣中で過ごす</b><span>1旬。戦を待つ</span></button>
     <button class="hr-spot" data-h="visit" data-id="${a.main}"><b>軍議に出る</b><span>主将${esc(st.generals[a.main]?.name ?? '')}を訪ねる（1旬）</span></button>
     <button class="hr-spot" data-h="pane" data-id="yashiki"><b>陣中の武将を訪ねる</b><span>同じ軍勢の顔ぶれ</span></button>
@@ -180,7 +193,8 @@ function spotsHtml(st: GameState) {
   const shikan = CR.lordHere(st) ? `<button class="hr-spot main" data-h="shikan"><b>仕官を願う</b><span>${esc(clanName(st, CR.lordHere(st)!))}家の当主に目通りを願う（1旬）</span></button>` : '';
   const ask = CR.canAskCastle(st) && !H.questBlock(st) ? `<button class="hr-spot main" data-h="askshiro"><b>城を願い出る</b><span>主君に城を預けてほしいと願い出る（1旬）</span></button>` : '';
   const ret = CR.canRetire(st) ? `<button class="hr-spot dim" data-h="retire"><b>${retireArm ? 'まことに隠居する' : '隠居する'}</b><span>${retireArm ? 'もう一度押すと家督を譲り、一生を締める' : '家督を譲って一生を締める（評価が出る）'}</span></button>` : '';
-  return `${shikan}${work}${prx}${gov}${ask}${join}${adv}${trade}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
+  const ldb = CR.freeHero(st) && st.hero!.quest?.kind === 'kouryaku' && H.heroOf(st)!.rank === 0 ? (() => { const why = HA.canLead(st); return `<button class="hr-spot main" data-h="lead" ${why ? 'disabled' : ''}><b>軍勢を率いて出陣</b><span>${why ? esc(why) : `攻略の総大将として、${esc(st.castles[st.hero!.town].name)}の城兵の6割と手勢で軍勢を立てる（1旬）`}</span></button>`; })() : '';
+  return `${shikan}${work}${prx}${ldb}${gov}${ask}${join}${adv}${trade}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
     <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${ret}${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
 // 浪人の城下: 陣借り・用心棒・指南・牢人衆・国衆の城（探る・旗揚げ）・仕官
@@ -238,6 +252,7 @@ function travelHtml(st: GameState) {
   const key = (c: { i: number }) => Number(c.i === L?.loc || Hh.quest?.castle === c.i); // 主君・主命の城を先に
   const list = [...ids].map((i) => st.castles[i]).sort((a, b) => key(b) - key(a) || (cost.get(a.hex) ?? 999) - (cost.get(b.hex) ?? 999)).slice(0, 12);
   const dest = Hh.dest !== null && Hh.dest !== undefined ? Hh.dest : null;
+  if (HA.leading(st)) return '<p class="hr-note">総大将として軍勢を率いている。地図の明るいマスを押せば進み（残りの足の分だけ）、赤い枠の敵の城・軍勢を押せば出陣を命じる。合戦は月の終わりに起きる。</p>';
   if (H.inArmy(st)) return '<p class="hr-note">陣中では軍勢とともに動く。地図は見るだけ。離れるなら「城下」の「陣を離れる」。</p>';
   return `<p class="hr-note">地図で行き先のマスを押す。明るいマスは1旬で行ける所（平地1・森と川2・山3、1旬に${H.HERO.MP}まで）。遠い所を選べば、その方へ1旬ぶん進む。城のマスに止まればその城下に入る（他国の城下にも入れる）。</p>
     ${dest !== null ? `<button class="hr-spot main" data-h="goon"><b>続けて進む</b><span>${esc(castleAt(st, dest)?.name ?? PROVINCES[HEXES[dest].p].name + 'の野')}へ（あと${jun(dest)}ほど）</span></button>` : ''}
@@ -293,7 +308,9 @@ async function monthStep(st: GameState, lines: string[]): Promise<string | null>
   lines.push(...H.heroMonth(st));
   if (frozen(st)) { calendarStep(st); return H.heroEnd(st); } // 第五部: 天下は定まり、世の中は動かない（暦と家・領国のことだけ）
   const n0 = st.log.length;
+  const snap = HA.snapLead(st); // 主人公の率いる軍勢は、大名のAIに動かさせない
   await runClanAI(st, st.player);
+  HA.restoreLead(st, snap);
   await endTurn(st);
   const won = st.over === 'win'; // 主家が天下を一つにした（本体の勝ち）
   st.over = null; st.scenes = []; st.events = [];
@@ -415,7 +432,7 @@ function onClick(e: Event) {
   const h = b.dataset.h!, id = b.dataset.id ?? '';
   if (h === 'quit') { save(); s = null; close(); return; }
   if (h === 'pick') { begin(id); return; }
-  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; render(); runStory(); } return; }
+  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { cmdDefault(s); s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; render(); runStory(); } return; }
   if (!s) return;
   if (s.hero?.over && !['pane', 'report-ok'].includes(h)) return; // 終わったあとは見るだけ
   if (h === 'pane') { if (id === 'tabi') recenter = true; pane = id as typeof pane; render(); return; }
@@ -424,6 +441,10 @@ function onClick(e: Event) {
   if (h === 'skip') { skipTime(); return; }
   if (h === 'advice') { advice(); return; }
   if (h === 'askshiro') { askShiro(); return; }
+  if (h === 'lead') { recenter = true; void act(() => HA.lead(s!), 'town'); return; }
+  if (h === 'advance') { recenter = true; void act(() => HA.advance(s!, +id), 'town'); return; }
+  if (h === 'disband') { void act(() => HA.disband(s!), 'town'); return; }
+  if (h === 'selfcmd') { s.hero!.selfCommand = !s.hero!.selfCommand; save(); render(); return; }
   if (h === 'cact') { pane = 'shiro'; void act(() => HC.castleAct(s!, id as HC.CastleAct), 'town'); return; }
   if (h === 'kakae') { void act(() => KS.recruit(s!, id), 'yashiki'); return; }
   if (h === 'proxy') { void act(() => KS.proxy(s!), 'town'); return; }

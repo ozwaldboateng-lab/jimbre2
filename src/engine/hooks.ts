@@ -11,5 +11,8 @@ export function setBattleHook(f: Resolver | null) { hook = f; }
 export async function resolveBattle(s: GameState, a: Army, t: Target, charge: boolean, joined: Army[] = [], command = false): Promise<BattleReport> {
   const defClan = t.kind === 'army' ? t.army.clan : s.castles[t.castle].owner;
   if (hook && !s.hero && ((a.clan === s.player && command) || defClan === s.player)) return hook(s, a, t, joined);
+  // 武将で遊ぶ: 主人公が加わっている軍勢の合戦は、合戦の画面で主人公の一隊だけを采配する（ほかの部隊はAI）。「任せる」にしていればAIだけで
+  const H = s.hero;
+  if (hook && H && H.selfCommand && H.army !== null && H.army !== undefined && (a.id === H.army || joined.some((j) => j.id === H.army) || (t.kind === 'army' && t.army.id === H.army))) return hook(s, a, t, joined);
   return battle(s, a, t, charge, joined);
 }

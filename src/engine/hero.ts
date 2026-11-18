@@ -10,6 +10,7 @@ import { bandits, tradeMonth } from './trade';
 import { frozen } from './story5';
 import { addFame, roninMonth } from './roninplay';
 import { battleBoost, kashinMonth } from './kashin';
+import { leadMonth } from './heroArmy';
 import { becomeRonin, chigyo, followClan, freeHero, lifeSummary } from './career';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
@@ -32,6 +33,8 @@ export interface Hero {
   story?: string; storyDone?: string[]; storyStart?: number; title?: string; // 物語（前田利家 ― 残り火）の第二幕: 起きた出来事・始まりの年月・肩書き
   cargo?: Record<string, import('./trade').Cargo>; glut?: Record<string, number>; // 商い: 持っている荷（産地の城の id → 数と仕入れ値）と、町ごとの値崩れ
   ie?: import('./maeda').Ie; sv?: Record<string, number>; fuchu?: number; ryo?: number[]; until?: number;
+  leads?: number; order?: number; leadShu?: number; // 率いている軍勢・命じた出陣先・連れ出した手勢
+  selfCommand?: boolean; // 加わった軍勢の合戦で、自分の一隊を自ら采配する（合戦の画面を開く）
   retainers?: string[]; daikan?: Record<number, string>; lent?: { army: number; shu: number; troops: number }; // 家臣団・城代・陣に連れて行った手勢
   fame?: number; kubi?: number; followers?: string[]; scouted?: Record<number, number>; merc?: { army: number; clan: string; since: number; fought: number }; // 名声（世に聞こえた名 0〜100）・首級・配下の浪人・探った国衆の城・陣借り
   career?: { steps: import('./career').Step[]; since?: number; kuniAt?: number; ronin?: number; lostAt?: number; best?: import('./career').Step[]; served?: string[]; tried?: Record<string, number> }; // 出世の階段（物語の外）: 越えた節目と、城を預かった月 // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
@@ -516,6 +519,7 @@ export function heroMonth(s: GameState): string[] {
   out.push(...ieMonth(s));
   out.push(...roninMonth(s));
   out.push(...kashinMonth(s));
+  out.push(...leadMonth(s));
   out.push(...returnLent(s));
   tradeMonth(s);
   checkShutsujin(s);

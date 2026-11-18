@@ -748,8 +748,8 @@ class BattleView {
     const S = this.size;
     const clan = u.clan;
     const color = clan ? s.clans[clan].color : '#7d735c';
-    const mine = t.playerSide === u.side && clan === s.player;
-    const ally = t.playerSide === u.side && clan !== s.player;
+    const mine = t.playerSide === u.side && (s.hero ? u.general === s.hero.id || (s.hero.leads !== undefined && u.army === s.hero.leads) : clan === s.player); // 武将で遊ぶでは主人公の一隊（総大将なら軍勢）だけが自分の色
+    const ally = t.playerSide === u.side && !mine;
     const edge = mine ? '#d3ae62' : ally ? '#9fd27a' : 'rgba(246,239,224,0.9)';
     const fill = u.routed ? '#6b6158' : color;
     const lum = parseInt(color.slice(1, 3), 16) * 0.299 + parseInt(color.slice(3, 5), 16) * 0.587 + parseInt(color.slice(5, 7), 16) * 0.114;
@@ -898,6 +898,7 @@ export function openBattle(s: GameState, a: Army, target: Target, joined: Army[]
   tac = createTactical(s, a, target, playerSide, joined);
   sel = null; pending = null; delegateQueued = false;
   $('battle').hidden = false;
+  ($('battle') as HTMLElement).style.zIndex = s.hero ? '90' : ''; // 武将で遊ぶの画面より前に
   if (!view) {
     view = new BattleView($('bt-map') as HTMLCanvasElement);
     (window as unknown as { __sengoku_bt: unknown }).__sengoku_bt = view;
@@ -941,7 +942,7 @@ function startPlayerPhase() {
 }
 
 // 操作できるのは自家の部隊だけ（同盟国の援軍はAIが動かす）
-const isMine = (u: TUnit) => !!tac && !!gs && u.side === tac.playerSide && u.clan === gs.player;
+const isMine = (u: TUnit) => !!tac && !!gs && u.side === tac.playerSide && (gs.hero ? u.general === gs.hero.id || (gs.hero.leads !== undefined && u.army === gs.hero.leads) : u.clan === gs.player); // 武将で遊ぶでは主人公の一隊だけ（総大将なら率いる軍勢の全部隊）
 function mineActive(): TUnit[] {
   const t = tac!;
   return t.units.filter((u) => !u.out && isMine(u) && !u.acted && !u.routed && u.confused <= 0 && canOrder(t, u));
@@ -1068,7 +1069,7 @@ async function runAI(alliesOnly = false) {
   if (!alliesOnly) { fleeRouted(t, side); aiScout(t, gs!, side); }
   for (let guard = 0; guard < 40 && !t.over; guard++) {
     if (delegateQueued) break;
-    const u = nextAIUnit(t, side, alliesOnly ? (x) => x.clan !== gs!.player : undefined);
+    const u = nextAIUnit(t, side, alliesOnly ? (x) => !isMine(x) : undefined);
     if (!u) break;
     const before = new Map(t.units.map((x) => [x.id, x.troops]));
     const r = aiUnit(t, gs!, u);

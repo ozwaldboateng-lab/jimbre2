@@ -64,6 +64,7 @@ export interface Army {
   troops: number; morale: number; hex: number;
   mp: number; acted: boolean; departTroops: number; routed: boolean; monto: boolean;
   guns?: number; // 持たせた鉄砲（合戦では鉄砲隊になる）
+  heroLed?: boolean; // 武将で遊ぶの主人公が率いる軍勢（大名のAIは動かさない）
   food?: number; // 小荷駄（携行兵糧、月数）。補給下なら満ち、補給切れで減る
   ikki?: { castle: number; until: number }; // 一向一揆（蜂起した城と、散るターン）
   rojo?: number; // 野戦に敗れて城へ退き、籠城を始めたターン（その月と翌月は籠城のまま）
