@@ -5,7 +5,7 @@ import type { Act } from './hero';
 import { newIe } from './maeda';
 import { hexDist } from './map';
 import * as R from './rules';
-import { addLog, castleKoku, clanCastles, clanName, garrisonMax, learnCastle, rand } from './state';
+import { addLog, castleKoku, clanCastles, clanName, garrisonMax, learnCastle, rand, surnameOf } from './state';
 import type { Clan, GameState, General } from './types';
 
 export const RONIN = {
@@ -152,7 +152,7 @@ export function rise(s: GameState, how: 'youchi' | 'naio'): { ok: boolean; text:
     return { ok: false, text: how === 'youchi' ? `夜討ちは破れた。手勢${lost}人を失い、名声−3。` : `内応は露見した。名声−3。${lost ? `手勢${lost}人が散った。` : ''}` };
   }
   // 旗揚げ: 主人公を当主とする新しい家を立て、城を取る
-  const fam = me.name.slice(0, 2);
+  const fam = surnameOf(me.name);
   const id = `hata_${me.id}`;
   const C: Clan = { id, name: Object.values(s.clans).some((x) => x.name === fam && x.alive) ? me.name : fam, color: '#b5442e', leader: me.id, prestige: 20 + Math.round(fameOf(s) / 4), food: Math.round(H.gold * 10), alive: true, stance: '均衡', target: null, gold: H.gold, guns: 0, budget: { chisui: 10, hodo: 10 }, focus: null, mobilize: R.MOBILIZE_DEFAULT, court: 0 };
   s.clans[id] = C;

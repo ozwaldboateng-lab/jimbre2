@@ -163,3 +163,10 @@ export function dateLabel(s: GameState) {
   const mm = s.month <= 10 ? (s.month === 1 ? '正' : KANJI[s.month]) : s.month === 11 ? '十一' : '十二';
   return `${eraYear(s.year)}${mm}月`;
 }
+
+// 名字（家の名）: 名は多く二字。五字以上で「〜郎・〜衛門」などは三字の名（木下藤吉郎）。名が一字の三字の名は名字一字（島清興）
+export function surnameOf(name: string): string {
+  if (name.length >= 6 && /(.衛門|之.郎)$/.test(name)) return name.slice(0, -4); // 城戸弥左衛門・鉢屋弥之三郎
+  if (name.length >= 5 && /(郎|衛|門|助|介|丸|蔵|夫|守|斎|坊)$/.test(name)) return name.slice(0, -3); // 越前守・一刀斎・伝鬼坊も三字
+  return name.length <= 2 ? name : name.slice(0, Math.max(1, name.length - 2));
+}

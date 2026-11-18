@@ -6,7 +6,7 @@ import { hexDist } from './map';
 import { newIe } from './maeda';
 import { addMerit } from './ranks';
 import * as R from './rules';
-import { addLog, castleKoku, clanCastles, clanName, garrisonMax, hostile, rand } from './state';
+import { addLog, castleKoku, clanCastles, clanName, garrisonMax, hostile, rand, surnameOf } from './state';
 import { splitClan } from './on';
 import { delegateOf } from './delegate';
 import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
@@ -27,7 +27,7 @@ export const freeHero = (s: GameState) => !!s.hero && s.hero.story !== 'toshiie'
 const stepsOf = (s: GameState) => (s.hero!.career ??= { steps: [] }).steps;
 export const hasStep = (s: GameState, k: Step) => stepsOf(s).includes(k);
 const ageOf = (s: GameState) => { const g = s.generals[s.hero!.id]; return s.year - (g.born ?? s.year - 30); };
-const famOf = (s: GameState) => s.generals[s.hero!.id].name.slice(0, 2);
+const famOf = (s: GameState) => surnameOf(s.generals[s.hero!.id].name);
 export const houseName = (s: GameState) => `${famOf(s)}家`;
 const domain = (s: GameState) => { const H = s.hero!; return [...(H.fuchu !== undefined ? [H.fuchu] : []), ...(H.ryo ?? [])].map((i) => s.castles[i]); };
 
@@ -142,6 +142,31 @@ export function grantShiro(s: GameState, c: Castle): CareerEvent {
     { head: c.name, bg: 'ishigaki', text: `${c.name}。石垣も、櫓も、門も、昨日までは主君の城だった。今日からは、${me.name}が持たせる城だ。城の後ろには村があり、道があり、人がいる。` },
     { who: me.id, bg: 'ishigaki', text: '……広いな' },
   ], lines: [`${c.name}を預かった（城持ち${first ? '。功績+20・金500貫' : ''}）。${yo ? `与力として${yo.name}を預けられ、家臣に加わった。` : ''}城下で「国を治める」ができる。治めた城の石高に応じて知行が入る`] };
+}
+// 始めの身分を出世に映す（物語の外）: 侍大将以上は家を構えた所から、宿老と城主だった者は城持ちから始める。
+// gov: 始める前にその武将が城主だった城（startHero で城主から外す前に拾っておく）
+export const START = { FAVOR: [60, 45, 35, 30], GOLD: [1500, 600, 200, 200], FAME: [15, 8, 0, 0], SHU: [600, 300] };
+export function startCareer(s: GameState, gov: number | null): string[] {
+  if (!freeHero(s)) return [];
+  const H = s.hero!, me = s.generals[H.id], out: string[] = [];
+  if (!me.clan) return out;
+  const car = (H.career ??= { steps: [] }), rk = Math.max(0, Math.min(3, me.rank));
+  H.favor = START.FAVOR[rk]; H.gold = START.GOLD[rk]; if (START.FAME[rk]) addFame(s, START.FAME[rk]);
+  if (rk <= 1) {
+    car.steps.push('ie'); H.ie = { ...newIe(), shu: START.SHU[rk], kura: START.SHU[rk] * 2 };
+    out.push(`${R.RANK_NAME[rk]}として${houseName(s)}を構えている（手勢${H.ie.shu}・蔵${H.ie.kura}石）`);
+  }
+  const L = s.clans[me.clan].leader, seat = L ? s.generals[L].loc : -1;
+  const own = (i: number | null | undefined) => (i !== null && i !== undefined && s.castles[i].owner === me.clan && i !== seat ? s.castles[i] : null);
+  const c = rk <= 1 ? own(gov) ?? (rk === 0 ? own(me.loc) ?? pickCastle(s) : null) : null;
+  if (c) {
+    car.steps.push('shiro'); H.fuchu = c.i; car.since = s.turn; H.title = `${c.name}城主`;
+    const sv = (H.sv ??= {}); sv.fchian = c.chian; sv.fember = c.ember ?? 0; sv.fturn = s.turn;
+    c.garrison = Math.max(c.garrison, Math.round(garrisonMax(c) * 0.5));
+    out.push(`${c.name}を預かっている（城持ち）`);
+  }
+  car.best = [...car.steps]; // 始めからの節目には、取り立ての褒美を出さない
+  return out;
 }
 // 登城して城を願い出る（条件を満たしていれば）
 export function canAskCastle(s: GameState) { const H = s.hero!, me = s.generals[H.id]; return freeHero(s) && hasStep(s, 'ie') && !hasStep(s, 'shiro') && me.rank <= 1 && me.merit >= CAREER.SHIRO_MERIT * 0.8 && H.favor >= CAREER.SHIRO_FAVOR - 10; }

@@ -6,7 +6,7 @@ import { hexDist } from './map';
 import { pushScene } from './lines';
 import { desert, eliminateClan } from './ops';
 import * as R from './rules';
-import { addLog, castleKoku, clanArmies, clanCastles, clanName, hostile, rand } from './state';
+import { addLog, castleKoku, clanArmies, clanCastles, clanName, hostile, rand, surnameOf } from './state';
 import type { Army, Castle, Clan, Front, GameState, General } from './types';
 
 const ACTIVE = ['free', 'army', 'camp', 'governor', 'bugyo', 'tsukai'];
@@ -134,7 +134,7 @@ function betray(s: GameState, c: Castle, g: General, to: string) {
 // 家が割れる: g が城と部隊を率いて新しい家を立てる（方面軍団の謀反・お家騒動）
 export function splitClan(s: GameState, g: General, from: string, castles: number[], armies: Army[], why: string): string | null {
   armies = [...armies, ...Object.values(s.camps ?? {}).filter((a) => a.clan === from && a.camp !== undefined && castles.includes(a.camp))]; // 離れる城の名簿の軍団も一緒に
-  const base = g.name.slice(0, 2);
+  const base = surnameOf(g.name);
   const name = Object.values(s.clans).some((c) => c.name === base && c.alive) ? g.name : base;
   const id = `reb_${g.id}_${s.turn}`;
   const C: Clan = { id, name, color: '#9a7b4f', leader: g.id, prestige: 30, food: 20000, alive: true, stance: '均衡', target: from, gold: 2000, guns: 0, budget: { chisui: 10, hodo: 10 }, focus: null, mobilize: R.MOBILIZE_DEFAULT, court: 0 };

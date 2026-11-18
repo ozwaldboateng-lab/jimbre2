@@ -98,10 +98,14 @@ export function openHeroWith(f: Face, quit: () => void, st: GameState, first: { 
 // ───────── 本体 ─────────
 function begin(id: string) {
   s = pickState ?? newGame('oda', 'normal', undefined, '1560');
+  const gov = s.castles.find((c) => c.governor === id)?.i ?? null; // 城主だった城（startHero で外す前に）
   H.startHero(s, id); cmdDefault(s);
+  const start = CR.startCareer(s, gov);
+  for (const x of start) H.note(s, x);
   bg = 'town'; pane = 'spots';
-  const me = H.heroOf(s)!, L = H.lordOf(s);
-  say = { who: L?.id, line: `${me.name}か。この清洲の城下で励め。主命は登城して受けよ。`, text: `${me.name}として、${s.castles[s.hero!.town].name}の城下に立った。` };
+  const me = H.heroOf(s)!, L = H.lordOf(s), town = s.castles[s.hero!.town].name;
+  const line = !L ? '' : me.rank === 0 ? `${me.name}。そなたを頼りにしておる。主命は登城して受けよ。` : me.rank === 1 ? `${me.name}か。${town}の城下で励め。主命は登城して受けよ。` : `${me.name}か。この${town}の城下で励め。主命は登城して受けよ。`;
+  say = { who: L?.id, line, text: `${me.name}（${R.RANK_NAME[me.rank]}）として、${town}の城下に立った。${start.length ? start.join('。') + '。' : ''}` };
   save(); render();
 }
 function render() {
