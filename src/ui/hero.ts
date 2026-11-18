@@ -98,7 +98,8 @@ function render() {
   const st = s, Hh = st.hero!, me = H.heroOf(st)!, c = st.castles[Hh.town], L = H.lordOf(st);
   const q = Hh.quest;
   const next = me.rank > 0 ? R.MERIT_AT[me.rank - 1] : null;
-  const art = !H.inArmy(st) && bg === 'town' && Hh.fuchu === Hh.town && !Hh.field && SCENE_ART.story_fuchu ? SCENE_ART.story_fuchu : ART(H.inArmy(st) ? 'jinmaku' : BG[bg] ?? 'ichi');
+  const townArt = !H.inArmy(st) && bg === 'town' && !Hh.field ? ({ ichijodani: SCENE_ART.story_fuchu, nanao: SCENE_ART.story_nanao } as Record<string, string | undefined>)[c.id] : undefined; // 物語で治める城（府中・七尾）は、その城の絵
+  const art = townArt && Hh.fuchu === Hh.town ? townArt : ART(H.inArmy(st) ? 'jinmaku' : BG[bg] ?? 'ichi');
   root.innerHTML = `<div class="hr-main">
     <header class="hr-head">
       <div class="hr-id">${myFace(st, 56)}<div><b>${esc(me.name)}</b><span>${clanName(st, me.clan!)}家・${R.RANK_NAME[me.rank]}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>

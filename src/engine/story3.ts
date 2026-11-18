@@ -29,7 +29,7 @@ export const ACT3: Ev[] = [
   ev('tenjo3', D3.P3_TENJO, '天正十年六月（天井落つ・本能寺）', 1582, 6, { reset: '1582' }),
   ev('kuhaku', D3.P3_KUHAKU, '天正十年八月（空白の中で）', 1582, 8),
   ev('erabu', D3.P3_ERABU, '天正十年十二月（選ぶ前）', 1582, 12),
-  ev('shizu', D3.P3_SHIZU, '天正十一年四月（賤ヶ岳）', 1583, 4),
+  ev('shizu', D3.P3_SHIZU, '天正十一年四月（賤ヶ岳）', 1583, 4, { apply: (s) => (s.hero!.storyDone ?? []).includes('tomo') ? ['賤ヶ岳で勝家とともに立った。物語はここで閉じる。'] : ['賤ヶ岳の陣を退き、前田家ごと羽柴に従った。第三部、了。'] }),
 ];
 export const PART3_FROM = 'ryo'; // 第二部の締めのあとに始まる
 
