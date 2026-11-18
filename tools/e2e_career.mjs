@@ -36,7 +36,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await idle(); await ok();
   console.log(vp.tag, 'goal1', (await goal()).slice(0, 80), '|', await p.$eval('#hero .hr-id', (e) => e.textContent));
   // 預かった城へ行く
-  for (let i = 0; i < 20 && !(await p.$('#hero [data-h="gov"]')); i++) {
+  for (let i = 0; i < 20 && !(await p.$('#hero [data-h="pane"][data-id="shiro"]')); i++) {
     await idle(); await ok();
     await p.click('#hero [data-h="pane"][data-id="tabi"]'); await p.waitForTimeout(80);
     if (await p.$('#hero [data-h="goon"]')) { await p.click('#hero [data-h="goon"]'); await p.waitForTimeout(150); continue; }
@@ -48,6 +48,11 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   }
   await idle(); await ok();
   await p.click('#hero [data-h="pane"][data-id="spots"]').catch(() => {}); await p.waitForTimeout(80);
+  await p.click('#hero [data-h="pane"][data-id="shiro"]').catch(() => {}); await p.waitForTimeout(100);
+  console.log(vp.tag, 'tiles', (await p.$$eval('#hero .hr-ctiles > div', (es) => es.map((e) => e.textContent))).join(' | '));
+  console.log(vp.tag, 'cact', (await p.$$eval('#hero [data-h="cact"]', (es) => es.map((e) => e.textContent.slice(0, 18) + (e.disabled ? '×' : '')))).join(' | '));
+  const ia = await p.$('#hero [data-h="cact"][data-id="inv-agri"]:not([disabled])'); if (ia) { await ia.click(); await p.waitForTimeout(150); console.log(vp.tag, 'inv-agri:', await p.$eval('#hero .hr-text', (e) => e.textContent)); }
+  await snap('shiro');
   const govs = await p.$$eval('#hero [data-h="gov"]', (es) => es.map((e) => e.textContent.slice(0, 14) + (e.disabled ? '×' : '')));
   console.log(vp.tag, 'gov', govs.join(' | '));
   await snap('gov');

@@ -37,6 +37,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
     const text = await p.$eval('#hero .hr-main', (e) => e.textContent).catch(() => '');
     if (await p.evaluate(() => { try { return (JSON.parse(localStorage.getItem('sengoku-hero-auto')).hero.storyDone ?? []).includes('ryo3'); } catch { return false; } })) { await snap('end'); break; }
     if (await p.$('#hero [data-h="pane"][data-id="spots"]:not(.on)')) { await p.click('#hero [data-h="pane"][data-id="spots"]'); await p.waitForTimeout(30); }
+    if (gov < 40 && !(await p.$('#hero [data-h="gov"]'))) { const sb = await p.$('#hero [data-h="pane"][data-id="shiro"]'); if (sb) { await sb.click(); await p.waitForTimeout(60); } } // open-shiro: 治めは城の政の欄で
     const g = await p.$('#hero [data-h="gov"][data-id="mimawari"]');
     if (g && gov < 40) { gov++; if (gov === 1) await snap('gov'); await p.click(`#hero [data-h="gov"][data-id="${gov % 3 ? 'mimawari' : 'hidane'}"]`); await p.waitForFunction(() => !document.querySelector('#hero .hr-busy'), null, { timeout: 120000 }); continue; }
     const a = await p.$('#hero [data-h="advice"]');
