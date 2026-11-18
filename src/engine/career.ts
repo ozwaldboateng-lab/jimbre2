@@ -6,7 +6,7 @@ import { hexDist } from './map';
 import { newIe } from './maeda';
 import { addMerit } from './ranks';
 import * as R from './rules';
-import { addLog, castleKoku, clanCastles, clanName, garrisonMax, rand } from './state';
+import { addLog, castleKoku, clanCastles, clanName, garrisonMax, hostile, rand } from './state';
 import { delegateOf } from './delegate';
 import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
 import { followersToRetainers, retainersToFollowers, yoriki } from './kashin';
@@ -48,7 +48,10 @@ function pickCastle(s: GameState, near?: Castle): Castle | null {
   const taken = new Set(domain(s).map((c) => c.i));
   const from = near ?? s.castles[H.town];
   const cs = clanCastles(s, me.clan!).filter((c) => c.i !== seat && !taken.has(c.i));
-  cs.sort((a, b) => hexDist(a.hex, from.hex) - hexDist(b.hex, from.hex) || castleKoku(b) - castleKoku(a));
+  // 敵の城から遠い奥の城を先に（境の城ばかり預けると、すぐ奪われる）。同じくらいなら近い城・大きい城
+  const foes = s.castles.filter((c) => c.owner && c.owner !== me.clan && hostile(s, me.clan!, c.owner));
+  const depth = (c: Castle) => foes.length ? Math.min(...foes.map((f) => hexDist(f.hex, c.hex))) : 99;
+  cs.sort((a, b) => Math.min(depth(b), R.hx(8)) - Math.min(depth(a), R.hx(8)) || hexDist(a.hex, from.hex) - hexDist(b.hex, from.hex) || castleKoku(b) - castleKoku(a));
   return cs[0] ?? null;
 }
 const lordId = (s: GameState) => { const me = s.generals[s.hero!.id]; return me.clan ? s.clans[me.clan].leader : null; };
