@@ -7,16 +7,18 @@ import { newIe } from './maeda';
 import { addMerit } from './ranks';
 import * as R from './rules';
 import { addLog, castleKoku, clanCastles, clanName, garrisonMax, hostile, rand } from './state';
+import { splitClan } from './on';
 import { delegateOf } from './delegate';
 import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
 import { followersToRetainers, retainersToFollowers, yoriki } from './kashin';
-import type { Castle, GameState } from './types';
+import type { Castle, FrontPolicy, Front, GameState } from './types';
 
-export type Step = 'ie' | 'shiro' | 'kuni' | 'hitto';
-export const STEP_NAME: Record<Step, string> = { ie: '家を立てる', shiro: '城を預かる', kuni: '国持ち', hitto: '家中第一の臣' };
+export type Step = 'ie' | 'shiro' | 'kuni' | 'homen' | 'hitto';
+export const STEP_NAME: Record<Step, string> = { ie: '家を立てる', shiro: '城を預かる', kuni: '国持ち', homen: '方面軍団長', hitto: '家中第一の臣' };
 export const CAREER = {
   SHIRO_MERIT: 180, SHIRO_FAVOR: 60, // 城を預かる: 侍大将で、功績180・覚え60
   KUNI_MONTHS: 12, KUNI_CHIAN: 60, KUNI_FAVOR: 70, // 国持ち: 宿老で、城を一年持ち、治安60・覚え70
+  HOMEN_FAVOR: 85, HOMEN_KASHIN: 2, HOMEN_CASTLES: 5, // 方面軍団長: 国持ちで覚え85・家臣2人。主人公の城と近くの城をまとめて5城まで
   HITTO_FAVOR: 95, HITTO_MERIT: 900, HITTO_MONTHS: 24, // 家中第一の臣: 国持ちになって2年、覚え95・功績900
   CHIGYO: 12, // 知行: 治める城の石高1万石ごとに、月に金12貫（俸禄に加えて）
   RETIRE_AGE: 50, // この年からは隠居できる（国持ちになれば年に関わらず）
@@ -37,6 +39,7 @@ export function goalText(s: GameState): string {
   if (!hasStep(s, 'ie')) return `侍大将に取り立てられ、自分の家を立てる（いま${R.RANK_NAME[me.rank]}・功績${Math.round(me.merit)}／${R.MERIT_AT[1]}）`;
   if (!hasStep(s, 'shiro')) return `城を預かる（功績${Math.round(me.merit)}／${CAREER.SHIRO_MERIT}・主君の覚え${H.favor}／${CAREER.SHIRO_FAVOR}。登城して願い出るか、主君から声がかかる）`;
   if (!hasStep(s, 'kuni')) { const c = domain(s)[0], held = H.career!.since !== undefined ? s.turn - H.career!.since : 0; return `国持ちになる（宿老に上がり${me.rank === 0 ? '済み' : 'まだ'}・${c ? `${c.name}を${Math.min(held, CAREER.KUNI_MONTHS)}／${CAREER.KUNI_MONTHS}か月持ち、治安${Math.round(c.chian)}／${CAREER.KUNI_CHIAN}` : '城を取り戻す'}・覚え${H.favor}／${CAREER.KUNI_FAVOR}）`; }
+  if (!hasStep(s, 'homen') && !hasStep(s, 'hitto')) return `方面軍団長に任じられる（主君の覚え${H.favor}／${CAREER.HOMEN_FAVOR}・家臣${(H.retainers ?? []).length}／${CAREER.HOMEN_KASHIN}人）`;
   if (!hasStep(s, 'hitto')) return `家中第一の臣となる（国持ちになって${Math.min(CAREER.HITTO_MONTHS, s.turn - (H.career!.kuniAt ?? s.turn))}／${CAREER.HITTO_MONTHS}か月・主君の覚え${H.favor}／${CAREER.HITTO_FAVOR}・功績${Math.round(me.merit)}／${CAREER.HITTO_MERIT}）`;
   return '登り詰めた。家と国を持たせ、いずれ隠居して家を譲る';
 }
@@ -100,7 +103,19 @@ export function careerMonth(s: GameState): CareerEvent | null {
       { who: me.id, bg: 'zashiki_day', text: '持たせます' },
     ], lines: [`${c.name}も治める城に加わった（国持ち。功績+40・金1000貫）`] };
   }
-  if (hasStep(s, 'kuni') && !hasStep(s, 'hitto') && s.turn - (car.kuniAt ?? s.turn) >= CAREER.HITTO_MONTHS && H.favor >= CAREER.HITTO_FAVOR && me.merit >= CAREER.HITTO_MERIT) {
+  if (hasStep(s, 'kuni') && !hasStep(s, 'homen') && H.favor >= CAREER.HOMEN_FAVOR && (H.retainers ?? []).length >= CAREER.HOMEN_KASHIN) {
+    const f = makeHomen(s);
+    if (f) {
+      car.steps.push('homen'); addFame(s, 10);
+      return { beats: [
+        { kind: 'door', head: '方面軍団長', text: '方面軍団長', sub: `${s.year}年` },
+        ...(lord ? [{ head: '広間', who: lord.id, bg: 'zashiki_day', text: `${me.name}。そなたに、この方面を任せる。城も兵も、そなたの采配で動かせ。……わしの顔を見に来るのは、勝ってからでよい` }] : []),
+        { who: me.id, bg: 'zashiki_day', text: '承りました' },
+        { bg: 'jinmaku', text: `${f.castles.map((i) => s.castles[i].name).join('・')}。いくつもの城と、そこに詰める兵が、${me.name}の一言で動くようになった。家臣たちが、それぞれの軍勢を率いる。` },
+      ], lines: [`方面軍団長に任じられた（${f.castles.length}城）。城下の「方面の差配」で方針と攻略の目標を決める。家臣が方面の軍勢を率いる`] };
+    }
+  }
+  if (hasStep(s, 'homen') && !hasStep(s, 'hitto') && s.turn - (car.kuniAt ?? s.turn) >= CAREER.HITTO_MONTHS && H.favor >= CAREER.HITTO_FAVOR && me.merit >= CAREER.HITTO_MERIT) {
     car.steps.push('hitto'); addFame(s, 15); H.title = `家中第一の臣（${H.title ?? ''}）`;
     addLog(s, `${me.name}は${clanName(s, me.clan)}家の家中第一の臣と目されるようになった。`, 'info', true);
     return { beats: [
@@ -221,4 +236,66 @@ export function followClan(s: GameState): string | null {
   for (const c of s.castles) if (c.governor === me.id) c.governor = null;
   me.status = 'hero'; me.army = null; H.army = null; H.fuchu = undefined; H.ryo = []; H.quest = null; H.favor = 30; H.title = undefined;
   return `${me.name}は${clanName(s, me.clan)}家に降った。`;
+}
+
+// ───────── 方面軍団長（本体の方面軍団＝知行の仕組みを使う） ─────────
+export const homenOf = (s: GameState): Front | undefined => (s.fronts ?? []).find((f) => f.leader === s.hero?.id && !f.vacant);
+function makeHomen(s: GameState): Front | null {
+  const H = s.hero!, me = s.generals[H.id], clan = me.clan!;
+  if (homenOf(s) || clan !== s.player) return homenOf(s) ?? null;
+  const lordLoc = s.clans[clan].leader ? s.generals[s.clans[clan].leader!].loc : -1;
+  const dom = domain(s).filter((c) => c.owner === clan);
+  if (!dom.length) return null;
+  const taken = new Set((s.fronts ?? []).flatMap((f) => f.castles));
+  const near = clanCastles(s, clan).filter((c) => !dom.includes(c) && c.i !== lordLoc && !taken.has(c.i) && dom.some((d) => hexDist(d.hex, c.hex) <= R.hx(4))).sort((a, b) => Math.min(...dom.map((d) => hexDist(d.hex, a.hex))) - Math.min(...dom.map((d) => hexDist(d.hex, b.hex))));
+  const castles = [...dom, ...near].slice(0, CAREER.HOMEN_CASTLES);
+  const f: Front = { id: (s.nextFrontId = (s.nextFrontId ?? 0) + 1), leader: me.id, castles: castles.map((c) => c.i), policy: 'defend', target: null, seat: dom[0].i, gold: 0, food: 0 };
+  for (const c of castles) for (const o of s.fronts ?? []) o.castles = o.castles.filter((i) => i !== c.i);
+  (s.fronts ??= []).push(f);
+  // 家臣は方面の侍大将として軍勢を率いる（主人公の陪臣として方面だけで使われる）
+  for (const g of Object.values(s.generals)) if ((H.retainers ?? []).includes(g.id)) g.liege = me.id;
+  addLog(s, `${me.name}が方面軍団長に任じられた（${castles.map((c) => c.name).join('・')}）。`, 'info', true);
+  return f;
+}
+export function setHomenPolicy(s: GameState, p: FrontPolicy, target: string | null): string {
+  const f = homenOf(s);
+  if (!f) return '方面を任されていない';
+  f.policy = p; f.target = p === 'attack' ? target : null;
+  return `方面の方針を${R.FRONT_POLICY_NAME[p]}にした${f.target ? `（目標: ${f.target.startsWith('clan:') ? `${clanName(s, f.target.slice(5))}家` : s.castles[+f.target.slice(7)].name}）` : ''}。`;
+}
+
+// ───────── 謀反（独立）と出奔 ─────────
+// 謀反: 治める城（方面軍団長なら方面の城と軍勢、率いている軍勢も）ごと主家を離れ、家を立てる。家臣（陪臣）はついて来る。成れば大名プレイへ
+export function canRebel(s: GameState): string | null {
+  const H = s.hero!, me = s.generals[H.id];
+  if (!freeHero(s) || !me.clan) return '物語の外の、主家に仕える主人公だけ';
+  if (!domain(s).some((c) => c.owner === me.clan)) return '治める城がなければ謀反は起こせない';
+  if (H.field) return '城下にいる時だけ';
+  return null;
+}
+export function rebel(s: GameState): { ok: boolean; text: string; clan?: string } {
+  const why = canRebel(s);
+  if (why) return { ok: false, text: why };
+  const H = s.hero!, me = s.generals[H.id], from = me.clan!;
+  const f = homenOf(s);
+  const castles = [...new Set([...(f?.castles ?? []), ...domain(s).filter((c) => c.owner === from).map((c) => c.i)])];
+  const armies = Object.values(s.armies).filter((a) => a.clan === from && (a.heroLed || (f && a.front === f.id)));
+  const lordName = s.clans[from].leader ? s.generals[s.clans[from].leader!].name : '';
+  me.status = 'free';
+  const id = splitClan(s, me, from, castles, armies, '謀反');
+  if (!id) { me.status = 'hero'; return { ok: false, text: '謀反は成らなかった' }; }
+  for (const g of Object.values(s.generals)) if (g.liege === me.id && g.status !== 'dead') { g.clan = id; if (g.status === 'kashin') g.status = 'free'; g.liege = undefined; }
+  (H.career ??= { steps: [] }).served = [...(H.career.served ?? []), clanName(s, from)];
+  addFame(s, 10);
+  return { ok: true, clan: id, text: `${clanName(s, from)}家（${lordName}）に背き、${castles.length}城を率いて${s.clans[id].name}家を立てた。` };
+}
+// 出奔: 主家に暇を乞い、家臣を連れて浪人になる（治める城は返す）
+export function leaveLord(s: GameState): string {
+  const H = s.hero!, me = s.generals[H.id], from = me.clan ? clanName(s, me.clan) : '';
+  const f = homenOf(s); if (f) { s.fronts = (s.fronts ?? []).filter((x) => x !== f); for (const a of Object.values(s.armies)) if (a.front === f.id) a.front = undefined; }
+  const L = me.clan && s.clans[me.clan].leader ? s.clans[me.clan].leader! : null;
+  if (L) H.rel[L] = Math.max(0, (H.rel[L] ?? 0) - 30);
+  const msg = becomeRonin(s);
+  addLog(s, `${me.name}が${from}家を出奔した。`, 'info', true);
+  return msg.replace(/^.*?家は滅んだ。/, `${from}家に暇を乞い、出奔した。`);
 }

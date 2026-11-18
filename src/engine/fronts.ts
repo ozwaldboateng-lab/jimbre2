@@ -243,6 +243,7 @@ export function cleanFronts(s: GameState) {
   // 部隊の所属: 領主か陪臣が率いる部隊はその領に
   for (const a of clanArmies(s, s.player)) {
     if (a.ikki) continue;
+    if (a.heroLed) { a.front = undefined; continue; } // 武将で遊ぶの主人公が率いる軍勢は、方面にも直轄にも入れない
     const m = s.generals[a.main];
     const f = m ? frontsOf(s).find((x) => x.leader === a.main || x.leader === m.liege) : undefined;
     a.front = f?.id;
@@ -307,7 +308,7 @@ function organizeFront(s: GameState, f: Front, castles: Castle[], fid: number | 
   const clan = s.player, C = s.clans[clan];
   const inFront = (g: General) => castles.some((c) => c.i === g.loc) && (fid === undefined ? !g.liege : g.id === f.leader || g.liege === f.leader);
   const isMine = (a: Army) => a.front === fid && !a.ikki;
-  const free = () => Object.values(s.generals).filter((g) => g.clan === clan && g.status === 'free' && C.leader !== g.id && inFront(g)).sort((a, b) => troopMult(s, b) - troopMult(s, a) || b.lea - a.lea);
+  const free = () => Object.values(s.generals).filter((g) => g.clan === clan && (g.status === 'free' || (g.status === 'kashin' && fid !== undefined && g.liege === f.leader)) && C.leader !== g.id && inFront(g)).sort((a, b) => troopMult(s, b) - troopMult(s, a) || b.lea - a.lea);
   // 新しい部隊（一月に一つまで）: 動員の余力と兵糧があれば
   const capLeft = fid === undefined ? mobilizeCap(s, clan) - farmTroops(s, clan) : fiefCapLeft(s, f);
   const affordable = C.food > R.NEW_ARMY_TROOPS * R.RECRUIT_COST + clanTroops(s, clan) * R.FOOD_PER_SOLDIER * 3;
@@ -427,7 +428,7 @@ async function commandFront(s: GameState, f0: Front, fid: number | undefined, fr
     const tgt = f.policy === 'attack' ? (k === 'clan' ? s.castles.filter((c) => c.owner === v) : k === 'castle' ? [s.castles[+v]].filter(Boolean) : s.clans[s.player].target ? clanCastles(s, s.clans[s.player].target!) : []) : [];
     autoJinbure(s, s.player, { policy: f.policy, camps: campsOf(s, s.player).filter((a) => a.front === fid && (fid !== undefined || !frontOfArmy(s, a))), field: clanArmies(s, s.player).filter((a) => a.front === fid && !a.ikki), targetHexes: tgt.map((c) => c.hex) });
   }
-  const armies = clanArmies(s, s.player).filter((a) => a.front === fid && !a.ikki).sort((x, y) => y.troops - x.troops);
+  const armies = clanArmies(s, s.player).filter((a) => a.front === fid && !a.ikki && !a.heroLed).sort((x, y) => y.troops - x.troops);
   if (!armies.length) return;
   const leader = s.generals[f.leader];
   // 目標の家の城が担当の城から届く範囲になければ（間に別の家があるなど）、届くまでは目標を絞らずに進む

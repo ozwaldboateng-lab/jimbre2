@@ -97,6 +97,7 @@ export function kashinMonth(s: GameState): string[] {
   if (!rs.length) return out;
   // 主家が替わった・浪人になった: 家臣はついて来る
   for (const g of rs) if (g.clan !== me.clan) { if (me.clan) { g.clan = me.clan; g.status = 'kashin'; } }
+  for (const g of rs) if (g.clan === me.clan && me.clan && g.status === 'free') { g.status = 'kashin'; g.liege = me.id; } // 方面の軍勢を解かれて戻った家臣
   // 扶持
   const cost = rs.length * KASHIN.FUCHI;
   if (H.gold >= cost) H.gold -= cost;
