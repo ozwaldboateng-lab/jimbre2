@@ -21,9 +21,11 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   const snap = async (n) => { if (shot < 36 && (vp.tag === 'pc' || shot < 14)) { shot++; await p.screenshot({ path: `${out}/s4-${vp.tag}-${String(shot).padStart(2, '0')}-${n}.png` }); } };
   const seen = new Set();
   let advice = 0, gov = 0, asks = 0, months = 0;
+  const stage = [];
   for (let it = 0; it < 3000; it++) {
     const th = await p.$('#story:not([hidden]) .st-scene');
     if (th) {
+      const nt = await p.$eval('#story .st-narr', (e) => e.textContent).catch(() => ''); if (nt.trim().startsWith('（') && !stage.includes(nt.slice(0, 30))) stage.push(nt.slice(0, 30)); // ト書き（括弧の案内文）が物語の画面に出ていないか
       const ask = await p.$$('#story [data-s="ask"]');
       if (ask.length) { asks++; const head = await p.$eval('#story .hr-say', (e) => e.textContent.slice(0, 20)); if (!seen.has('ask' + head)) { seen.add('ask' + head); await snap('ask'); } await ask[Math.min(PICK, ask.length - 1)].click(); await p.waitForTimeout(40); continue; }
       const fx = await p.$('#story .st-fx');
@@ -45,6 +47,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
     if (r) { await r.click(); await p.waitForFunction(() => !document.querySelector('#hero .hr-busy'), null, { timeout: 120000 }); await p.waitForTimeout(30); continue; }
     console.log(vp.tag, 'stuck', text.slice(0, 200)); await snap('stuck'); break;
   }
+  console.log(vp.tag, 'stage-directions', stage.length, stage.join(' / '));
   console.log(vp.tag, 'asks', asks, 'advice', advice, 'gov', gov, 'months', months, '|', await p.evaluate(() => (document.querySelector('#hero .hr-id')?.textContent ?? '') + ' ' + (document.querySelector('#hero .hr-date')?.textContent ?? '') + ' | ' + (document.querySelector('#hero .hr-text')?.textContent ?? '')));
   await p.close();
 }

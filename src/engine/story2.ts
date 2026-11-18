@@ -36,7 +36,7 @@ export const ACT2: Ev[] = [
     ['anegawa', D2.P2_ANEGAWA, '元亀元年六月（姉川）', 1570, 6],
     ['nobiru', D2.P2_NOBIRU, '元亀二年三月（第五章 伸びる家）', 1571, 3],
     ['chigau', D2.P2_CHIGAU, '元亀三年三月（違う先）', 1572, 3],
-  ].map(([id, beats, when, y, m]) => ({ id: id as string, beats: beats as Beat[], when: when as string, at: () => at(y as number, m as number), due: (s: GameState) => ym(s) >= at(y as number, m as number), reset: id === 'kaze' ? '1572' : undefined })),
+  ].map(([id, beats, when, y, m]) => ({ id: id as string, beats: beats as Beat[], when: when as string, at: () => at(y as number, m as number), due: (s: GameState) => ym(s) >= at(y as number, m as number), reset: id === 'kaze' ? '1572' : undefined, apply: id === 'kaze' ? () => ['城下で月に一度、奥村永福・村井長頼から家中の進言を聞けるようになった'] : undefined })),
   { id: 'tenjo', beats: D2.P2_TENJO, when: '元亀三年十月（天井の下）', at: () => at(1572, 10), due: (s) => ym(s) >= at(1572, 10) },
   { id: 'fuchu', beats: D2.P2_FUCHU, when: '天正三年九月（第六章 府中へ）', at: () => at(1575, 9), due: (s) => ym(s) >= at(1575, 9), apply: setupFuchu },
   { id: 'miseshime', beats: D2.P2_MISESHIME, when: '天正三年十月（見せしめ）', at: () => at(1575, 10), due: (s) => ym(s) >= at(1575, 10) },

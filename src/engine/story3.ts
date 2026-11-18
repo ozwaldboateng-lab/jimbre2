@@ -2,7 +2,7 @@
 import * as D3 from '../data/story_toshiie3';
 import type { Beat } from '../data/story_toshiie';
 import { delegateOf } from './delegate';
-import { STORY_ENDS, newIe } from './maeda';
+import { STORY_ENDS, newIe, storyNotes } from './maeda';
 import { captureCastle } from './ops';
 import { addMerit } from './ranks';
 import { addLog, clanName } from './state';
@@ -64,7 +64,8 @@ STORY_ENDS.shizu_hiku = (s) => {
   }
   (H.storyDone ??= []).push('ryo3');
   H.title = '能登国主（七尾城）・羽柴に従う'; H.favor = 60;
-  return [...D3.P3_RYO, { bg: 'nanao', text: '（前田家は羽柴に従った。主君は羽柴秀吉。縁と覚えは引き継ぎ、主君の覚えは60から）' }];
+  storyNotes.push('前田家は羽柴に従った。主君は羽柴秀吉。縁と覚えは引き継ぎ、主君の覚えは60から');
+  return D3.P3_RYO;
 };
 // 賤ヶ岳: 勝家とともに → もう一つの終わり
 STORY_ENDS.shizu_tomo = (s) => {
@@ -81,8 +82,9 @@ STORY_ENDS.tedorigawa = (s) => {
   sv.tedorigawa_ok = good ? 1 : 0;
   if (good) { ie.kachu = Math.min(100, ie.kachu + 4); addMerit(s, me.id, 15); H.rel.sassa_narimasa = Math.min(100, (H.rel.sassa_narimasa ?? 0) + 4); }
   else { ie.shu = Math.max(80, ie.shu - 80); ie.kachu = Math.max(0, ie.kachu - 4); }
+  storyNotes.push(good ? '前田の列は崩れずに退いた。家中+4・功績+15・成政との縁+4' : '前田の列は途中で切れた。荒子衆−80・家中−4');
   const tail: Beat[] = good
-    ? [{ bg: 'tedorigawa', text: '夕刻、ようやく息をついた時には、身体の中まで冷えていた。利家はそこで、ようやく負けたのだと知った。だが前田の列は、最後まで崩れなかった。' }, { who: 'murai', bg: 'tedorigawa', text: '利家様。……持ちましたな' }, { who: 'maeda_toshiie', bg: 'tedorigawa', text: '持っただけだ' }, { bg: 'tedorigawa', text: '（前田の列は崩れずに退いた。家中+4・功績+15・成政との縁+4）' }]
-    : [{ bg: 'tedorigawa', text: '前田の列は、途中で切れた。川に呑まれた者もいた。北の空は、負けたあとでも少しも広がらない。' }, { who: 'okumura', bg: 'tedorigawa', text: '……戻れぬ者が、おります' }, { bg: 'tedorigawa', text: '（荒子衆−80・家中−4）' }];
+    ? [{ bg: 'tedorigawa', text: '夕刻、ようやく息をついた時には、身体の中まで冷えていた。利家はそこで、ようやく負けたのだと知った。だが前田の列は、最後まで崩れなかった。' }, { who: 'murai', bg: 'tedorigawa', text: '利家様。……持ちましたな' }, { who: 'maeda_toshiie', bg: 'tedorigawa', text: '持っただけだ' }]
+    : [{ bg: 'tedorigawa', text: '前田の列は、途中で切れた。川に呑まれた者もいた。北の空は、負けたあとでも少しも広がらない。' }, { who: 'okumura', bg: 'tedorigawa', text: '……戻れぬ者が、おります' }];
   return tail;
 };

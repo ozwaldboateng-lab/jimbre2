@@ -36,7 +36,6 @@ export const P4_KAGA: Beat[] = [
   { who: MA, bg: 'kanazawa', text: '能登とは違いますね。能登は、風のある国でした。加賀は、風の前に人の息があります' },
   { who: T, bg: 'kanazawa', text: '土が深えな' },
   { who: TH, bg: 'kanazawa', text: '犬千代、能登は流れを見る国だ。加賀は、人の溜まる国だ。どちらも前田の国になる。だが、同じ顔では持てぬだろうな' },
-  { bg: 'kanazawa', text: '（加賀・能登の大名となった（金沢城）。治める城は金沢と七尾。どちらの城下でも「国を治める」ができる）' },
 ];
 export const P4_HONE: Beat[] = [
   { kind: 'door', head: '百万石の骨', text: '百万石の骨', sub: '天正十一年 冬' },
@@ -141,7 +140,6 @@ export const P4_NE: Beat[] = [
 ];
 export const P4_RYO: Beat[] = [
   { kind: 'chapter', head: '第四部　了', text: '根を張る', sub: '残り火' },
-  { bg: 'kanazawa', text: '（第四部「根を張る」はここまで。ここから第五部「残り火」。天下は定まり、世の中の大名たちはもう動かない。暦と、前田の家と領国のことだけが進む）' },
 ];
 
 // 末森の後詰めの締め

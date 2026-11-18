@@ -266,7 +266,7 @@ async function advance() {
 type Theater = (beats: Beat[], done: () => void, choose?: (key: string, id: string) => Beat[], opt?: { part2?: boolean; label?: string }) => void;
 let theater: Theater | null = null;
 export function setTheater(f: Theater) { theater = f; }
-const chooser = (st: GameState) => (key: string, id: string) => { const r = M.storyChoose(st, key, id); for (const x of r.lines) H.note(st, x); return r.lines.length ? [...r.beats, { text: `（${r.lines.join('。')}）`, bg: r.beats[r.beats.length - 1]?.bg }] : r.beats; };
+const chooser = (st: GameState) => (key: string, id: string) => M.storyChoose(st, key, id).beats; // 結果の数値は物語の画面に出さず、場面のあとで城下に
 const opt = (st: GameState) => { const d = st.hero!.storyDone ?? []; return { part2: d.includes('katoku'), label: d.includes('ryo4') ? '残り火　第五部' : d.includes('ryo3') ? '残り火　第四部' : d.includes('ryo') ? '残り火　第三部' : d.includes('katoku') ? '残り火　第二部' : '残り火　第二幕' }; };
 function runStory() {
   if (!s || !theater || busy) return;
@@ -274,22 +274,22 @@ function runStory() {
   if (!ev) return;
   const st = s;
   theater(ev.beats, () => {
-    const lines = ev.apply?.(st) ?? [];
-    if (lines.length) { say = { text: lines.join('') }; for (const x of lines) H.note(st, x); }
-    if (ev.reset) { resetWorld(ev.reset); return; }
+    const lines = [...M.takeNotes(), ...(ev.apply?.(st) ?? [])];
+    if (lines.length) { say = { text: lines.join('。').replace(/。。/g, '。') }; for (const x of lines) H.note(st, x); }
+    if (ev.reset) { resetWorld(ev.reset, lines); return; }
     save(); render();
     runStory();
   }, chooser(st), opt(st));
 }
 // 部の切れ目: 世の中を史実のシナリオに合わせ直し、利家と前田家を移す
-function resetWorld(sc: string) {
+function resetWorld(sc: string, pre: string[] = []) {
   const old = s!;
   const g = newGame('oda', 'normal', undefined, sc);
   H.startHero(g, old.hero!.id);
   carryHero(old, g);
   s = g; bg = 'town'; pane = 'spots'; recenter = true; view = null; mapCanvas = null;
   const c = g.castles[g.hero!.town];
-  say = { text: `${g.year}年${g.month}月。世の中は「${({ '1572': '元亀三年 信長包囲網', '1582': '天正十年 本能寺の変' } as Record<string, string>)[sc] ?? sc}」の形になった。${clanName(g, g.generals[g.hero!.id].clan!)}家の者として、${c.name}の城下にいる。` };
+  say = { text: `${pre.length ? pre.join('。') + '。' : ''}${g.year}年${g.month}月。${clanName(g, g.generals[g.hero!.id].clan!)}家の者として、${c.name}の城下にいる。` };
   H.note(g, say.text);
   save(); render();
   runStory();
@@ -300,7 +300,7 @@ function advice() {
   const a = M.nextAdvice(st);
   if (!a || !theater) return;
   save();
-  theater(a.beats, () => { say = { text: `家中の進言（${a.head}）を聞いた。` }; void advance(); }, chooser(st), { part2: true, label: '前田家　家中の進言' });
+  theater(a.beats, () => { const n = M.takeNotes(); for (const x of n) H.note(st, x); say = { text: `家中の進言（${a.head}）を聞いた。${n.length ? n.join('。') + '。' : ''}` }; void advance(); }, chooser(st), { part2: true, label: '前田家　家中の進言' });
 }
 // 月日を送る（物語）: 次の場面の年月まで暦だけを跳ぶ（世の中はそのまま）
 function skipTime() {

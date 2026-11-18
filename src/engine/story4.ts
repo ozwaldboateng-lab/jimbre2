@@ -1,7 +1,7 @@
 // 前田利家 ― 残り火 第四部「根を張る」: 第九章の場面の時期、加賀への組み替え（柴田の滅び・金沢）、成政の謀反（佐々家）、末森の後詰め、富山の役（越中）、守山城
 import * as D4 from '../data/story_toshiie4';
 import type { Beat } from '../data/story_toshiie';
-import { STORY_ENDS, newIe } from './maeda';
+import { STORY_ENDS, newIe, storyNotes } from './maeda';
 import { captureCastle, eliminateClan } from './ops';
 import { splitClan } from './on';
 import { addMerit } from './ranks';
@@ -82,7 +82,8 @@ STORY_ENDS.suemori = (s) => {
   const dom = domainOf(s).map((i) => s.castles[i]);
   if (good) { addMerit(s, me.id, 40); H.favor = Math.min(100, H.favor + 10); ie.kachu = Math.min(100, ie.kachu + 8); for (const c of dom) c.chian = Math.min(100, c.chian + 6); }
   else { H.favor = Math.max(0, H.favor - 10); ie.kachu = Math.max(0, ie.kachu - 8); for (const c of dom) { c.chian = Math.max(0, c.chian - 15); c.ember = Math.min(100, (c.ember ?? 0) + 20); } }
-  return [...(good ? D4.SUEMORI_END.good : D4.SUEMORI_END.bad), { bg: 'suemori_asa', text: good ? '（末森を守った。功績+40・主君の覚え+10・家中+8・領国の治安+6）' : '（末森は落ちた。主君の覚え−10・家中−8・領国の治安−15・残り火+20。前田の国は富山の役まで裂けたまま）' }];
+  storyNotes.push(good ? '末森を守った。功績+40・主君の覚え+10・家中+8・領国の治安+6' : '末森は落ちた。主君の覚え−10・家中−8・領国の治安−15・残り火+20。前田の国は富山の役まで裂けたまま');
+  return good ? D4.SUEMORI_END.good : D4.SUEMORI_END.bad;
 };
 // 富山の役: 秀吉の大軍が越中を閉じる。佐々家は降り、富山城は前田の治める城に（守山城の代わり）
 function toyamaWar(s: GameState): string[] {

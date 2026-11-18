@@ -74,11 +74,15 @@ export function storyChoose(s: GameState, key: string, id: string): { beats: Bea
   if (!n || !ch) return { beats: [], lines: [] };
   const tag = n.tag ?? (key.startsWith('kg') ? 'kanegasaki' : key.startsWith('ag') ? 'anegawa' : undefined);
   const lines = applyEff(s, ch.eff, tag);
+  storyNotes.push(...lines);
   const beats = [...ch.res];
   if (ch.next?.startsWith('@')) { const k = ch.next.slice(1); beats.push(...(STORY_ENDS[k] ? STORY_ENDS[k](s) : battleEnd(s, k))); }
   else if (ch.next) beats.push({ text: NODES[ch.next].text, ask: ch.next, bg: ch.res[ch.res.length - 1]?.bg });
   return { beats, lines };
 }
+// 場面のあとで城下に出す言葉（結果の数値など。物語の画面には出さない）
+export const storyNotes: string[] = [];
+export const takeNotes = () => storyNotes.splice(0);
 // 問いの締め（第三部以降の分かれ道など）。engine/story3.ts が足す
 export const STORY_ENDS: Record<string, (s: GameState) => Beat[]> = {};
 // 金ヶ崎・姉川の締め: 点（選んだ答え）と、家中・統率で決まる
@@ -90,10 +94,10 @@ function battleEnd(s: GameState, k: 'kanegasaki' | 'anegawa' | string): Beat[] {
   const end = k === 'kanegasaki' ? KANEGASAKI_END : ANEGAWA_END;
   if (k === 'kanegasaki') { if (good) { ie.kachu = clamp(ie.kachu + 6); addMerit(s, me.id, 15); H.favor = clamp(H.favor + 5); } else { ie.shu = Math.max(80, ie.shu - 80); ie.kachu = clamp(ie.kachu - 8); } }
   else { if (good) { ie.kachu = clamp(ie.kachu + 10); addMerit(s, me.id, 30); H.favor = clamp(H.favor + 8); H.gold += 200; } else { ie.shu = Math.max(80, ie.shu - 40); addMerit(s, me.id, 10); } }
-  const sum: Beat = { bg: end.good[0].bg, text: k === 'kanegasaki'
+  storyNotes.push((k === 'kanegasaki'
     ? (good ? '（前田の列は崩れずに退き口を抜けた。家中+6・功績+15・主君の覚え+5）' : '（退き口は抜けたが、荒子衆を多く失った。荒子衆−80・家中−8）')
-    : (good ? '（前田の列は崩れず、押し返す流れの中にいた。家中+10・功績+30・主君の覚え+8・金+200）' : '（前田の列は戦場に立ったが、名は残らなかった。荒子衆−40・功績+10）') };
-  return [...(good ? end.good : end.bad), sum];
+    : (good ? '（前田の列は崩れず、押し返す流れの中にいた。家中+10・功績+30・主君の覚え+8・金+200）' : '（前田の列は戦場に立ったが、名は残らなかった。荒子衆−40・功績+10）')).replace(/^（|）$/g, ''));
+  return good ? end.good : end.bad;
 }
 
 // ───────── 家中の進言（月に一度） ─────────

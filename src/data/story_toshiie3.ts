@@ -99,7 +99,6 @@ export const P3_ARAGAU: Beat[] = [
   { who: T, bg: 'arako_night', text: 'ならねえな。……豪は、元気だろうな' },
   { who: MA, bg: 'arako_night', text: 'きっと' },
   { bg: 'arako_night', text: 'その「きっと」の中に、ねねの姿もあるのだろう。大敵は去った。それでも抗いは終わらぬ。北はまだ終わらない。' },
-  { bg: 'arako_night', text: '（物語の次の場面は天正九年（1581年）、能登。それまでは府中の城主として、柴田の下で働く。「月日を送る」で跳ぶこともできる）' },
 ];
 
 // ───────── 第八章　継ぐ土 ─────────
@@ -119,7 +118,6 @@ export const P3_NOTO: Beat[] = [
   { who: T, bg: 'nanao', text: '長殿。この国は面倒だな' },
   { who: CHO, bg: 'nanao', text: '面倒でございます。ですが、面倒でなければ能登ではございませぬ' },
   { bg: 'nanao', text: '長連龍。七尾落城で一族を失い、織田について能登へ戻った男。この男の中には、能登を「前田の国」になる前から知っている目がある。' },
-  { bg: 'nanao', text: '（七尾城の主（能登の国主）となった。府中の治めは他の者に引き継ぐ。七尾の城下で「国を治める」ができる）' },
 ];
 export const P3_KAERU: Beat[] = [
   { kind: 'door', head: '帰る者', text: '帰る者', sub: '天正九年 七尾' },
@@ -169,8 +167,7 @@ export const P3_TENJO: Beat[] = [
   { who: NA, bg: 'honnoji_ho', text: '犬千代。どうなりますかな' },
   { who: T, bg: 'honnoji_ho', text: '分からねえ。何もかも、分からねえ' },
   { who: T, bg: 'honnoji_ho', text: '（……豪は、向こうにいる）' },
-  { kind: 'time', text: '天正十年　本能寺の変', sub: '世の中は、史実の形に合わせ直される' },
-  { bg: 'kitanosho', text: '（世の中を「天正十年 本能寺の変」の形に合わせ直す。利家は柴田勝家の与力（柴田家）として、七尾にいる。暦はそのまま、利家と前田家はそのまま引き継ぐ）' },
+  { kind: 'time', text: '天正十年六月二日', sub: '本能寺' },
 ];
 export const P3_KUHAKU: Beat[] = [
   { kind: 'door', head: '空白の中で', text: '空白の中で', sub: '天正十年 夏' },
@@ -224,7 +221,6 @@ export const P3_RYO: Beat[] = [
   { who: HI, bg: 'nanao', text: '豪は元気だぞ' },
   { who: T, bg: 'nanao', text: '……そうか' },
   { kind: 'chapter', head: '第三部　了', text: '裂け目', sub: '残り火' },
-  { bg: 'nanao', text: '（第三部「裂け目」はここまで。前田家は羽柴に従う家となった。第四部「根を張る」は翌月、加賀から始まる）' },
 ];
 // 賤ヶ岳: 勝家とともに（もう一つの残り火）
 export const P3_TOMO: Beat[] = [
@@ -235,7 +231,6 @@ export const P3_TOMO: Beat[] = [
   { who: KA, bg: 'kitanosho', text: '……前田。お前は、来たか' },
   { kind: 'chapter', head: 'もう一つの残り火', text: '共に', sub: '残り火' },
   { bg: 'kitanosho', text: '前田利家は、賤ヶ岳で柴田勝家とともに散った。前田の家は北陸に残らなかった。だが、去らずに立っていた男がもう一人いたことを、北の土はしばらく覚えていた。' },
-  { bg: 'kitanosho', text: '（もう一つの終わり。物語はここで閉じる。賤ヶ岳で「退く」を選べば、物語の本筋へ続く）' },
 ];
 
 // ───────── 選ばせる問い ─────────

@@ -579,7 +579,6 @@ export const EV2_HORO: Beat[] = [
   { who: 'maeda_toshiie', bg: 'kiyosu_niwa', text: 'お前、猿よりよっぽど口が悪いな' },
   { who: 'sassa_narimasa', bg: 'kiyosu_niwa', text: '猿と一緒にするな。……だが、気を抜くな。赤は見える。見えるものは、使われる' },
   { who: 'kinoshita_tokichiro', bg: 'kiyosu_niwa', text: '佐々様は黒で立つ。前田様は赤で立つ。ようできております' },
-  { bg: 'kiyosu_niwa', text: '（赤母衣衆になった。主君の覚えが上がり、名が立つ。功績＋10）' },
 ];
 export const EV2_ANIZA: Beat[] = [
   { kind: 'time', text: '月日は流れ――', sub: '永禄六年' },
@@ -636,5 +635,4 @@ export const EV2_KATOKU: Beat[] = [
   { who: 'maeda_toshiie', bg: 'arako_night', text: '……前田をやる' },
   { who: 'maeda_toshiie', bg: 'arako_night', text: '俺がやる' },
   { kind: 'chapter', head: '第一部　了', text: '戻る道', sub: '残り火' },
-  { bg: 'arako', text: '前田の家督を継いだ。（荒子の当主となり、侍大将に取り立てられた。ここから第二部「北へ立つ」。前田家を率いて、金ヶ崎・姉川、そして越前へ）' },
 ];
