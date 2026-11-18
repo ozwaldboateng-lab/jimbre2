@@ -17,8 +17,9 @@ export type Step = 'ie' | 'shiro' | 'kuni' | 'homen' | 'hitto';
 export const STEP_NAME: Record<Step, string> = { ie: '家を立てる', shiro: '城を預かる', kuni: '国持ち', homen: '方面軍団長', hitto: '家中第一の臣' };
 export const CAREER = {
   SHIRO_MERIT: 180, SHIRO_FAVOR: 60, // 城を預かる: 侍大将で、功績180・覚え60
+  REGRANT_MONTHS: 6, REGRANT_FAVOR: 15, // 城を失った者の預け直し: 半年後、覚え45で（功績は問わない）
   KUNI_MONTHS: 12, KUNI_CHIAN: 60, KUNI_FAVOR: 70, // 国持ち: 宿老で、城を一年持ち、治安60・覚え70
-  HOMEN_FAVOR: 85, HOMEN_KASHIN: 2, HOMEN_CASTLES: 5, // 方面軍団長: 国持ちで覚え85・家臣2人。主人公の城と近くの城をまとめて5城まで
+  HOMEN_FAVOR: 85, HOMEN_KASHIN: 1, HOMEN_CASTLES: 5, // 方面軍団長: 国持ちで覚え85・家臣1人。主人公の城と近くの城をまとめて5城まで
   HITTO_FAVOR: 95, HITTO_MERIT: 900, HITTO_MONTHS: 24, // 家中第一の臣: 国持ちになって2年、覚え95・功績900
   CHIGYO: 12, // 知行: 治める城の石高1万石ごとに、月に金12貫（俸禄に加えて）
   RETIRE_AGE: 50, // この年からは隠居できる（国持ちになれば年に関わらず）
@@ -70,8 +71,8 @@ export function careerMonth(s: GameState): CareerEvent | null {
     if (H.fuchu === c.i) { H.fuchu = H.ryo?.shift(); car.since = H.fuchu !== undefined ? s.turn : undefined; } else H.ryo = (H.ryo ?? []).filter((i) => i !== c.i);
     H.favor = Math.max(0, H.favor - 15);
     // 治める城を全部失ったら、城を預かるところから登り直す（越えた節目は「これまでの到達」に残す）
-    if (H.fuchu === undefined) { car.lostAt = s.turn; car.best = [...new Set([...(car.best ?? []), ...car.steps])]; car.steps = car.steps.filter((k) => k === 'ie'); car.kuniAt = undefined; H.title = undefined; }
-    return { beats: [], lines: [`預かっていた${c.name}を敵に奪われた。主君の覚え−15。${H.fuchu === undefined ? '治める城がなくなった。また手柄を立てれば、城を預けられる。' : ''}`] };
+    if (H.fuchu === undefined) { car.lostAt = s.turn; car.lostKuni = car.steps.includes('kuni') || undefined; car.best = [...new Set([...(car.best ?? []), ...car.steps])]; car.steps = car.steps.filter((k) => k === 'ie'); car.kuniAt = undefined; H.title = undefined; }
+    return { beats: [], lines: [`預かっていた${c.name}を敵に奪われた。主君の覚え−15。${H.fuchu === undefined ? `治める城がなくなった。半年たって主君の覚え${CAREER.SHIRO_FAVOR - CAREER.REGRANT_FAVOR}あれば、また城を預けられる${car.lostKuni ? '（国持ちだったので、二つの城を）' : ''}。` : ''}`] };
   }
   const L = lordId(s), lord = L ? s.generals[L] : null, fam = houseName(s);
   if (!hasStep(s, 'ie') && me.rank <= 1) {
@@ -84,7 +85,8 @@ export function careerMonth(s: GameState): CareerEvent | null {
       { who: me.id, bg: 'zashiki_day', text: '面倒だな' },
     ], lines: [`${fam}を立てた。手勢${H.ie.shu}・蔵${H.ie.kura}石。城下の「家中の進言」で家のことを決められる`] };
   }
-  if (hasStep(s, 'ie') && !hasStep(s, 'shiro') && me.rank <= 1 && me.merit >= CAREER.SHIRO_MERIT && H.favor >= CAREER.SHIRO_FAVOR && s.turn - (car.lostAt ?? -99) >= 12) { // 城を失って1年は預けられない
+  const again = (car.best ?? []).includes('shiro'); // 一度城を持った者は、失っても半年で、覚えが少し低くても預け直される（功績は問わない）
+  if (hasStep(s, 'ie') && !hasStep(s, 'shiro') && me.rank <= 1 && (again || me.merit >= CAREER.SHIRO_MERIT) && H.favor >= CAREER.SHIRO_FAVOR - (again ? CAREER.REGRANT_FAVOR : 0) && s.turn - (car.lostAt ?? -99) >= CAREER.REGRANT_MONTHS) {
     const c = pickCastle(s);
     if (!c) return null;
     return grantShiro(s, c);
@@ -136,12 +138,18 @@ export function grantShiro(s: GameState, c: Castle): CareerEvent {
   c.garrison = Math.max(c.garrison, Math.round(garrisonMax(c) * 0.5));
   addLog(s, `${me.name}が${c.name}を預かった。`, 'info', true);
   const yo = first ? yoriki(s) : null; // 初めて城を預かった時、主君が与力を一人預けてくれる
+  let back = '';
+  if (car.lostKuni && me.rank === 0) { // 国持ちだった者には、二つ目の城も預け直す（国持ちに戻る）
+    const c2 = pickCastle(s, c);
+    if (c2) { (H.ryo ??= []).push(c2.i); car.steps.push('kuni'); car.kuniAt = s.turn; H.title = `国持ち（${c.name}・${c2.name}）`; back = `${c2.name}も預け直され、国持ちに戻った。`; }
+  }
+  car.lostKuni = undefined;
   return { beats: [
     { kind: 'door', head: '城を預かる', text: '城を預かる', sub: `${s.year}年` },
     ...(lord ? [{ head: '広間', who: lord.id, bg: 'zashiki_day', text: `${me.name}。${c.name}を預ける。……城は、落とすより持つ方が重いぞ` }] : []),
     { head: c.name, bg: 'ishigaki', text: `${c.name}。石垣も、櫓も、門も、昨日までは主君の城だった。今日からは、${me.name}が持たせる城だ。城の後ろには村があり、道があり、人がいる。` },
     { who: me.id, bg: 'ishigaki', text: '……広いな' },
-  ], lines: [`${c.name}を預かった（城持ち${first ? '。功績+20・金500貫' : ''}）。${yo ? `与力として${yo.name}を預けられ、家臣に加わった。` : ''}城下で「国を治める」ができる。治めた城の石高に応じて知行が入る`] };
+  ], lines: [`${c.name}を預かった（城持ち${first ? '。功績+20・金500貫' : ''}）。${yo ? `与力として${yo.name}を預けられ、家臣に加わった。` : ''}${back}城下で「国を治める」ができる。治めた城の石高に応じて知行が入る`] };
 }
 // 始めの身分を出世に映す（物語の外）: 侍大将以上は家を構えた所から、宿老と城主だった者は城持ちから始める。
 // gov: 始める前にその武将が城主だった城（startHero で城主から外す前に拾っておく）
@@ -260,6 +268,8 @@ export function followClan(s: GameState): string | null {
   for (const a of Object.values(s.armies)) { if (a.main === me.id) { const st = (a.staff ?? []).shift(); if (st) a.main = st; } a.staff = (a.staff ?? []).filter((x) => x !== me.id); }
   for (const c of s.castles) if (c.governor === me.id) c.governor = null;
   me.status = 'hero'; me.army = null; H.army = null; H.fuchu = undefined; H.ryo = []; H.quest = null; H.favor = 30; H.title = undefined;
+  { const car = (H.career ??= { steps: [] }); car.best = [...new Set([...(car.best ?? []), ...car.steps])]; car.steps = car.steps.filter((k) => k === 'ie'); car.since = undefined; car.kuniAt = undefined; car.lostAt = s.turn; } // 新しい主家では城を預かるところから（越えた節目は残る）
+  if (homenOf(s)) s.fronts = (s.fronts ?? []).filter((f) => f.leader !== me.id);
   return `${me.name}は${clanName(s, me.clan)}家に降った。`;
 }
 

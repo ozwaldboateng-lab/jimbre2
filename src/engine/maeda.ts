@@ -7,6 +7,7 @@ import { castleKoku, garrisonMax, rand } from './state';
 import { FORT_NAME, fortCost, fortOf, shindenCost, shindenDone } from './invest';
 import * as R from './rules';
 import type { Castle, GameState } from './types';
+import { shuCapBonus } from './meibutsu';
 import type { Act } from './hero';
 
 export interface Ie { shu: number; kura: number; kachu: number; mura: number; adv?: number; seen?: string[] }
@@ -22,7 +23,7 @@ export function ieMonth(s: GameState): string[] {
   const agari = Math.round(IE.AGARI * (1 - ie.mura / 150));
   ie.kura = Math.min(IE.KURA_CAP, ie.kura + agari);
   ie.mura = clamp(ie.mura - 2);
-  const cap = IE.SHU_CAP + ie.kachu * 2;
+  const cap = IE.SHU_CAP + ie.kachu * 2 + shuCapBonus(s);
   if (ie.kura <= 0) { ie.kachu = clamp(ie.kachu - 3); ie.shu = Math.max(50, ie.shu - 20); out.push('前田の蔵が尽きた。家中が細る。'); }
   else if (ie.shu < cap) ie.shu = Math.min(cap, ie.shu + Math.round(5 + ie.kachu / 10));
   else if (ie.shu > cap) ie.shu = Math.max(cap, ie.shu - 15); // 養える数を超えた分は少しずつ村へ戻る

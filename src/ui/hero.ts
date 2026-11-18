@@ -16,6 +16,7 @@ import * as KS from '../engine/kashin';
 import * as HC from '../engine/heroCastle';
 import * as HA from '../engine/heroArmy';
 import * as FR from '../engine/fronts';
+import * as MB from '../engine/meibutsu';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
@@ -199,9 +200,11 @@ function spotsHtml(st: GameState) {
   const ask = CR.canAskCastle(st) && !H.questBlock(st) ? `<button class="hr-spot main" data-h="askshiro"><b>城を願い出る</b><span>主君に城を預けてほしいと願い出る（1旬）</span></button>` : '';
   const ret = CR.canRetire(st) ? `<button class="hr-spot dim" data-h="retire"><b>${retireArm ? 'まことに隠居する' : '隠居する'}</b><span>${retireArm ? 'もう一度押すと家督を譲り、一生を締める' : '家督を譲って一生を締める（評価が出る）'}</span></button>` : '';
   const ldb = CR.freeHero(st) && st.hero!.quest?.kind === 'kouryaku' && H.heroOf(st)!.rank === 0 ? (() => { const why = HA.canLead(st); return `<button class="hr-spot main" data-h="lead" ${why ? 'disabled' : ''}><b>軍勢を率いて出陣</b><span>${why ? esc(why) : `攻略の総大将として、${esc(st.castles[st.hero!.town].name)}の城兵の6割と手勢で軍勢を立てる（1旬）`}</span></button>`; })() : '';
+  const mo = CR.freeHero(st) && !st.hero!.field ? MB.offerAt(st, c.id) : null;
+  const mei = mo ? `<button class="hr-spot" data-h="buymei" data-id="${mo.id}" ${st.hero!.gold < mo.price ? 'disabled' : ''}><b>名物を求める: ${esc(mo.name)}（${mo.price.toLocaleString('ja-JP')}貫）</b><span>${mo.kind}の名物が売りに出ている。名声+${mo.fame}。茶会に使え、主君への献上は覚えと功績に大きく効く</span></button>` : '';
   const hf = CR.homenOf(st);
   const homen = hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>${hf.castles.length}城・${FR.frontArmies(st, hf).length}軍勢。方針（${R.FRONT_POLICY_NAME[hf.policy]}）と攻略の目標を決める。謀反・出奔もここで</span></button>` : CR.canRebel(st) === null ? `<button class="hr-spot dim" data-h="pane" data-id="homen"><b>主家との縁</b><span>謀反を起こす・出奔する</span></button>` : '';
-  return `${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${trade}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
+  return `${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${trade}${mei}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
     <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${ret}${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
 // 浪人の城下: 陣借り・用心棒・指南・牢人衆・国衆の城（探る・旗揚げ）・仕官
@@ -238,12 +241,24 @@ function peopleHtml(st: GameState) {
   const ps = (H.inArmy(st) ? H.comrades(st) : H.townsfolk(st, st.hero!.town)).sort((a, b) => (st.hero!.rel[b.id] ?? 0) - (st.hero!.rel[a.id] ?? 0) || Number(b.clan === me.clan) - Number(a.clan === me.clan) || a.rank - b.rank);
   if (!ps.length) return '<p class="hr-none">この町に訪ねられる武将はいない。</p>';
   const fol = RP.followersOf(st), rs = KS.retainersOf(st), dk = st.hero!.daikan ?? {};
+  const house = houseHtml(st);
   const role = (g: General) => { const c = Object.entries(dk).find(([, v]) => v === g.id); return c ? `${st.castles[+c[0]].name}の城代` : st.hero!.quest?.proxy === g.id ? '遣わし中' : '近侍'; };
-  return `${fol.length ? `<p class="hr-note"><b>配下</b> ${fol.map((g) => esc(g.name)).join('・')}</p>` : ''}${rs.length || KS.capOf(st) ? `<p class="hr-note"><b>家臣 ${rs.length}／${KS.capOf(st)}人</b> ${rs.map((g) => `${esc(g.name)}（${role(g)}・統${g.lea}）`).join('・') || 'まだいない。城下の浪人を召し抱えられる'}。扶持は一人月${KS.KASHIN.FUCHI}貫。</p>` : ''}<p class="hr-note">訪ねる・進物を贈ると親しくなる（1旬）。親しさ${H.HERO.FRIEND}で「友」の縁を結ぶ。${RP.isRonin(st) ? `浪人の武将は、親しさ${RP.RONIN.FOLLOW_REL}で配下に誘える。` : ''}</p>${ps.map((g) => {
+  return `${house}${fol.length ? `<p class="hr-note"><b>配下</b> ${fol.map((g) => esc(g.name)).join('・')}</p>` : ''}${rs.length || KS.capOf(st) ? `<p class="hr-note"><b>家臣 ${rs.length}／${KS.capOf(st)}人</b> ${rs.map((g) => `${esc(g.name)}（${role(g)}・統${g.lea}）`).join('・') || 'まだいない。城下の浪人を召し抱えられる'}。扶持は一人月${KS.KASHIN.FUCHI}貫。</p>` : ''}<p class="hr-note">訪ねる・進物を贈ると親しくなる（1旬）。親しさ${H.HERO.FRIEND}で「友」の縁を結ぶ。${RP.isRonin(st) ? `浪人の武将は、親しさ${RP.RONIN.FOLLOW_REL}で配下に誘える。` : ''}</p>${ps.map((g) => {
     const v = st.hero!.rel[g.id] ?? 0;
     return `<div class="hr-person">${face(g.id, 44) || `<span class="hr-noface sm">${esc(g.name.slice(0, 1))}</span>`}<div class="hr-pi"><b>${esc(g.name)}</b><span>${g.clan ? `${esc(clanName(st, g.clan))}・${rankName(st, g)}` : '浪人'}${g.status === 'governor' ? '・城主' : ''}</span><span class="hr-rel">${H.RELNAME(v)} ${v}</span></div>
       <div class="hr-pa">${KS.canRecruit(st, g) ? `<button class="hr-btn sm" data-h="kakae" data-id="${g.id}" ${v < KS.KASHIN.REL || KS.retainersOf(st).length >= KS.capOf(st) ? 'disabled' : ''}>家臣に召し抱える</button>` : ''}${RP.isRonin(st) && g.status === 'ronin' && !RP.isFollower(st, g) ? `<button class="hr-btn sm" data-h="invite" data-id="${g.id}" ${v < RP.RONIN.FOLLOW_REL ? 'disabled' : ''}>配下に誘う</button>` : ''}<button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button></div></div>`;
   }).join('')}`;
+}
+// 家の格（屋敷の普請）・名物・茶会（物語の外の、家を立てた主人公）
+function houseHtml(st: GameState) {
+  if (!CR.freeHero(st) || !st.hero!.ie) return '';
+  const k = MB.kakuOf(st), kb = MB.kakuBlock(st), next = MB.KAKU.COST[k];
+  const kaku = `<button class="hr-spot" data-h="kaku" ${kb ? 'disabled' : ''}><b>屋敷を普請する${next ? `（${next.toLocaleString('ja-JP')}貫）` : ''}</b><span>いま${MB.KAKU.NAME[k]}（家の格${k}）。${kb ? esc(kb) : `格${k + 1}へ: 手勢+${MB.KAKU.SHU}・名声+${MB.KAKU.FAME}・覚え+${MB.KAKU.FAVOR}${(k + 1) % 2 === 0 ? '・家臣の枠+1' : ''}。掛かりは月${(k + 1) * MB.KAKU.UPKEEP}貫（1旬）`}</span></button>`;
+  const L = H.lordOf(st), atLord = !!L && !st.hero!.field && L.loc === st.hero!.town;
+  const ms = MB.owned(st).map((m) => `<div class="hr-person"><div class="hr-pi"><b>${esc(m.name)}</b><span>${m.kind}・${m.price.toLocaleString('ja-JP')}貫の名物</span></div><div class="hr-pa"><button class="hr-btn sm" data-h="kenmei" data-id="${m.id}" ${atLord ? '' : 'disabled'}>主君に献上</button></div></div>`).join('');
+  const cb = MB.chakaiBlock(st);
+  const cha = MB.owned(st).length ? `<button class="hr-spot" data-h="chakai" ${cb ? 'disabled' : ''}><b>茶会を開く（${MB.CHAKAI.COST}貫）</b><span>${cb ? esc(cb) : `この城下の武将を招き、みなと親しくなる・名声+${MB.CHAKAI.FAME}（1旬）`}</span></button>` : '';
+  return `<h4 class="hr-sub">${esc(CR.houseName(st))}（手元${st.hero!.gold.toLocaleString('ja-JP')}貫・手勢${st.hero!.ie.shu}）</h4>${kaku}${ms ? `<h4 class="hr-sub">名物${atLord ? '' : '（献上は主君の城下で）'}</h4>${ms}` : ''}${cha}<h4 class="hr-sub">人</h4>`;
 }
 function travelHtml(st: GameState) {
   const Hh = st.hero!, me = H.heroOf(st)!;
@@ -514,6 +529,10 @@ function onClick(e: Event) {
   if (h === 'htgt') { pane = 'homen'; say = { text: CR.setHomenPolicy(s, 'attack', id) }; save(); render(); return; }
   if (h === 'rebel') { if (rebelArm < 2) { rebelArm++; say = { text: rebelArm === 1 ? '主家に背けば、もう戻れない。' : '旗を翻せば、主家の兵が攻めて来る。' }; render(); return; } rebelUp(); return; }
   if (h === 'shuppon') { if (!leaveArm) { leaveArm = true; say = { text: '城を返し、主家を去る。もう一度押すと出奔する。' }; render(); return; } leaveArm = false; pane = 'spots'; const t = CR.leaveLord(s); H.note(s, t); say = { text: t }; save(); render(); return; }
+  if (h === 'kaku') { void act(() => MB.raiseKaku(s!), 'yashiki'); return; }
+  if (h === 'buymei') { void act(() => MB.buyMeibutsu(s!, id), 'ichi'); return; }
+  if (h === 'kenmei') { void act(() => MB.giveMeibutsu(s!, id), 'tojo'); return; }
+  if (h === 'chakai') { const me = H.heroOf(s)!; const gs = H.townsfolk(s, s.hero!.town).filter((g) => g.clan && g.id !== me.id).map((g) => g.id); void act(() => MB.chakai(s!, gs), 'yashiki'); return; }
   if (h === 'rise') { riseUp(id as 'youchi' | 'naio'); return; }
   if (h === 'retire') { if (!retireArm) { retireArm = true; say = { text: '家督を譲れば、一生はそこで締めになる。もう一度押すと隠居する。' }; render(); return; } retireArm = false; const ls = CR.retire(s); for (const x of ls) H.note(s, x); report = [...ls, '一生を終えた。']; save(); render(); return; }
   if (h === 'buy') { pane = 'akinai'; void act(() => T.buy(s!, +id), 'ichi'); return; }

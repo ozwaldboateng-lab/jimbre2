@@ -5,6 +5,7 @@ import type { Act } from './hero';
 import { hexDist } from './map';
 import { addLog, clamp100, rand } from './kashin_util';
 import type { GameState, General } from './types';
+import { retainerBonus } from './meibutsu';
 
 export const KASHIN = {
   FUCHI: 30, // 家臣一人の月の扶持（貫）
@@ -16,9 +17,10 @@ export const KASHIN = {
 // 抱えられる人数: 足軽組頭0・足軽大将1・侍大将3・城持ち5・国持ち8
 export function capOf(s: GameState): number {
   const H = s.hero!, me = s.generals[H.id], st = H.career?.steps ?? [];
-  if (st.includes('kuni')) return 8;
-  if (st.includes('shiro')) return 5;
-  return [8, 3, 1, 0][me.rank] ?? 0;
+  const b = retainerBonus(s);
+  if (st.includes('kuni')) return 8 + b;
+  if (st.includes('shiro')) return 5 + b;
+  return ([8, 3, 1, 0][me.rank] ?? 0) + (me.rank <= 2 ? b : 0);
 }
 export const retainersOf = (s: GameState): General[] => (s.hero?.retainers ?? []).map((id) => s.generals[id]).filter((g) => g && g.status !== 'dead');
 export const freeRetainers = (s: GameState) => retainersOf(s).filter((g) => !Object.values(s.hero!.daikan ?? {}).includes(g.id) && s.hero!.quest?.proxy !== g.id);
