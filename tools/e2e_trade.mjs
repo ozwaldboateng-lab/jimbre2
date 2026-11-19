@@ -13,11 +13,11 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
   await p.click('[data-h="pick"][data-id="maeda_toshiie"]'); await p.waitForTimeout(300);
   const idle = () => p.waitForFunction(() => !document.querySelector('.hr-busy'), null, { timeout: 120000 });
-  const click = async (sel) => { await idle(); const r0 = await p.$('[data-h="report-ok"]'); if (r0) { await r0.click(); await p.waitForTimeout(120); } const e = await p.$(sel); if (!e) return false; await e.click(); await p.waitForTimeout(200); return true; };
+  const click = async (sel) => { await idle(); for (const sel of ['[data-h="q-accept"]', '[data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } const r0 = await p.$('[data-h="report-ok"]'); if (r0) { await r0.click(); await p.waitForTimeout(120); } const e = await p.$(sel); if (!e) return false; await e.click(); await p.waitForTimeout(200); return true; };
   const say = () => p.$eval('#hero .hr-text', (e) => e.textContent).catch(() => '');
   const goTo = async (re) => {
     for (let i = 0; i < 20; i++) {
-      await idle(); const r0 = await p.$('[data-h="report-ok"]'); if (r0) { await r0.click(); await p.waitForTimeout(120); }
+      await idle(); for (const sel of ['[data-h="q-accept"]', '[data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } const r0 = await p.$('[data-h="report-ok"]'); if (r0) { await r0.click(); await p.waitForTimeout(120); }
       const town = await p.$eval('#hero .hr-town b', (e) => e.textContent);
       if (re.test(town) && !/野/.test(town)) return true;
       await click('[data-h="pane"][data-id="tabi"]');

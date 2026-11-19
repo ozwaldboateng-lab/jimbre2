@@ -39,7 +39,8 @@ let onQuit: () => void = () => {};
 let root: HTMLElement | null = null;
 let pane: 'spots' | 'yashiki' | 'tabi' | 'diary' | 'akinai' | 'shiro' | 'homen' = 'spots';
 let bg = 'town';
-let say: { who?: string; line?: string; text: string } | null = null;
+let say: { who?: string; line?: string; text: string; hold?: boolean; offer?: boolean } | null = null; // hold: セリフの窓（押すと閉じる）。offer: 主命を承るか断るか
+let heldReport: string[] | null = null, heldBeats: Beat[] | null = null; // セリフの窓を閉じるまで待たせる、月の報告と出世の場面
 let busy = false;
 let report: string[] | null = null;
 let mapCanvas: HTMLCanvasElement | null = null;
@@ -61,7 +62,7 @@ function save() { try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); } c
 export function openHero(f: Face, quit: () => void) {
   face = f; onQuit = quit;
   mount();
-  s = null; pane = 'spots'; say = null; report = null;
+  s = null; pane = 'spots'; say = null; report = null; heldReport = null; heldBeats = null;
   renderPick();
 }
 function mount() {
@@ -92,7 +93,7 @@ function renderPick() {
 export function openHeroWith(f: Face, quit: () => void, st: GameState, first: { who?: string; line?: string; text: string }) {
   face = f; onQuit = quit;
   mount();
-  s = st; pane = 'spots'; bg = 'town'; report = null; recenter = true; say = first; cmdDefault(st);
+  s = st; pane = 'spots'; bg = 'town'; report = null; heldReport = null; heldBeats = null; recenter = true; say = first; cmdDefault(st);
   save(); render();
   runStory();
 }
@@ -131,7 +132,7 @@ function render() {
       <section class="hr-scene${mapMode(st) ? ' map' : ''}" style="${art && !mapMode(st) ? `background-image:url(${art})` : ''}">
         ${mapMode(st) ? '<div id="hr-mapslot"></div>' : ''}
         <div class="hr-town">${H.inArmy(st) ? (() => { const a = H.inArmy(st)!; return `<b>${esc(st.generals[a.main]?.name ?? '')}の陣中</b><span>${esc(castleAt(st, a.hex)?.name ?? PROVINCES[HEXES[a.hex].p].name + 'の野')}・兵${a.troops.toLocaleString('ja-JP')}・士気${a.morale.toFixed(2)}</span>`; })() : Hh.field ? `<b>${esc(PROVINCES[HEXES[Hh.hex].p].name)}の野</b><span>旅の途中</span>` : `<b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span>`}</div>
-        ${say ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}">${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p></div>` : ''}
+        ${say ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? '<div class="hr-offer"><button class="hr-btn primary" data-h="q-accept">承る</button><button class="hr-btn" data-h="q-decline">断る</button></div>' : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
@@ -337,12 +338,26 @@ function diaryHtml(st: GameState) {
 const dateOf = (st: GameState, turn: number) => { const m0 = (st.startMonth ?? 6) - 1 + turn - 1; return `${(st.startYear ?? 1560) + Math.floor(m0 / 12)}年${(m0 % 12) + 1}月`; };
 
 // ───────── 行い ─────────
+// セリフの窓を閉じる: 言葉は消して地の文だけ残し、待たせていた月の報告（と出世の場面）を出す
+function closeSay() {
+  if (!say) return;
+  say = { text: say.text };
+  if (heldReport) { report = heldReport; heldReport = null; }
+  render();
+  if (!report) playHeld();
+}
+function playHeld() {
+  const b = heldBeats; heldBeats = null;
+  if (b && b.length && theater && s) { const st = s; theater(b, () => { save(); render(); }, undefined, opt(st)); }
+}
 async function act(fn: () => H.Act, scene?: string) {
   if (!s || busy) return;
+  if (heldReport) { report = heldReport; heldReport = null; render(); return; } // 閉じずに次へ進もうとした: 先に月の報告を見せる
   const r = fn();
   if (!r.ok) { say = { text: r.text }; render(); return; }
   if (scene) bg = scene;
-  say = { who: r.who, line: r.line, text: r.text };
+  const hold = !!(r.who && r.line) && !mapMode(s);
+  say = { who: r.who, line: r.line, text: r.text, hold, offer: hold && r.offer };
   await advance();
 }
 // 3旬が過ぎたら1か月を進める。月をまたぐ旅は続ける
@@ -373,11 +388,12 @@ async function advance() {
   }
   const cev = monthPassed && CR.careerMonth(st);
   if (cev) { lines.push(...cev.lines); for (const x of cev.lines) H.note(st, x); }
-  if (lines.length) report = [...new Set(lines)];
+  const held = !!say?.hold;
+  if (lines.length) { if (held) heldReport = [...new Set(lines)]; else report = [...new Set(lines)]; }
   // 城下に着いたら、城下の画面へ戻る
   if (bg === 'tabi' && !st.hero!.field && (st.hero!.dest === null || st.hero!.dest === undefined)) { bg = 'town'; pane = 'spots'; }
   save(); render();
-  if (cev && cev.beats.length && theater) { theater(cev.beats, () => { save(); render(); }, undefined, opt(st)); return; } // 出世の節目の場面
+  if (cev && cev.beats.length && theater) { if (held || report) { heldBeats = cev.beats; return; } theater(cev.beats, () => { save(); render(); }, undefined, opt(st)); return; } // 出世の節目の場面（セリフの窓・月の報告を閉じてから）
   runStory();
 }
 // 物語（前田利家 ― 残り火）: 時期の来た場面を、物語の画面で見せる
@@ -504,7 +520,10 @@ function onClick(e: Event) {
   if (!s) return;
   if (s.hero?.over && !['pane', 'report-ok'].includes(h)) return; // 終わったあとは見るだけ
   if (h === 'pane') { if (id === 'tabi') recenter = true; pane = id as typeof pane; render(); return; }
-  if (h === 'report-ok') { report = null; render(); return; }
+  if (h === 'report-ok') { report = null; render(); playHeld(); return; }
+  if (h === 'say-close') { closeSay(); return; }
+  if (h === 'q-accept') { if (say) say.text = say.text.replace('主命を申し付けられた。', '主命を承った。'); closeSay(); return; }
+  if (h === 'q-decline') { const r = H.declineQuest(s); say = { who: r.who, line: r.line, text: r.text, hold: r.ok }; save(); render(); return; }
   if (h === 'rest') { void act(() => H.rest(s!), 'town'); return; }
   if (h === 'skip') { skipTime(); return; }
   if (h === 'advice') { advice(); return; }
@@ -602,6 +621,7 @@ export const CSS = `
 .hr-scene.map{background:#16222e}
 #hr-mapslot{position:absolute;inset:0}#hr-mapslot canvas{width:100%;height:100%;display:block;touch-action:none}
 .hr-scene.map .hr-town{position:relative;z-index:1;pointer-events:none}
+.hr-say.hold{cursor:pointer}.hr-close{display:block;text-align:right;font-size:12px;color:#cfa95e;opacity:.8;margin-top:6px}.hr-offer{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}.hr-offer .hr-btn{min-width:96px}
 .hr-say.mini{position:relative;z-index:1;margin:auto 12px 12px;width:auto;align-self:stretch;padding:10px 14px;pointer-events:none}
 .hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}

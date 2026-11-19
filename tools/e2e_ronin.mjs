@@ -17,7 +17,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
   await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
   const idle = () => p.waitForFunction(() => !document.querySelector('#hero .hr-busy'), null, { timeout: 120000 });
-  const ok = async () => { if (await p.$('#story:not([hidden]) .st-scene')) return; const r = await p.$('#hero [data-h="report-ok"]'); if (r) { await r.click(); await p.waitForTimeout(80); } };
+  const ok = async () => { if (await p.$('#story:not([hidden]) .st-scene')) return; for (const sel of ['#hero [data-h="q-accept"]', '#hero [data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } const r = await p.$('#hero [data-h="report-ok"]'); if (r) { await r.click(); await p.waitForTimeout(80); } };
   const say = () => p.$eval('#hero .hr-text', (e) => e.textContent).catch(() => '');
   await p.screenshot({ path: `${out}/rn-${vp.tag}-1-spots.png` });
   console.log(vp.tag, 'spots', (await p.$$eval('#hero .hr-pane .hr-spot b', (es) => es.map((e) => e.textContent))).join(' | '));

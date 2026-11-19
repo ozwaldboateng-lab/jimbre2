@@ -22,12 +22,13 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   console.log(vp.tag, 'goal0', (await goal()).slice(0, 80));
   await snap('start');
   const theaterThrough = async (tag) => { let n = 0; const seen = []; while (await p.$('#story:not([hidden]) .st-scene') && n++ < 80) { const t = await p.$eval('#story .st-scene', (e) => e.textContent).catch(() => ''); if (n === 2) { seen.push(t.slice(0, 40)); await snap(tag); } const ask = await p.$$('#story [data-s="ask"]'); if (ask.length) { await ask[0].click(); await p.waitForTimeout(40); continue; } const nx = await p.$('#story .st-fx') ?? await p.$('#story .hr-say button[data-s="next"]'); if (!nx) break; await nx.click(); await p.waitForTimeout(40); } return seen; };
-  const ok = async () => { if (await p.$('#story:not([hidden]) .st-scene')) return; const r = await p.$('#hero [data-h="report-ok"]'); if (r) { await r.click(); await p.waitForTimeout(80); } };
+  const ok = async () => { if (await p.$('#story:not([hidden]) .st-scene')) return; for (const sel of ['#hero [data-h="q-accept"]', '#hero [data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } const r = await p.$('#hero [data-h="report-ok"]'); if (r) { await r.click(); await p.waitForTimeout(80); } };
   const steps = [];
   for (let i = 0; i < 12; i++) {
     await idle();
     if (await p.$('#story:not([hidden]) .st-scene')) { steps.push(...await theaterThrough('step')); continue; }
-    await ok();
+    await ok(); await p.waitForTimeout(150);
+    if (await p.$('#story:not([hidden]) .st-scene')) continue;
     const say = await p.$eval('#hero .hr-text', (e) => e.textContent).catch(() => '');
     if (/預かった/.test(say)) break;
     const rest = await p.$('#hero [data-h="rest"]'); if (rest) { await rest.click(); await p.waitForTimeout(150); }

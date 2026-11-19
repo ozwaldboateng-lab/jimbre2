@@ -38,6 +38,7 @@ export interface Hero {
   selfCommand?: boolean; // 加わった軍勢の合戦で、自分の一隊を自ら采配する（合戦の画面を開く）
   retainers?: string[]; daikan?: Record<number, string>; lent?: { army: number; shu: number; troops: number }; // 家臣団・城代・陣に連れて行った手勢
   fame?: number; kubi?: number; followers?: string[]; scouted?: Record<number, number>; merc?: { army: number; clan: string; since: number; fought: number }; // 名声（世に聞こえた名 0〜100）・首級・配下の浪人・探った国衆の城・陣借り
+  declined?: number; declines?: number; // 主命を断った月・続けて断った数（果たせば0に戻る）
   kaku?: number; meibutsu?: string[]; given?: string[]; chakai?: number; // 家の格・持っている名物・献上した名物・最後の茶会（meibutsu.ts）
   career?: { steps: import('./career').Step[]; since?: number; kuniAt?: number; ronin?: number; lostAt?: number; lostKuni?: boolean; best?: import('./career').Step[]; served?: string[]; tried?: Record<string, number> }; // 出世の階段（物語の外）: 越えた節目と、城を預かった月 // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
 }
@@ -101,7 +102,7 @@ export const RELNAME = (v: number) => (v >= 80 ? '刎頸の交わり' : v >= HER
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 
 // ───────── 旬ごとの行い（どれも1旬を使う。戻り値は画面に出す言葉） ─────────
-export interface Act { ok: boolean; text: string; who?: string; line?: string }
+export interface Act { ok: boolean; text: string; who?: string; line?: string; offer?: boolean } // offer: 主命を申し付けられた（承るか断るかを選ぶ）
 const used = (s: GameState) => { s.hero!.jun++; };
 
 export function visit(s: GameState, gid: string): Act {
@@ -311,7 +312,7 @@ export function tojo(s: GameState): Act {
       const merit = HERO.MERIT[q.kind] + extra * 4, favor = HERO.FAVOR_OK[q.kind] + extra * 2;
       addMerit(s, me.id, merit); H.favor = clamp(H.favor + favor); H.gold += HERO.PAYOUT[q.kind]; H.done++; addFame(s, q.kind === 'choryaku' || q.kind === 'shutsujin' ? 2 : 1);
       note(s, `主命（${QUEST_NAME[q.kind]}・${s.castles[q.castle].name}）を果たし、${L.name}に報告した。${HERO.PAYOUT[q.kind] ? `褒美に金${HERO.PAYOUT[q.kind]}貫。` : ''}`);
-      H.quest = null;
+      H.quest = null; H.declines = 0;
       return { ok: true, who: L.id, line: pickLine(s, PRAISE[q.kind]), text: `主命の首尾を申し上げた。功績+${merit}、主君の覚え+${favor}${HERO.PAYOUT[q.kind] ? `、金+${HERO.PAYOUT[q.kind]}貫` : ''}。${q.note ?? ''}` };
     }
     H.favor = clamp(H.favor - 3); H.failed++; H.quest = null;
@@ -319,11 +320,23 @@ export function tojo(s: GameState): Act {
     return { ok: true, who: L.id, line: pickLine(s, SCOLD), text: `不首尾を報告した。主君の覚え−3。${q.note ?? ''}` };
   }
   if (q) return { ok: true, who: L.id, line: `${QUEST_NAME[q.kind]}の件、${s.castles[q.castle].name}の首尾はいかがした。期日は${monthsLeft(s, q)}か月のうちぞ。`, text: '主君に目通りした。' };
-  const nq = makeQuest(s);
+  const nq = H.declined === s.turn ? null : makeQuest(s); // 断った月は、もう申し付けない
   if (!nq) return { ok: true, who: L.id, line: '今は申し付けることはない。腕を磨いておけ。', text: '主君に目通りした。' };
   H.quest = nq;
   note(s, `主命を受けた: ${questText(s, nq)}`);
-  return { ok: true, who: L.id, line: ORDER_LINE[nq.kind].replace('{castle}', s.castles[nq.castle].name), text: `主命を受けた。${questText(s, nq)}` };
+  return { ok: true, offer: true, who: L.id, line: ORDER_LINE[nq.kind].replace('{castle}', s.castles[nq.castle].name), text: `主命を申し付けられた。${questText(s, nq)}` };
+}
+// 申し付けられたばかりの主命を断る: 覚えが下がる（続けて断るほど重い）。その月はもう申し付けられない
+export const DECLINE = { FAVOR: 3, STEP: 3, MAX: 15 };
+export function declineQuest(s: GameState): Act {
+  const H = s.hero!, L = lordOf(s), q = H.quest;
+  if (!q || q.done > 0 || q.joined || !L) return { ok: false, text: '断れる主命はない' };
+  const n = (H.declines ?? 0), loss = Math.min(DECLINE.MAX, DECLINE.FAVOR + n * DECLINE.STEP);
+  H.quest = null; H.declined = s.turn; H.declines = n + 1;
+  H.favor = clamp(H.favor - loss);
+  note(s, `主命（${QUEST_NAME[q.kind]}・${s.castles[q.castle].name}）を断った。主君の覚え−${loss}。`);
+  const line = n === 0 ? '……そうか。ならば他の者に申し付ける。' : n === 1 ? 'また断るか。……わしの命は、そんなに軽いか。' : '下がれ。しばらく顔を見せるな。';
+  return { ok: true, who: L.id, line, text: `主命を断った。主君の覚え−${loss}${n ? '（続けて断ったので重い）' : ''}。今月はもう主命は出ない。` };
 }
 const monthsLeft = (s: GameState, q: Quest) => Math.max(0, q.until - s.turn);
 export function questText(s: GameState, q: Quest) {
