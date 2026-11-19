@@ -2,13 +2,13 @@
 // 自分の城（なければ今いる自家の城）の城兵と手勢で軍勢を立て、地図の上で動かし、敵の城や軍勢へ出陣を命じる。
 // 軍勢は大名のAIには動かさせない（月の初めに主人公の命じた位置と命令へ戻す）。合戦は自ら采配するなら合戦の画面で、軍勢の全部隊を動かせる
 import type { Act } from './hero';
-import { hexDist } from './map';
+import { NEIGHBORS, hexDist } from './map';
 import { attackTargets, pathTo, reachable, stepCost } from './move';
 import { formArmy, moveArmy } from './ops';
 import { orderAttack } from './orders';
 import * as R from './rules';
-import { castleAt, garrisonMax, hostile } from './state';
-import type { Army, GameState } from './types';
+import { castleAt, garrisonMax, hexOwner, hostile, occupancy } from './state';
+import type { Army, Castle, GameState } from './types';
 
 export const LEAD = { SHARE: 0.6, MIN: 1000 }; // 城兵の6割まで連れて出る。千人に満たなければ出られない
 export const leading = (s: GameState): Army | null => { const id = s.hero?.leads; return id !== undefined && s.armies[id] ? s.armies[id] : null; };
@@ -28,16 +28,27 @@ export function lead(s: GameState): Act {
   if (why) return { ok: false, text: why };
   const H = s.hero!, me = s.generals[H.id], c = s.castles[H.town];
   const take = Math.round(Math.min(c.garrison, garrisonMax(c)) * LEAD.SHARE), shu = H.ie?.shu ?? 0;
+  const at = musterHex(s, c);
+  if (at === null) return { ok: false, text: '城にも城の周りにも軍勢がひしめいていて、軍勢を出す場所がない' };
   me.status = 'free'; // 本体の軍勢の主将として立てる（立てたあと主人公に戻す）
-  const a = formArmy(s, me.clan!, c, me.id, take + shu);
-  if (!a) { me.status = 'hero'; return { ok: false, text: '城の前に軍勢を出す場所がない' }; }
+  const a = formArmy(s, me.clan!, c, me.id, take + shu, at);
+  if (!a) { me.status = 'hero'; return { ok: false, text: '軍勢を出す場所がない' }; }
   c.garrison -= take; if (H.ie) H.ie.shu = 0;
   a.heroLed = true; a.mp = R.MOVE_POINTS; a.acted = false; a.food = R.CARRY_MONTHS;
   me.status = 'army'; me.army = a.id;
   H.leads = a.id; H.army = a.id; H.joined = s.turn; H.leadShu = shu;
+  if (a.hex !== c.hex) { H.hex = a.hex; H.field = true; }
   if (H.quest) H.quest.joined = true;
   H.jun++;
   return { ok: true, text: `${c.name}の城兵${take}・手勢${shu}、合わせて${take + shu}の軍勢を率いて出陣した。地図で動かし、敵の城か軍勢を押せば出陣を命じる。合戦は月の終わりに起きる。` };
+}
+// 軍勢を立てるマス: 城のマスに味方の軍勢がいれば、隣の空いたマス（自家の土地を先に、敵の城は除く）
+function musterHex(s: GameState, c: Castle): number | null {
+  const occ = occupancy(s), clan = c.owner!;
+  if (!occ.has(c.hex)) return c.hex;
+  const cand = NEIGHBORS[c.hex].filter((h) => !occ.has(h) && (!castleAt(s, h) || castleAt(s, h)!.owner === clan) && !(hexOwner(s, h) && hostile(s, clan, hexOwner(s, h))));
+  cand.sort((x, y) => Number(hexOwner(s, y) === clan) - Number(hexOwner(s, x) === clan) || stepCost(c.hex, x) - stepCost(c.hex, y));
+  return cand[0] ?? null;
 }
 // 地図で押したマス: 動かせる所なら進み、敵なら出陣を命じる
 export function commandHex(s: GameState, hex: number): Act {
