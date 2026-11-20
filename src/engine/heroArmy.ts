@@ -1,7 +1,7 @@
 // 融合の第三段: 宿老の主人公が、攻略の総大将として自ら軍勢を率いる（物語の外）。
 // 自分の城（なければ今いる自家の城）の城兵と手勢で軍勢を立て、地図の上で動かし、敵の城や軍勢へ出陣を命じる。
 // 軍勢は大名のAIには動かさせない（月の初めに主人公の命じた位置と命令へ戻す）。合戦は自ら采配するなら合戦の画面で、軍勢の全部隊を動かせる
-import type { Act } from './hero';
+import { heiCap, type Act } from './hero';
 import { NEIGHBORS, hexDist } from './map';
 import { attackTargets, pathTo, reachable, stepCost } from './move';
 import { formArmy, moveArmy } from './ops';
@@ -15,19 +15,20 @@ export const leading = (s: GameState): Army | null => { const id = s.hero?.leads
 export function canLead(s: GameState): string | null {
   const H = s.hero!, me = s.generals[H.id];
   if (H.story === 'toshiie' || !me.clan) return '物語の外の主人公だけ';
-  if (me.rank !== 0) return '宿老になってから';
+  if (me.rank > 1) return '侍大将になってから';
   if (H.quest?.kind !== 'kouryaku' || H.quest.done >= H.quest.need) return '攻略の主命を受けている時だけ';
   if (H.field || H.army !== null && H.army !== undefined) return '城下にいる時だけ';
   const c = s.castles[H.town];
   if (c.owner !== me.clan) return '自家の城から出る';
-  if (Math.round(c.garrison * LEAD.SHARE) + (H.ie?.shu ?? 0) < LEAD.MIN) return `兵が${LEAD.MIN}人に満たない`;
+  if (Math.min(heiCap(s), Math.round(c.garrison * LEAD.SHARE) + (H.ie?.shu ?? 0)) < LEAD.MIN) return `兵が${LEAD.MIN}人に満たない`;
   return null;
 }
 export function lead(s: GameState): Act {
   const why = canLead(s);
   if (why) return { ok: false, text: why };
   const H = s.hero!, me = s.generals[H.id], c = s.castles[H.town];
-  const take = Math.round(Math.min(c.garrison, garrisonMax(c)) * LEAD.SHARE), shu = H.ie?.shu ?? 0;
+  const cap = heiCap(s), shu = Math.min(H.ie?.shu ?? 0, cap); // 身分の兵の上限まで（手勢を先に）
+  const take = Math.min(Math.round(Math.min(c.garrison, garrisonMax(c)) * LEAD.SHARE), cap - shu);
   const at = musterHex(s, c);
   if (at === null) return { ok: false, text: '城にも城の周りにも軍勢がひしめいていて、軍勢を出す場所がない' };
   me.status = 'free'; // 本体の軍勢の主将として立てる（立てたあと主人公に戻す）

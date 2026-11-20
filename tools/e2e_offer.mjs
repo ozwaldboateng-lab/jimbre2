@@ -15,7 +15,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   const say = () => p.$eval('#hero .hr-say', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => '');
   const has = async (sel) => !!(await p.$(sel));
   await p.click('#hero [data-h="spot"][data-id="tojo"]'); await p.waitForTimeout(200);
-  console.log(vp.tag, 'offer', await has('#hero [data-h="q-accept"]'), await has('#hero [data-h="q-decline"]'), '|', (await say()).slice(0, 90));
+  console.log(vp.tag, 'hyojo cands', (await p.$$('#hero [data-h="q-pick"]')).length, await has('#hero [data-h="q-decline"]'), '|', (await say()).slice(0, 220));
   await p.screenshot({ path: `${out}/of-${vp.tag}-1-offer.png` });
   await p.click('#hero [data-h="q-decline"]'); await p.waitForTimeout(150);
   console.log(vp.tag, 'decline |', (await say()).slice(0, 120), '| quest', await p.$eval('#hero .hr-quest:nth-of-type(2)', (e) => e.textContent).catch(() => '?'));

@@ -17,7 +17,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
   await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
   const say = () => p.$eval('#hero .hr-text', (e) => e.textContent).catch(() => '');
-  const ok = async () => { for (const sel of ['#hero [data-h="q-accept"]', '#hero [data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } const r = await p.$('#hero [data-h="report-ok"]'); if (r) { await r.click(); await p.waitForTimeout(80); } };
+  const ok = async () => { for (const sel of ['#hero [data-h="q-pick"]', '#hero [data-h="q-accept"]', '#hero [data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } const r = await p.$('#hero [data-h="report-ok"]'); if (r) { await r.click(); await p.waitForTimeout(80); } };
   await p.click('#hero [data-h="lead"]'); await p.waitForTimeout(200);
   console.log(vp.tag, 'lead:', (await say()).slice(0, 80));
   await p.screenshot({ path: `${out}/ld-${vp.tag}-1-lead.png` });

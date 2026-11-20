@@ -121,7 +121,7 @@ function render() {
     <header class="hr-head">
       <div class="hr-id">${myFace(st, 56)}<div><b>${esc(me.name)}</b><span>${me.clan ? `${clanName(st, me.clan)}家・${R.RANK_NAME[me.rank]}` : '浪人'}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
       <div class="hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div>
-      <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd>${Hh.story !== 'toshiie' ? `<dt>名声</dt><dd>${Hh.fame ?? 0}</dd>` : ''}<dt>進物</dt><dd>${Hh.goods}</dd><dt>主君の覚え</dt><dd>${Hh.favor}</dd><dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
+      <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd>${Hh.story !== 'toshiie' ? `<dt>名声</dt><dd>${Hh.fame ?? 0}</dd>` : ''}<dt>進物</dt><dd>${Hh.goods}</dd><dt>主君の覚え</dt><dd>${Hh.favor}</dd>${Hh.story !== 'toshiie' && H.heroOf(st)!.clan ? `<dt>率いる兵</dt><dd>${H.heiCap(st).toLocaleString('ja-JP')}まで</dd>` : ''}<dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
       <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>${Hh.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}</dt><dd title="荒子衆・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}${Hh.story !== 'toshiie' && KS.capOf(st) ? `・家臣${KS.retainersOf(st).length}/${KS.capOf(st)}` : ''}</dd>` : ''}</dl>
       <button class="hr-btn ghost" data-h="quit" title="保存してタイトルへ">中断</button>
     </header>
@@ -132,7 +132,7 @@ function render() {
       <section class="hr-scene${mapMode(st) ? ' map' : ''}" style="${art && !mapMode(st) ? `background-image:url(${art})` : ''}">
         ${mapMode(st) ? '<div id="hr-mapslot"></div>' : ''}
         <div class="hr-town">${H.inArmy(st) ? (() => { const a = H.inArmy(st)!; return `<b>${esc(st.generals[a.main]?.name ?? '')}の陣中</b><span>${esc(castleAt(st, a.hex)?.name ?? PROVINCES[HEXES[a.hex].p].name + 'の野')}・兵${a.troops.toLocaleString('ja-JP')}・士気${a.morale.toFixed(2)}</span>`; })() : Hh.field ? `<b>${esc(PROVINCES[HEXES[Hh.hex].p].name)}の野</b><span>旅の途中</span>` : `<b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span>`}</div>
-        ${say ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? '<div class="hr-offer"><button class="hr-btn primary" data-h="q-accept">承る</button><button class="hr-btn" data-h="q-decline">断る</button></div>' : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
+        ${say ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
@@ -192,7 +192,7 @@ function spotsHtml(st: GameState) {
   const c = st.castles[st.hero!.town];
   const spots = H.spotsOf(st, c);
   const work = H.canWork(st) ? `<button class="hr-spot main" data-h="work"><b>主命を果たす</b><span>${esc(H.QUEST_NAME[st.hero!.quest!.kind])}（1旬）</span></button>` : '';
-  const desc: Record<H.Spot, string> = { tojo: '主命を受ける・報告する', yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
+  const desc: Record<H.Spot, string> = { tojo: st.hero!.story === 'toshiie' ? '主命を受ける・報告する' : `上旬の評定で主命を選ぶ・報告する${st.hero!.jun === 0 ? '（いま評定の時）' : ''}`, yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
   const gov = M.canGovern(st) ? `<button class="hr-spot main" data-h="pane" data-id="shiro"><b>城の政</b><span>${esc(M.fuchuText(st))}。開発・商業・新田・普請・見回り・城代など</span></button>` : '';
   const prx = KS.canProxy(st) ? `<button class="hr-spot" data-h="proxy"><b>家臣を遣わす</b><span>この主命（${esc(H.QUEST_NAME[st.hero!.quest!.kind])}）を家臣に任せる。来月に首尾が分かる（1旬）</span></button>` : '';
   const adv = M.canAdvice(st) ? `<button class="hr-spot" data-h="advice"><b>家中の進言</b><span>${st.hero!.story === 'toshiie' ? '奥村・村井' : '家老・家臣'}の話を聞いて、${st.hero!.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}のことを決める（月に一度・1旬）</span></button>` : '';
@@ -200,7 +200,7 @@ function spotsHtml(st: GameState) {
   const shikan = CR.lordHere(st) ? `<button class="hr-spot main" data-h="shikan"><b>仕官を願う</b><span>${esc(clanName(st, CR.lordHere(st)!))}家の当主に目通りを願う（1旬）</span></button>` : '';
   const ask = CR.canAskCastle(st) && !H.questBlock(st) ? `<button class="hr-spot main" data-h="askshiro"><b>城を願い出る</b><span>主君に城を預けてほしいと願い出る（1旬）</span></button>` : '';
   const ret = CR.canRetire(st) ? `<button class="hr-spot dim" data-h="retire"><b>${retireArm ? 'まことに隠居する' : '隠居する'}</b><span>${retireArm ? 'もう一度押すと家督を譲り、一生を締める' : '家督を譲って一生を締める（評価が出る）'}</span></button>` : '';
-  const ldb = CR.freeHero(st) && st.hero!.quest?.kind === 'kouryaku' && H.heroOf(st)!.rank === 0 ? (() => { const why = HA.canLead(st); return `<button class="hr-spot main" data-h="lead" ${why ? 'disabled' : ''}><b>軍勢を率いて出陣</b><span>${why ? esc(why) : `攻略の総大将として、${esc(st.castles[st.hero!.town].name)}の城兵の6割と手勢で軍勢を立てる（1旬）`}</span></button>`; })() : '';
+  const ldb = CR.freeHero(st) && st.hero!.quest?.kind === 'kouryaku' && H.heroOf(st)!.rank <= 1 ? (() => { const why = HA.canLead(st); return `<button class="hr-spot main" data-h="lead" ${why ? 'disabled' : ''}><b>軍勢を率いて出陣</b><span>${why ? esc(why) : `攻略の総大将として、${esc(st.castles[st.hero!.town].name)}の城兵の6割と手勢で軍勢を立てる（身分の兵の上限${H.heiCap(st).toLocaleString('ja-JP')}まで・1旬）`}</span></button>`; })() : '';
   const mo = CR.freeHero(st) && !st.hero!.field ? MB.offerAt(st, c.id) : null;
   const mei = mo ? `<button class="hr-spot" data-h="buymei" data-id="${mo.id}" ${st.hero!.gold < mo.price ? 'disabled' : ''}><b>名物を求める: ${esc(mo.name)}（${mo.price.toLocaleString('ja-JP')}貫）</b><span>${mo.kind}の名物が売りに出ている。名声+${mo.fame}。茶会に使え、主君への献上は覚えと功績に大きく効く</span></button>` : '';
   const hf = CR.homenOf(st);
@@ -339,6 +339,12 @@ const dateOf = (st: GameState, turn: number) => { const m0 = (st.startMonth ?? 6
 
 // ───────── 行い ─────────
 // セリフの窓を閉じる: 言葉は消して地の文だけ残し、待たせていた月の報告（と出世の場面）を出す
+// 評定の候補（一つを選んで受ける）か、申し付けられた主命（承る／断る）
+function hyojoHtml(st: GameState) {
+  const hy = st.hero!.hyojo;
+  if (!hy || hy.turn !== st.turn) return '<div class="hr-offer"><button class="hr-btn primary" data-h="q-accept">承る</button><button class="hr-btn" data-h="q-decline">断る</button></div>';
+  return `<div class="hr-cands">${hy.cands.map((q, i) => `<button class="hr-cand" data-h="q-pick" data-id="${i}"><b>${esc(H.QUEST_NAME[q.kind])}</b><span>${esc(H.questText(st, q))}</span></button>`).join('')}</div><div class="hr-offer"><button class="hr-btn" data-h="q-decline">どれも断る</button></div>`;
+}
 function closeSay() {
   if (!say) return;
   say = { text: say.text };
@@ -523,6 +529,7 @@ function onClick(e: Event) {
   if (h === 'report-ok') { report = null; render(); playHeld(); return; }
   if (h === 'say-close') { closeSay(); return; }
   if (h === 'q-accept') { if (say) say.text = say.text.replace('主命を申し付けられた。', '主命を承った。'); closeSay(); return; }
+  if (h === 'q-pick') { const r = H.chooseQuest(s, +id); say = { who: r.who, line: r.line, text: r.text, hold: r.ok }; if (heldReport && !r.ok) closeSay(); save(); render(); return; }
   if (h === 'q-decline') { const r = H.declineQuest(s); say = { who: r.who, line: r.line, text: r.text, hold: r.ok }; save(); render(); return; }
   if (h === 'rest') { void act(() => H.rest(s!), 'town'); return; }
   if (h === 'skip') { skipTime(); return; }
@@ -621,7 +628,8 @@ export const CSS = `
 .hr-scene.map{background:#16222e}
 #hr-mapslot{position:absolute;inset:0}#hr-mapslot canvas{width:100%;height:100%;display:block;touch-action:none}
 .hr-scene.map .hr-town{position:relative;z-index:1;pointer-events:none}
-.hr-say.hold{cursor:pointer}.hr-close{display:block;text-align:right;font-size:12px;color:#cfa95e;opacity:.8;margin-top:6px}.hr-offer{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}.hr-offer .hr-btn{min-width:96px}
+.hr-say.hold{cursor:pointer}.hr-close{display:block;text-align:right;font-size:12px;color:#cfa95e;opacity:.8;margin-top:6px}.hr-cands{display:flex;flex-direction:column;gap:6px;margin-top:10px}.hr-cand{text-align:left;background:rgba(207,169,94,.08);border:1px solid rgba(207,169,94,.45);color:inherit;padding:8px 12px;border-radius:3px;cursor:pointer;font:inherit}.hr-cand:hover{background:rgba(207,169,94,.2)}.hr-cand b{display:block;color:#cfa95e;font-size:14px}.hr-cand span{font-size:12.5px;opacity:.9}
+.hr-offer{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}.hr-offer .hr-btn{min-width:96px}
 .hr-say.mini{position:relative;z-index:1;margin:auto 12px 12px;width:auto;align-self:stretch;padding:10px 14px;pointer-events:none}
 .hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}

@@ -38,6 +38,7 @@ export interface Hero {
   selfCommand?: boolean; // 加わった軍勢の合戦で、自分の一隊を自ら采配する（合戦の画面を開く）
   retainers?: string[]; daikan?: Record<number, string>; lent?: { army: number; shu: number; troops: number }; // 家臣団・城代・陣に連れて行った手勢
   fame?: number; kubi?: number; followers?: string[]; scouted?: Record<number, number>; merc?: { army: number; clan: string; since: number; fought: number }; // 名声（世に聞こえた名 0〜100）・首級・配下の浪人・探った国衆の城・陣借り
+  hyojo?: { turn: number; cands: Quest[] }; // 評定で示された主命の候補（その月だけ）
   declined?: number; declines?: number; // 主命を断った月・続けて断った数（果たせば0に戻る）
   kaku?: number; meibutsu?: string[]; given?: string[]; chakai?: number; // 家の格・持っている名物・献上した名物・最後の茶会（meibutsu.ts）
   career?: { steps: import('./career').Step[]; since?: number; kuniAt?: number; ronin?: number; lostAt?: number; lostKuni?: boolean; best?: import('./career').Step[]; served?: string[]; tried?: Record<string, number> }; // 出世の階段（物語の外）: 越えた節目と、城を預かった月 // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
@@ -57,6 +58,13 @@ export const HERO = {
 };
 export const QUEST_NAME: Record<QuestKind, string> = { fushin: '普請', teisatsu: '偵察', choryaku: '調略', shutsujin: '出陣', kenkin: '献金', kenjo: '献上', tsukaiban: '使い番', monomi: '物見', toyo: '登用', kouryaku: '攻略', joban: '城番', negaeri: '寝返り' };
 
+// 身分ごとに率いられる兵の上限（足軽組頭・足軽大将・侍大将・宿老）。城持ち・国持ち・方面軍団長で上乗せ
+export const HEI = { CAP: [5000, 2500, 1000, 300], SHIRO: 1000, KUNI: 2000, HOMEN: 3000 };
+export function heiCap(s: GameState): number {
+  const me = heroOf(s); if (!me) return 0;
+  const st = s.hero!.career?.steps ?? [];
+  return (HEI.CAP[me.rank] ?? 300) + (st.includes('homen') ? HEI.HOMEN : st.includes('kuni') ? HEI.KUNI : st.includes('shiro') ? HEI.SHIRO : 0);
+}
 export const heroOf = (s: GameState) => (s.hero ? s.generals[s.hero.id] : null);
 export const lordOf = (s: GameState) => { const g = heroOf(s); const l = g?.clan ? s.clans[g.clan].leader : null; return l ? s.generals[l] : null; };
 export const nowJun = (s: GameState) => s.turn * 3 + (s.hero?.jun ?? 0);
@@ -240,7 +248,7 @@ export function joinArmy(s: GameState, id: number): Act {
   if (!attachAuto(s, a, me)) attach(s, a, a.main, me);
   H.army = a.id; H.joined = s.turn; H.dest = null;
   // 手勢を連れて加わる（家臣の統率で士気も上がる）
-  const shu = H.story !== 'toshiie' ? Math.min(H.ie?.shu ?? 0, 2000) : 0;
+  const shu = H.story !== 'toshiie' ? Math.min(H.ie?.shu ?? 0, heiCap(s)) : 0; // 連れて行く手勢は、身分の兵の上限まで
   if (shu > 0) { a.troops += shu; H.lent = { army: a.id, shu, troops: a.troops }; H.ie!.shu -= shu; }
   const boost = battleBoost(s); if (boost > 0) a.morale = Math.min(1.5, a.morale + boost);
   followArmy(s, a);
@@ -320,21 +328,43 @@ export function tojo(s: GameState): Act {
     return { ok: true, who: L.id, line: pickLine(s, SCOLD), text: `不首尾を報告した。主君の覚え−3。${q.note ?? ''}` };
   }
   if (q) return { ok: true, who: L.id, line: `${QUEST_NAME[q.kind]}の件、${s.castles[q.castle].name}の首尾はいかがした。期日は${monthsLeft(s, q)}か月のうちぞ。`, text: '主君に目通りした。' };
+  if (H.story !== 'toshiie') { // 物語の外: 主命は月の上旬の評定で、候補から選んで受ける
+    if (H.declined === s.turn) return { ok: true, who: L.id, line: '今月の評定は済んだ。……次の評定に出よ。', text: '主君に目通りした。' };
+    if (H.hyojo && H.hyojo.turn === s.turn) { H.jun--; return { ok: true, offer: true, who: L.id, line: 'まだ決めておらぬのか。……どれを受ける。', text: `評定の主命の候補が${H.hyojo.cands.length}つ。一つを選んで受けるか、断る。` }; }
+    if (H.jun - 1 !== 0) { H.jun--; return { ok: false, text: `評定は月の上旬に開かれる（いまは${JUN_NAME[H.jun]}）。上旬に登城すれば主命を選べる。` }; }
+    const cs = questChoices(s);
+    if (!cs.length) return { ok: true, who: L.id, line: '今は申し付けることはない。腕を磨いておけ。', text: '評定に出た。' };
+    H.hyojo = { turn: s.turn, cands: cs };
+    return { ok: true, offer: true, who: L.id, line: '皆、揃ったな。……この月の差配を申し付ける。望む役目を申してみよ。', text: `評定に出た。主命の候補が${cs.length}つ。一つを選んで受けるか、断る。` };
+  }
   const nq = H.declined === s.turn ? null : makeQuest(s); // 断った月は、もう申し付けない
   if (!nq) return { ok: true, who: L.id, line: '今は申し付けることはない。腕を磨いておけ。', text: '主君に目通りした。' };
   H.quest = nq;
   note(s, `主命を受けた: ${questText(s, nq)}`);
   return { ok: true, offer: true, who: L.id, line: ORDER_LINE[nq.kind].replace('{castle}', s.castles[nq.castle].name), text: `主命を申し付けられた。${questText(s, nq)}` };
 }
+// 評定で候補から主命を選んで受ける
+export const HYOJO = { CHOICES: 3 };
+export function chooseQuest(s: GameState, i: number): Act {
+  const H = s.hero!, L = lordOf(s), hy = H.hyojo;
+  if (!hy || hy.turn !== s.turn || !hy.cands[i] || !L) return { ok: false, text: '評定は済んだ' };
+  const q = hy.cands[i];
+  H.quest = q; H.lastQuest = q.castle; H.hyojo = undefined;
+  note(s, `評定で主命を受けた: ${questText(s, q)}`);
+  return { ok: true, who: L.id, line: ORDER_LINE[q.kind].replace('{castle}', s.castles[q.castle].name), text: `主命を受けた。${questText(s, q)}` };
+}
 // 申し付けられたばかりの主命を断る: 覚えが下がる（続けて断るほど重い）。その月はもう申し付けられない
 export const DECLINE = { FAVOR: 3, STEP: 3, MAX: 15 };
 export function declineQuest(s: GameState): Act {
   const H = s.hero!, L = lordOf(s), q = H.quest;
-  if (!q || q.done > 0 || q.joined || !L) return { ok: false, text: '断れる主命はない' };
+  const fromHyojo = !!H.hyojo && H.hyojo.turn === s.turn;
+  if (!fromHyojo && (!q || q.done > 0 || q.joined)) return { ok: false, text: '断れる主命はない' };
+  if (!L) return { ok: false, text: '主君がいない' };
   const n = (H.declines ?? 0), loss = Math.min(DECLINE.MAX, DECLINE.FAVOR + n * DECLINE.STEP);
-  H.quest = null; H.declined = s.turn; H.declines = n + 1;
+  const what = fromHyojo ? '評定の主命' : `主命（${QUEST_NAME[q!.kind]}・${s.castles[q!.castle].name}）`;
+  if (fromHyojo) H.hyojo = undefined; else H.quest = null; H.declined = s.turn; H.declines = n + 1;
   H.favor = clamp(H.favor - loss);
-  note(s, `主命（${QUEST_NAME[q.kind]}・${s.castles[q.castle].name}）を断った。主君の覚え−${loss}。`);
+  note(s, `${what}を断った。主君の覚え−${loss}。`);
   const line = n === 0 ? '……そうか。ならば他の者に申し付ける。' : n === 1 ? 'また断るか。……わしの命は、そんなに軽いか。' : '下がれ。しばらく顔を見せるな。';
   return { ok: true, who: L.id, line, text: `主命を断った。主君の覚え−${loss}${n ? '（続けて断ったので重い）' : ''}。今月はもう主命は出ない。` };
 }
@@ -353,7 +383,7 @@ export function questText(s: GameState, q: Quest) {
   if (q.kind === 'shutsujin') { const a = q.army !== undefined ? s.armies[q.army] : undefined; return a ? `${s.generals[a.main]?.name ?? ''}の軍勢（いま${placeOf(s, a.hex)}）に加わり、戦で手柄を立てよ。` : '加わるはずの軍勢はもう陣を払った。'; }
   return q.kind === 'fushin' ? `${c.name}へ出向き、普請を差配せよ（${q.need}旬）。` : q.kind === 'teisatsu' ? `${own}${c.name}の城下に入り、城の様子を探れ。` : !c.owner ? `国衆の${c.name}に入り込み、こちらへ寝返らせよ。` : `${own}${c.name}に入り込み、城兵を切り崩せ。`;
 }
-function makeQuest(s: GameState): Quest | null {
+function questPool(s: GameState): Quest[] {
   const me = heroOf(s)!, clan = me.clan!, C = s.clans[clan];
   const mine = clanCastles(s, clan);
   const foes = s.castles.filter((c) => c.owner && hostile(s, clan, c.owner) && mine.some((m) => hexDist(m.hex, c.hex) <= R.hx(6)));
@@ -405,10 +435,24 @@ function makeQuest(s: GameState): Quest | null {
   const allow = HERO.QUESTS[me.rank] ?? HERO.QUESTS[3];
   { const keep = pool.filter((q) => allow.includes(q.kind) && !(q.kind === 'choryaku' && me.rank === 2 && s.castles[q.castle].owner) && !(q.kind === 'choryaku' && me.rank <= 1 && !s.castles[q.castle].owner)); pool.length = 0; pool.push(...keep); }
   if (frozen(s)) { const keep = pool.filter((q) => q.kind === 'fushin' || q.kind === 'kenkin' || q.kind === 'kenjo' || q.kind === 'tsukaiban'); pool.length = 0; pool.push(...keep); } // 天下の静けさ（物語の第五部）: 戦の主命は出ない
+  return pool;
+}
+function makeQuest(s: GameState): Quest | null {
+  const pool = questPool(s);
   if (!pool.length) return null;
   const pick = pool[Math.floor(rand(s) * pool.length)];
   s.hero!.lastQuest = pick.castle;
   return pick;
+}
+// 評定の候補: 出やすさの重みのまま、違う種類を三つまで
+export function questChoices(s: GameState, n = HYOJO.CHOICES): Quest[] {
+  const pool = questPool(s), out: Quest[] = [];
+  while (pool.length && out.length < n) {
+    const q = pool[Math.floor(rand(s) * pool.length)];
+    out.push(q);
+    for (let i = pool.length - 1; i >= 0; i--) if (pool[i].kind === q.kind) pool.splice(i, 1);
+  }
+  return out;
 }
 export const canWork = (s: GameState) => { const H = s.hero!; return !H.field && !H.army && !!H.quest && H.quest.kind !== 'shutsujin' && H.quest.kind !== 'kouryaku' && H.quest.done < H.quest.need && H.quest.castle === H.town; };
 // 主命を果たす（その町で1旬）
