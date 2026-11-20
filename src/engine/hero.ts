@@ -106,7 +106,8 @@ export function townsfolk(s: GameState, ci: number): General[] {
   return Object.values(s.generals).filter((g) => g.id !== H.id && g.loc === ci && (g.status === 'free' || g.status === 'governor' || g.status === 'bugyo' || g.status === 'tsukai' || g.status === 'camp' || g.status === 'ronin' || g.status === 'kashin'));
 }
 const relOf = (s: GameState, id: string) => s.hero!.rel[id] ?? 0;
-export const RELNAME = (v: number) => (v >= 80 ? '刎頸の交わり' : v >= HERO.FRIEND ? '友' : v >= 40 ? '親しい' : v >= 15 ? '顔見知り' : '初対面');
+// 縁の段階: 初対面・顔見知り(10)・知己(30)・懇意(50)・友(70。家中なら謀反に誘える)・刎頸の友(90)
+export const RELNAME = (v: number) => (v >= 90 ? '刎頸の友' : v >= HERO.FRIEND ? '友' : v >= 50 ? '懇意' : v >= 30 ? '知己' : v >= 10 ? '顔見知り' : '初対面');
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 
 // ───────── 旬ごとの行い（どれも1旬を使う。戻り値は画面に出す言葉） ─────────

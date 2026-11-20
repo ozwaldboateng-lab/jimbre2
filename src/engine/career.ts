@@ -8,6 +8,7 @@ import { addMerit } from './ranks';
 import * as R from './rules';
 import { addLog, castleKoku, clanCastles, clanName, garrisonMax, hostile, rand, surnameOf } from './state';
 import { splitClan } from './on';
+import { afterRebel, pactArmies, pactCastles } from './plot';
 import { delegateOf } from './delegate';
 import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
 import { followersToRetainers, retainersToFollowers, yoriki } from './kashin';
@@ -306,15 +307,17 @@ export function canRebel(s: GameState): string | null {
   if (!freeHero(s) || !me.clan) return '物語の外の、主家に仕える主人公だけ';
   if (!domain(s).some((c) => c.owner === me.clan)) return '治める城がなければ謀反は起こせない';
   if (H.field) return '城下にいる時だけ';
+  const own = new Set([...domain(s).map((c) => c.i), ...(homenOf(s)?.castles ?? [])]);
+  if (!own.has(H.town) || s.castles[H.town].owner !== me.clan) return '自分の治める城の城下で起こす';
   return null;
 }
-export function rebel(s: GameState): { ok: boolean; text: string; clan?: string } {
+export function rebel(s: GameState): { ok: boolean; text: string; clan?: string; notes?: string[] } {
   const why = canRebel(s);
   if (why) return { ok: false, text: why };
   const H = s.hero!, me = s.generals[H.id], from = me.clan!;
   const f = homenOf(s);
-  const castles = [...new Set([...(f?.castles ?? []), ...domain(s).filter((c) => c.owner === from).map((c) => c.i)])];
-  const armies = Object.values(s.armies).filter((a) => a.clan === from && (a.heroLed || (f && a.front === f.id)));
+  const castles = [...new Set([...(f?.castles ?? []), ...domain(s).filter((c) => c.owner === from).map((c) => c.i), ...pactCastles(s)])]; // 約束した味方の城も
+  const armies = [...new Set([...Object.values(s.armies).filter((a) => a.clan === from && (a.heroLed || (f && a.front === f.id))), ...pactArmies(s)])];
   const lordName = s.clans[from].leader ? s.generals[s.clans[from].leader!].name : '';
   me.status = 'free';
   const id = splitClan(s, me, from, castles, armies, '謀反');
@@ -322,7 +325,9 @@ export function rebel(s: GameState): { ok: boolean; text: string; clan?: string 
   for (const g of Object.values(s.generals)) if (g.liege === me.id && g.status !== 'dead') { g.clan = id; if (g.status === 'kashin') g.status = 'free'; g.liege = undefined; }
   (H.career ??= { steps: [] }).served = [...(H.career.served ?? []), clanName(s, from)];
   addFame(s, 10);
-  return { ok: true, clan: id, text: `${clanName(s, from)}家（${lordName}）に背き、${castles.length}城を率いて${s.clans[id].name}家を立てた。` };
+  const home = domain(s)[0]?.i ?? castles[0];
+  const notes = afterRebel(s, id, from, home);
+  return { ok: true, clan: id, notes, text: `${clanName(s, from)}家（${lordName}）に背き、${castles.filter((i) => s.castles[i].owner === id).length}城を率いて${s.clans[id].name}家を立てた。${notes.join('')}` };
 }
 // 出奔: 主家に暇を乞い、家臣を連れて浪人になる（治める城は返す）
 export function leaveLord(s: GameState): string {
