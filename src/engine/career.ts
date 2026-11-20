@@ -9,6 +9,7 @@ import * as R from './rules';
 import { addLog, castleKoku, clanCastles, clanName, garrisonMax, hostile, rand, surnameOf } from './state';
 import { splitClan } from './on';
 import { afterRebel, pactArmies, pactCastles } from './plot';
+import { lordHeirEvent } from './family';
 import { delegateOf } from './delegate';
 import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
 import { followersToRetainers, retainersToFollowers, yoriki } from './kashin';
@@ -67,6 +68,12 @@ export function careerMonth(s: GameState): CareerEvent | null {
   if (!freeHero(s)) return null;
   const H = s.hero!, me = s.generals[H.id], car = (H.career ??= { steps: [] });
   if (!me.clan || me.status === 'dead') return null;
+  { const he = lordHeirEvent(s); if (he) return { lines: he.lines, beats: [
+    { kind: 'door', head: '後事', text: '後事を託す', sub: `${s.year}年` },
+    { head: '奥の間', who: he.lord, bg: 'zashiki_night', text: `${me.name}。……わしの跡を、そなたに頼みたい。家中で、そなた以外に任せられる者はおらぬ` },
+    { who: me.id, bg: 'zashiki_night', text: '……過ぎたお言葉にございます' },
+    { who: he.lord, bg: 'zashiki_night', text: 'わしが倒れたら、この家を頼む。……それまでは、まだわしの家だがな' },
+  ] }; }
   // 治める城を失った
   for (const c of domain(s)) if (c.owner !== me.clan) {
     if (H.fuchu === c.i) { H.fuchu = H.ryo?.shift(); car.since = H.fuchu !== undefined ? s.turn : undefined; } else H.ryo = (H.ryo ?? []).filter((i) => i !== c.i);

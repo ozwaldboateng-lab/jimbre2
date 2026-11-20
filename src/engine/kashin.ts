@@ -6,6 +6,7 @@ import { hexDist } from './map';
 import { addLog, clamp100, rand } from './kashin_util';
 import type { GameState, General } from './types';
 import { retainerBonus } from './meibutsu';
+import { kinRetainers } from './family';
 
 export const KASHIN = {
   FUCHI: 30, // 家臣一人の月の扶持（貫）
@@ -17,7 +18,7 @@ export const KASHIN = {
 // 抱えられる人数: 足軽組頭0・足軽大将1・侍大将3・城持ち5・国持ち8
 export function capOf(s: GameState): number {
   const H = s.hero!, me = s.generals[H.id], st = H.career?.steps ?? [];
-  const b = retainerBonus(s);
+  const b = retainerBonus(s) + kinRetainers(s); // 家の格の上乗せと、一門（元服した子）の分は枠の外
   if (st.includes('kuni')) return 8 + b;
   if (st.includes('shiro')) return 5 + b;
   return ([8, 3, 1, 0][me.rank] ?? 0) + (me.rank <= 2 ? b : 0);

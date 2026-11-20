@@ -12,6 +12,7 @@ import { addFame, roninMonth } from './roninplay';
 import { battleBoost, kashinMonth } from './kashin';
 import { leadMonth } from './heroArmy';
 import { upkeepMonth } from './meibutsu';
+import { familyYear } from './family';
 import { becomeRonin, chigyo, followClan, freeHero, lifeSummary } from './career';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
@@ -38,6 +39,8 @@ export interface Hero {
   selfCommand?: boolean; // 加わった軍勢の合戦で、自分の一隊を自ら采配する（合戦の画面を開く）
   retainers?: string[]; daikan?: Record<number, string>; lent?: { army: number; shu: number; troops: number }; // 家臣団・城代・陣に連れて行った手勢
   fame?: number; kubi?: number; followers?: string[]; scouted?: Record<number, number>; merc?: { army: number; clan: string; since: number; fought: number }; // 名声（世に聞こえた名 0〜100）・首級・配下の浪人・探った国衆の城・陣借り
+  wife?: { from: string; name: string; turn: number }; kids?: import('./family').Kid[]; gen?: number; wedTried?: number; heirNamed?: number; // 家族（family.ts）
+  pact?: string[]; secret?: { clan: string; turn: number }; plotTried?: Record<string, number>; // 謀反の準備（plot.ts）
   hyojo?: { turn: number; cands: Quest[] }; // 評定で示された主命の候補（その月だけ）
   declined?: number; declines?: number; // 主命を断った月・続けて断った数（果たせば0に戻る）
   kaku?: number; meibutsu?: string[]; given?: string[]; chakai?: number; // 家の格・持っている名物・献上した名物・最後の茶会（meibutsu.ts）
@@ -578,6 +581,7 @@ export function heroMonth(s: GameState): string[] {
   H.gold += pay + chi; out.push(`俸禄 ${pay}貫${chi ? `と知行 ${chi}貫` : ''}を受け取った（手元 ${H.gold}貫）。`);
   out.push(...ieMonth(s));
   if (freeHero(s)) out.push(...upkeepMonth(s));
+  if (freeHero(s) && s.month === 1) out.push(...familyYear(s)); // 正月: 子の誕生と元服
   out.push(...roninMonth(s));
   out.push(...kashinMonth(s));
   out.push(...leadMonth(s));
