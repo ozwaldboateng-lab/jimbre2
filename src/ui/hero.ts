@@ -19,6 +19,7 @@ import * as FR from '../engine/fronts';
 import * as MB from '../engine/meibutsu';
 import * as PL from '../engine/plot';
 import * as FA from '../engine/family';
+import * as SK from '../engine/skill';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
@@ -123,7 +124,7 @@ function render() {
     <header class="hr-head">
       <div class="hr-id">${myFace(st, 56)}<div><b>${esc(me.name)}</b><span>${me.clan ? `${clanName(st, me.clan)}家・${R.RANK_NAME[me.rank]}` : '浪人'}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
       <div class="hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div>
-      <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd>${Hh.story !== 'toshiie' ? `<dt>名声</dt><dd>${Hh.fame ?? 0}</dd>` : ''}<dt>進物</dt><dd>${Hh.goods}</dd><dt>主君の覚え</dt><dd>${Hh.favor}</dd>${Hh.story !== 'toshiie' && H.heroOf(st)!.clan ? `<dt>率いる兵</dt><dd>${H.heiCap(st).toLocaleString('ja-JP')}まで</dd>` : ''}<dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
+      <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd>${Hh.story !== 'toshiie' ? `<dt>名声</dt><dd>${Hh.fame ?? 0}</dd>` : ''}<dt>進物</dt><dd>${Hh.goods}</dd>${Hh.story !== 'toshiie' ? `<dt>体力</dt><dd>${SK.isSick(st) ? '<b style="color:#d26a5c">病</b> ' : ''}${SK.hpOf(st)}／${SK.hpMax(st)}</dd>` : ''}<dt>主君の覚え</dt><dd>${Hh.favor}</dd>${Hh.story !== 'toshiie' && H.heroOf(st)!.clan ? `<dt>率いる兵</dt><dd>${H.heiCap(st).toLocaleString('ja-JP')}まで</dd>` : ''}<dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
       <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>${Hh.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}</dt><dd title="荒子衆・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}${Hh.story !== 'toshiie' && KS.capOf(st) ? `・家臣${KS.retainersOf(st).length}/${KS.capOf(st)}` : ''}</dd>` : ''}</dl>
       <button class="hr-btn ghost" data-h="quit" title="保存してタイトルへ">中断</button>
     </header>
@@ -193,6 +194,8 @@ function spotsHtml(st: GameState) {
   if (st.hero!.field) return join +  `<p class="hr-note">城下ではない野にいる。旅を続けるか、休むことしかできない。</p><button class="hr-spot" data-h="pane" data-id="tabi"><b>旅を続ける</b><span>地図で行き先を選ぶ</span></button><button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>`;
   const c = st.castles[st.hero!.town];
   const spots = H.spotsOf(st, c);
+  const sick = SK.isSick(st) ? `<p class="hr-note" style="color:#d26a5c">病に伏している（あと${H.heroOf(st)!.sick}か月ほど）。休むことしかできない。</p>` : '';
+  const studies = CR.freeHero(st) && !st.hero!.field && !H.inArmy(st) ? (['dojo', 'tera', 'chaya'] as const).filter((sp) => spots.includes(sp)).flatMap((sp) => SK.trainable(st, sp, MB.owned(st).some((m) => m.kind === '茶器'), MB.MARKETS.includes(c.id))).map((k) => { const why = SK.skillBlock(st, k); return `<button class="hr-spot" data-h="study" data-id="${k}" ${why ? 'disabled' : ''}><b>師事: ${SK.SKILL_NAME[k]}（${SK.lv(st, k)}段・${SK.skillCost(st, k)}貫）</b><span>${why ? esc(why) : `${SK.SKILL_DESC[k]}に効く（体力−${SK.HP.TRAIN}・1旬）`}</span></button>`; }).join('') : '';
   const work = H.canWork(st) ? `<button class="hr-spot main" data-h="work"><b>主命を果たす</b><span>${esc(H.QUEST_NAME[st.hero!.quest!.kind])}（1旬）</span></button>` : '';
   const desc: Record<H.Spot, string> = { tojo: st.hero!.story === 'toshiie' ? '主命を受ける・報告する' : `上旬の評定で主命を選ぶ・報告する${st.hero!.jun === 0 ? '（いま評定の時）' : ''}`, yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
   const gov = M.canGovern(st) ? `<button class="hr-spot main" data-h="pane" data-id="shiro"><b>城の政</b><span>${esc(M.fuchuText(st))}。開発・商業・新田・普請・見回り・城代など</span></button>` : '';
@@ -209,7 +212,7 @@ function spotsHtml(st: GameState) {
   const secret = sc && H.heroOf(st)!.clan ? (() => { const why = PL.secretBlock(st, sc); return `<button class="hr-spot dim" data-h="secret" ${why ? 'disabled' : ''}><b>密約を持ちかける</b><span>${why ? esc(why) : `${esc(clanName(st, sc))}家の当主に、謀反の折の盟を内々に持ちかける（礼物${PL.EN.SECRET_GOLD}貫・見込み${Math.round(PL.secretChance(st, sc) * 100)}%・しくじると主君の耳に入ることがある・1旬）`}</span></button>`; })() : '';
   const hf = CR.homenOf(st);
   const homen = hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>${hf.castles.length}城・${FR.frontArmies(st, hf).length}軍勢。方針（${R.FRONT_POLICY_NAME[hf.policy]}）と攻略の目標を決める。謀反・出奔もここで</span></button>` : CR.canRebel(st) === null ? `<button class="hr-spot dim" data-h="pane" data-id="homen"><b>主家との縁</b><span>謀反を起こす・出奔する</span></button>` : '';
-  return `${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${trade}${mei}${secret}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
+  return `${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${sick}${trade}${mei}${secret}${studies}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
     <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${ret}${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
 // 浪人の城下: 陣借り・用心棒・指南・牢人衆・国衆の城（探る・旗揚げ）・仕官
@@ -246,13 +249,17 @@ function peopleHtml(st: GameState) {
   const ps = (H.inArmy(st) ? H.comrades(st) : H.townsfolk(st, st.hero!.town)).sort((a, b) => (st.hero!.rel[b.id] ?? 0) - (st.hero!.rel[a.id] ?? 0) || Number(b.clan === me.clan) - Number(a.clan === me.clan) || a.rank - b.rank);
   if (!ps.length) return '<p class="hr-none">この町に訪ねられる武将はいない。</p>';
   const fol = RP.followersOf(st), rs = KS.retainersOf(st), dk = st.hero!.daikan ?? {};
-  const house = houseHtml(st);
+  const house = houseHtml(st) || (CR.freeHero(st) ? skillNote(st) : '');
   const role = (g: General) => { const c = Object.entries(dk).find(([, v]) => v === g.id); return c ? `${st.castles[+c[0]].name}の城代` : st.hero!.quest?.proxy === g.id ? '遣わし中' : '近侍'; };
   return `${house}${fol.length ? `<p class="hr-note"><b>配下</b> ${fol.map((g) => esc(g.name)).join('・')}</p>` : ''}${rs.length || KS.capOf(st) ? `<p class="hr-note"><b>家臣 ${rs.length}／${KS.capOf(st)}人</b> ${rs.map((g) => `${esc(g.name)}（${role(g)}・統${g.lea}）`).join('・') || 'まだいない。城下の浪人を召し抱えられる'}。扶持は一人月${KS.KASHIN.FUCHI}貫。</p>` : ''}<p class="hr-note">訪ねる・進物を贈ると親しくなる（1旬）。親しさ${H.HERO.FRIEND}で「友」の縁を結ぶ。${RP.isRonin(st) ? `浪人の武将は、親しさ${RP.RONIN.FOLLOW_REL}で配下に誘える。` : ''}</p>${ps.map((g) => {
     const v = st.hero!.rel[g.id] ?? 0;
     return `<div class="hr-person">${face(g.id, 44) || `<span class="hr-noface sm">${esc(g.name.slice(0, 1))}</span>`}<div class="hr-pi"><b>${esc(g.name)}</b><span>${g.clan ? `${esc(clanName(st, g.clan))}・${rankName(st, g)}` : '浪人'}${g.status === 'governor' ? '・城主' : ''}</span><span class="hr-rel">${H.RELNAME(v)} ${v}</span></div>
       <div class="hr-pa">${KS.canRecruit(st, g) ? `<button class="hr-btn sm" data-h="kakae" data-id="${g.id}" ${v < KS.KASHIN.REL || KS.retainersOf(st).length >= KS.capOf(st) ? 'disabled' : ''}>家臣に召し抱える</button>` : ''}${RP.isRonin(st) && g.status === 'ronin' && !RP.isFollower(st, g) ? `<button class="hr-btn sm" data-h="invite" data-id="${g.id}" ${v < RP.RONIN.FOLLOW_REL ? 'disabled' : ''}>配下に誘う</button>` : ''}${(() => { if (!CR.freeHero(st) || g.clan !== me.clan || v < PL.EN.PACT_REL || (st.hero!.retainers ?? []).includes(g.id) || g.id === H.lordOf(st)?.id) return ''; const why = PL.pactBlock(st, g); return why === '約束を取りつけてある' ? '<span class="hr-rel">謀反の味方</span>' : `<button class="hr-btn sm" data-h="pact" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>内々に誘う</button>`; })()}${(() => { if (!CR.freeHero(st) || st.hero!.wife || !st.hero!.ie || g.clan !== me.clan || g.rank > FA.FAM.WED_RANK || (st.year - (g.born ?? st.year - 30)) < FA.FAM.WED_AGE || v < 30) return ''; const why = FA.wedBlock(st, g); return `<button class="hr-btn sm" data-h="wed" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>縁組を申し込む</button>`; })()}<button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button></div></div>`;
   }).join('')}`;
+}
+function skillNote(st: GameState) {
+  const sks = (Object.keys(SK.SKILL_NAME) as SK.SkillKey[]).filter((k) => SK.expOf(st, k) > 0).map((k) => `${SK.SKILL_NAME[k]}${SK.lv(st, k)}段`).join('・');
+  return `<p class="hr-note"><b>技能</b> ${sks || 'まだない（道場・寺・名物の町の茶屋で師事する）'}</p>`;
 }
 // 家の格（屋敷の普請）・名物・茶会（物語の外の、家を立てた主人公）
 function houseHtml(st: GameState) {
@@ -265,7 +272,8 @@ function houseHtml(st: GameState) {
   const cha = MB.owned(st).length ? `<button class="hr-spot" data-h="chakai" ${cb ? 'disabled' : ''}><b>茶会を開く（${MB.CHAKAI.COST}貫）</b><span>${cb ? esc(cb) : `この城下の武将を招き、みなと親しくなる・名声+${MB.CHAKAI.FAME}（1旬）`}</span></button>` : '';
   const Hx = st.hero!, sons = FA.sonsOf(st);
   const fam = `<p class="hr-note"><b>家族</b> ${Hx.wife ? `妻（${esc(Hx.wife.name)}）` : '妻はいない（懇意の重臣に縁組を申し込める）'}${(Hx.kids ?? []).length ? `・子 ${(Hx.kids ?? []).map((k) => { const g = k.gid ? st.generals[k.gid] : null; return g ? `${esc(g.name)}（${st.year - k.born}歳・一門の家臣）` : `${esc(k.name)}（${st.year - k.born}歳）`; }).join('・')}` : ''}${sons.length ? `。跡継ぎ: ${esc(FA.heirSon(st)!.name)}` : ''}${(Hx.gen ?? 1) > 1 ? `（${Hx.gen}代目）` : ''}</p>`;
-  return `<h4 class="hr-sub">${esc(CR.houseName(st))}（手元${st.hero!.gold.toLocaleString('ja-JP')}貫・手勢${st.hero!.ie.shu}）</h4>${fam}${kaku}${ms ? `<h4 class="hr-sub">名物${atLord ? '' : '（献上は主君の城下で）'}</h4>${ms}` : ''}${cha}<h4 class="hr-sub">人</h4>`;
+  const skl = skillNote(st);
+  return `<h4 class="hr-sub">${esc(CR.houseName(st))}（手元${st.hero!.gold.toLocaleString('ja-JP')}貫・手勢${st.hero!.ie.shu}）</h4>${fam}${skl}${kaku}${ms ? `<h4 class="hr-sub">名物${atLord ? '' : '（献上は主君の城下で）'}</h4>${ms}` : ''}${cha}<h4 class="hr-sub">人</h4>`;
 }
 function travelHtml(st: GameState) {
   const Hh = st.hero!, me = H.heroOf(st)!;
@@ -364,8 +372,9 @@ function playHeld() {
   const b = heldBeats; heldBeats = null;
   if (b && b.length && theater && s) { const st = s; theater(b, () => { save(); render(); }, undefined, opt(st)); }
 }
-async function act(fn: () => H.Act, scene?: string) {
+async function act(fn: () => H.Act, scene?: string, allowSick = false) {
   if (!s || busy) return;
+  if (!allowSick && SK.isSick(s)) { say = { text: '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
   if (heldReport) { report = heldReport; heldReport = null; render(); return; } // 閉じずに次へ進もうとした: 先に月の報告を見せる
   const r = fn();
   if (!r.ok) { say = { text: r.text }; render(); return; }
@@ -560,7 +569,8 @@ function onClick(e: Event) {
   if (h === 'q-accept') { if (say) say.text = say.text.replace('主命を申し付けられた。', '主命を承った。'); closeSay(); return; }
   if (h === 'q-pick') { const r = H.chooseQuest(s, +id); say = { who: r.who, line: r.line, text: r.text, hold: r.ok }; if (heldReport && !r.ok) closeSay(); save(); render(); return; }
   if (h === 'q-decline') { const r = H.declineQuest(s); say = { who: r.who, line: r.line, text: r.text, hold: r.ok }; save(); render(); return; }
-  if (h === 'rest') { void act(() => H.rest(s!), 'town'); return; }
+  if (h === 'rest') { void act(() => H.rest(s!), 'town', true); return; }
+  if (h === 'study') { const k = id as SK.SkillKey; void act(() => SK.study(s!, k, () => Math.random()), SK.SKILL_AT[k] === 'chaya' ? 'chaya' : SK.SKILL_AT[k]); return; }
   if (h === 'skip') { skipTime(); return; }
   if (h === 'advice') { advice(); return; }
   if (h === 'askshiro') { askShiro(); return; }

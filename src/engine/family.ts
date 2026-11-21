@@ -3,6 +3,7 @@
 // 隠居するか世を去った時、元服した男子がいれば、その子が家を継いで続けられる（城と家・家臣・金は引き継ぐ）。
 // 家中第一の臣で主君の覚え厚く、主君に成人した一門がなければ、主君は主人公を跡継ぎに指名する。主君が世を去れば家督を継ぎ、大名プレイへ
 import type { Act } from './hero';
+import { lv } from './skill';
 import { initOn } from './on';
 import * as R from './rules';
 import { addLog, clanName, rand, surnameOf } from './state';
@@ -34,7 +35,7 @@ export function wedBlock(s: GameState, g: General): string | null {
   if (H.gold < FAM.WED_COST) return `婚礼の費えが足りない（${FAM.WED_COST}貫）`;
   return null;
 }
-export const wedChance = (s: GameState, g: General) => Math.min(0.9, FAM.WED_BASE + (s.hero!.rel[g.id] ?? 0) * FAM.WED_REL_K + (s.hero!.fame ?? 0) * FAM.WED_FAME_K);
+export const wedChance = (s: GameState, g: General) => Math.min(0.9, lv(s, 'bensetsu') * 0.03 + FAM.WED_BASE + (s.hero!.rel[g.id] ?? 0) * FAM.WED_REL_K + (s.hero!.fame ?? 0) * FAM.WED_FAME_K);
 export function proposeWed(s: GameState, gid: string): Act {
   const g = s.generals[gid], why = g ? wedBlock(s, g) : '相手がいない';
   if (why) return { ok: false, text: why };

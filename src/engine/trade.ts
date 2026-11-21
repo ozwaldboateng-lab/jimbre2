@@ -6,6 +6,7 @@ import * as R from './rules';
 import { castleKoku, clanName, hexOwner, hostile, rand } from './state';
 import type { Castle, GameState } from './types';
 import type { Act } from './hero';
+import { lv } from './skill';
 
 export interface Cargo { n: number; cost: number } // 荷の数と、仕入れにかかった金の合計
 export const TRADE = {
@@ -41,7 +42,7 @@ export function sellPrice(s: GameState, c: Castle, id: string): number {
   let m = c.id === id ? TRADE.HOME : 1 + Math.min(TRADE.DIST_MAX, d * TRADE.DIST);
   if (COMMERCE_BONUS[c.id]) m += TRADE.HUB; else if (castleKoku(c) >= 12) m += TRADE.BIG;
   const g = s.hero!.glut?.[`${c.i}:${id}`] ?? 0;
-  return Math.max(1, Math.round(baseOf(id) * m * wave(s, id, c.i) * (1 - g) * (foreign(s, c) ? 1 - TRADE.TOLL : 1)));
+  return Math.max(1, Math.round(baseOf(id) * m * wave(s, id, c.i) * (1 - g) * (foreign(s, c) ? 1 - TRADE.TOLL : 1) * (1 + lv(s, 'sanjutsu') * 0.03)));
 }
 // 商いのできる城下: 特産のある町か、市の立つ大きな町・商いの要所
 export const canTrade = (s: GameState, c: Castle) => !!productOf(c.id) || !!COMMERCE_BONUS[c.id] || castleKoku(c) >= 12;

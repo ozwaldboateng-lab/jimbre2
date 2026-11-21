@@ -13,6 +13,7 @@ import { battleBoost, kashinMonth } from './kashin';
 import { leadMonth } from './heroArmy';
 import { upkeepMonth } from './meibutsu';
 import { familyYear } from './family';
+import { HP, hpMax, hpMonth, hpOf, lv, spendHp } from './skill';
 import { becomeRonin, chigyo, followClan, freeHero, lifeSummary } from './career';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
@@ -115,7 +116,7 @@ const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 
 // ───────── 旬ごとの行い（どれも1旬を使う。戻り値は画面に出す言葉） ─────────
 export interface Act { ok: boolean; text: string; who?: string; line?: string; offer?: boolean } // offer: 主命を申し付けられた（承るか断るかを選ぶ）
-const used = (s: GameState) => { s.hero!.jun++; };
+const used = (s: GameState, hp: number = HP.ACT) => { s.hero!.jun++; spendHp(s, hp); }; // 旬を使う（体力も減る。休めば戻る）
 
 export function visit(s: GameState, gid: string): Act {
   const H = s.hero!, me = heroOf(s)!, g = s.generals[gid];
@@ -159,7 +160,7 @@ export function buyGoods(s: GameState): Act {
 export function train(s: GameState, kind: 'dojo' | 'tera'): Act {
   const H = s.hero!, me = heroOf(s)!;
   if (H.gold < HERO.TRAIN_COST) return { ok: false, text: `謝礼の${HERO.TRAIN_COST}貫が足りない` };
-  H.gold -= HERO.TRAIN_COST; used(s);
+  H.gold -= HERO.TRAIN_COST; used(s, HP.TRAIN);
   const stats: ('bra' | 'lea' | 'int' | 'cha')[] = kind === 'dojo' ? ['bra', 'lea'] : ['int', 'cha'];
   const st = stats[rand(s) < 0.5 ? 0 : 1];
   const NAME = { bra: '武勇', lea: '統率', int: '知略', cha: '魅力' };
@@ -179,7 +180,7 @@ export function rumor(s: GameState): Act {
   if (n) parts.push(`噂では、${n.text.replace(/。$/, '')}`);
   return { ok: true, text: `茶屋で旅人の話に耳を傾けた。${parts.length ? parts.map((p) => `「${p}」`).join('') : '目ぼしい話はなかった。'}` };
 }
-export function rest(s: GameState): Act { used(s); return { ok: true, text: '長屋で体を休めた。' }; }
+export function rest(s: GameState): Act { used(s, -HP.REST); return { ok: true, text: `体を休めた（体力${hpOf(s)}／${hpMax(s)}）。` }; }
 
 // 旅: 日本地図の上を、部隊の移動と同じく地形の重さで進む。1旬に HERO.MP まで。城のマスに止まればその城下に入る（他国の城下にも入れる）
 // 遠い所を選べば、その道筋を1旬ぶん進み、行き先を覚えておく（続けて進める）
@@ -219,7 +220,7 @@ export function moveTo(s: GameState, dest: number): Act {
   const c = castleAt(s, at);
   if (c) { H.town = c.i; H.field = false; me.loc = c.i; } else H.field = true;
   H.dest = at === dest ? null : dest;
-  used(s);
+  used(s, HP.TRAVEL);
   const rob = bandits(s); if (rob) note(s, rob);
   if (!H.dest) { if (c) note(s, `${c.name}の城下に着いた。`); return { ok: true, text: (c ? `${c.name}の城下に着いた。` : `${placeName(s, at)}で足を止めた。`) + (rob ?? '') }; }
   const left = junTo(s, dest);
@@ -254,7 +255,7 @@ export function joinArmy(s: GameState, id: number): Act {
   // 手勢を連れて加わる（家臣の統率で士気も上がる）
   const shu = H.story !== 'toshiie' ? Math.min(H.ie?.shu ?? 0, heiCap(s)) : 0; // 連れて行く手勢は、身分の兵の上限まで
   if (shu > 0) { a.troops += shu; H.lent = { army: a.id, shu, troops: a.troops }; H.ie!.shu -= shu; }
-  const boost = battleBoost(s); if (boost > 0) a.morale = Math.min(1.5, a.morale + boost);
+  const boost = battleBoost(s) + lv(s, 'yari') * 0.02; if (boost > 0) a.morale = Math.min(1.5, a.morale + boost);
   followArmy(s, a);
   used(s);
   const L = s.generals[a.main];
@@ -285,7 +286,7 @@ function returnLent(s: GameState): string[] {
 }
 export function campWait(s: GameState): Act {
   const a = inArmy(s);
-  used(s);
+  used(s, HP.CAMP);
   return { ok: true, text: a ? `陣中で過ごした。兵${a.troops.toLocaleString()}、士気${a.morale.toFixed(2)}。${a.fought === s.turn ? 'この月、合戦があった。' : ''}` : '陣中で過ごした。' };
 }
 // 陣中の顔ぶれ（訪ねられる）
@@ -475,7 +476,7 @@ export function work(s: GameState): Act {
     used(s); H.goods -= q.need - lack; H.gold -= cost; q.done = q.need; q.ok = true; q.note = `進物${q.need}つを献上した。`;
     return { ok: true, text: `進物${q.need}つを献上した${lack ? `（足りない${lack}つは金${cost}貫で調えた）` : ''}。登城して報告せよ。` };
   }
-  used(s);
+  used(s, HP.WORK);
   if (q.kind === 'tsukaiban') { q.done = q.need; q.ok = true; q.note = `${c.name}へ文を届けた。`; return { ok: true, text: `${c.name}の城代に主君の文を届けた。登城して報告せよ。` }; }
   if (q.kind === 'monomi') {
     const seen = s.castles.filter((f) => f.owner && f.owner !== me.clan && hexDist(f.hex, c.hex) <= R.hx(5));
@@ -492,7 +493,7 @@ export function work(s: GameState): Act {
   if (q.kind === 'toyo') {
     const g = q.target ? s.generals[q.target] : null;
     if (!g || g.status !== 'ronin' || g.loc !== c.i) { q.done = q.need; q.ok = false; q.note = '口説くはずの浪人は、もうここにいなかった。'; return { ok: true, text: q.note }; }
-    const p = 0.3 + me.cha / 250 + (s.hero!.fame ?? 0) / 150 + relOf(s, g.id) / 200;
+    const p = 0.3 + me.cha / 250 + (s.hero!.fame ?? 0) / 150 + relOf(s, g.id) / 200 + lv(s, 'bensetsu') * 0.04;
     if (rand(s) < Math.min(0.9, p)) {
       const L = lordOf(s); g.clan = me.clan; g.status = 'free'; g.loc = L?.loc ?? g.loc; g.rank = Math.max(2, g.rank);
       q.done = q.need; q.ok = true; q.note = `浪人の${g.name}を口説き落とし、召し抱えた。`;
@@ -503,7 +504,7 @@ export function work(s: GameState): Act {
   }
   if (q.kind === 'negaeri') {
     const gov = c.governor ? s.generals[c.governor] : null;
-    const p = 0.08 + (me.int + me.cha) / 600 + (s.hero!.fame ?? 0) / 250 + (gov ? relOf(s, gov.id) / 200 : 0.05);
+    const p = 0.08 + (me.int + me.cha) / 600 + (s.hero!.fame ?? 0) / 250 + (gov ? relOf(s, gov.id) / 200 : 0.05) + lv(s, 'bensetsu') * 0.04;
     if (rand(s) < Math.min(0.75, p)) {
       learnCastle(s, c.i, me.clan!); q.done = q.need; q.ok = true;
       if (gov && rand(s) < 0.3 + relOf(s, gov.id) / 200) {
@@ -516,9 +517,9 @@ export function work(s: GameState): Act {
   }
   if (q.kind === 'fushin') {
     if (c.owner !== me.clan) { q.done = q.need; q.ok = false; q.note = '城が人手に渡り、普請はかなわなかった。'; return { ok: true, text: q.note }; }
-    q.done++;
+    q.done = Math.min(q.need, q.done + (lv(s, 'chikujo') >= 3 ? 2 : 1)); // 築城三段から、一旬で二旬分はかどる
     const lea = me.lea + me.int;
-    c.chian = clamp(c.chian + 3 + lea / 60); c.garrison = Math.min(garrisonMax(c), c.garrison + Math.round(garrisonMax(c) * 0.05));
+    c.chian = clamp(c.chian + 3 + lea / 60 + lv(s, 'chikujo')); c.garrison = Math.min(garrisonMax(c), c.garrison + Math.round(garrisonMax(c) * 0.05));
     if (q.done >= q.need) { q.note = `${c.name}の石垣と堀を手直しし、城下の治安も上がった。`; return { ok: true, text: `普請を差配した。${q.note}登城して報告せよ。` }; }
     return { ok: true, text: `人足を集め、普請を差配した（${q.done}/${q.need}旬）。` };
   }
@@ -533,13 +534,13 @@ export function work(s: GameState): Act {
   }
   // 国衆の調略: 持ち主のない城を寝返らせる
   if (!c.owner) {
-    const p = 0.3 + (me.int + me.cha) / 400 + (s.hero!.fame ?? 0) / 200;
+    const p = 0.3 + (me.int + me.cha) / 400 + (s.hero!.fame ?? 0) / 200 + lv(s, 'bensetsu') * 0.04;
     if (rand(s) < Math.min(0.85, p)) { const gar = c.garrison; captureCastle(s, c, me.clan!); c.garrison = gar; s.shioki = (s.shioki ?? []).filter((x) => x.castle !== c.i); q.done = q.need; q.ok = true; q.note = `国衆の${c.name}がわが家に従った。`; addLog(s, `${me.name}の調略で、${c.name}の国人衆が${clanName(s, me.clan!)}家に寝返った。`, 'castle', true); return { ok: true, text: `${q.note}登城して報告せよ。` }; }
     return chased(s, '国衆に話を持ちかけたが、まだ様子を見ると言われた。');
   }
   // 調略
   const gov = c.governor ? s.generals[c.governor] : null;
-  const p = 0.25 + (me.int + me.cha) / 400 - (gov ? gov.int / 400 : 0) + (gov ? relOf(s, gov.id) / 300 : 0);
+  const p = 0.25 + (me.int + me.cha) / 400 - (gov ? gov.int / 400 : 0) + (gov ? relOf(s, gov.id) / 300 : 0) + lv(s, 'bensetsu') * 0.04;
   if (rand(s) < p) {
     c.gMorale = Math.max(0.3, c.gMorale - 0.2); c.chian = clamp(c.chian - 15); c.garrison = Math.max(0, Math.round(c.garrison * 0.85));
     learnCastle(s, c.i, me.clan!); q.done = q.need; q.ok = true;
@@ -581,7 +582,8 @@ export function heroMonth(s: GameState): string[] {
   H.gold += pay + chi; out.push(`俸禄 ${pay}貫${chi ? `と知行 ${chi}貫` : ''}を受け取った（手元 ${H.gold}貫）。`);
   out.push(...ieMonth(s));
   if (freeHero(s)) out.push(...upkeepMonth(s));
-  if (freeHero(s) && s.month === 1) out.push(...familyYear(s)); // 正月: 子の誕生と元服
+  if (freeHero(s) && s.month === 1) out.push(...familyYear(s));
+  if (freeHero(s)) out.push(...hpMonth(s, () => rand(s))); // 体力が戻る・尽きかけていれば病に // 正月: 子の誕生と元服
   out.push(...roninMonth(s));
   out.push(...kashinMonth(s));
   out.push(...leadMonth(s));

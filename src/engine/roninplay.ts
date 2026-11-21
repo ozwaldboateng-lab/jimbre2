@@ -5,6 +5,7 @@ import type { Act } from './hero';
 import { newIe } from './maeda';
 import { hexDist } from './map';
 import * as R from './rules';
+import { lv } from './skill';
 import { addLog, castleKoku, clanCastles, clanName, garrisonMax, learnCastle, rand, surnameOf } from './state';
 import type { Clan, GameState, General } from './types';
 
@@ -47,7 +48,7 @@ function mercMonth(s: GameState): string[] {
   H.hex = a.hex; const c = Object.values(s.castles).find((x) => x.hex === a.hex); if (c) { H.town = c.i; H.field = false; s.generals[H.id].loc = c.i; } else H.field = true;
   if ((a.fought ?? -1) > m.fought) {
     m.fought = a.fought!;
-    const me = s.generals[H.id], kubi = rand(s) < RONIN.MERC_KUBI + me.bra / 400;
+    const me = s.generals[H.id], kubi = rand(s) < RONIN.MERC_KUBI + me.bra / 400 + lv(s, 'yari') * 0.05;
     const pay = Math.round(RONIN.MERC_PAY * (1 + fameOf(s) / 100));
     H.gold += pay; addFame(s, RONIN.MERC_FAME + (kubi ? 2 : 0)); if (kubi) H.kubi = (H.kubi ?? 0) + 1;
     return [`陣借りした${clanName(s, m.clan)}家の合戦で働いた。雇い賃${pay}貫・名声+${RONIN.MERC_FAME + (kubi ? 2 : 0)}${kubi ? '。首級を挙げた' : ''}。`];
@@ -168,7 +169,7 @@ export function rise(s: GameState, how: 'youchi' | 'naio'): { ok: boolean; text:
 export function serviceChance(s: GameState, clan: string): number {
   const H = s.hero!, me = s.generals[H.id], C = s.clans[clan], L = C.leader ? s.generals[C.leader] : null;
   const friends = Object.values(s.generals).filter((g) => g.clan === clan && (H.rel[g.id] ?? 0) >= 60).length;
-  return clamp(0.15 + fameOf(s) / 150 + me.cha / 400 + me.merit / 3000 + (L ? (H.rel[L.id] ?? 0) / 250 : 0) + Math.min(2, friends) * 0.1 + Math.min(3, H.kubi ?? 0) * 0.05 + followersOf(s).length * 0.03, 0.05, 0.95);
+  return clamp(lv(s, 'bensetsu') * 0.03 + 0.15 + fameOf(s) / 150 + me.cha / 400 + me.merit / 3000 + (L ? (H.rel[L.id] ?? 0) / 250 : 0) + Math.min(2, friends) * 0.1 + Math.min(3, H.kubi ?? 0) * 0.05 + followersOf(s).length * 0.03, 0.05, 0.95);
 }
 // 仕官したときの身分（名声と、連れて行く配下・手勢で決まる）
 export function serviceRank(s: GameState): number {

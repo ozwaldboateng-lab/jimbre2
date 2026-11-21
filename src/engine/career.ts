@@ -10,6 +10,7 @@ import { addLog, castleKoku, clanCastles, clanName, garrisonMax, hostile, rand, 
 import { splitClan } from './on';
 import { afterRebel, pactArmies, pactCastles } from './plot';
 import { lordHeirEvent } from './family';
+import { lv } from './skill';
 import { delegateOf } from './delegate';
 import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
 import { followersToRetainers, retainersToFollowers, yoriki } from './kashin';
@@ -190,7 +191,7 @@ export function canAskCastle(s: GameState) { const H = s.hero!, me = s.generals[
 export function chigyo(s: GameState): number {
   if (!freeHero(s)) return 0;
   const me = s.generals[s.hero!.id];
-  return Math.round(domain(s).filter((c) => c.owner === me.clan).reduce((t, c) => t + castleKoku(c), 0) * CAREER.CHIGYO);
+  return Math.round(domain(s).filter((c) => c.owner === me.clan).reduce((t, c) => t + castleKoku(c), 0) * CAREER.CHIGYO * (1 + lv(s, 'sanjutsu') * 0.05)); // 算術一段ごとに5%
 }
 
 // 一生の締め（隠居・死・主家の滅亡）: どこまで登り、何を残したか

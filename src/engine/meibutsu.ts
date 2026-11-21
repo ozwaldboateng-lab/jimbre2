@@ -1,6 +1,7 @@
 // 武将で遊ぶ（物語の外）: 金の使い道。家の格（屋敷の普請）・名物（茶器・刀・馬）・茶会・手勢の扶持。
 // 出世で増える俸禄と知行が積み上がるばかりだったので、身分と家の大きさに見合った掛かりと、名を上げる買い物を足す
 import type { Act } from './hero';
+import { lv } from './skill';
 import { clanName } from './state';
 import type { GameState } from './types';
 
@@ -84,7 +85,7 @@ export function giveMeibutsu(s: GameState, id: string): Act {
   const L = me.clan ? s.clans[me.clan].leader : null;
   if (!m || !(H.meibutsu ?? []).includes(id)) return { ok: false, text: '持っていない' };
   if (!L || H.field || H.town !== s.generals[L].loc) return { ok: false, text: '主君の城下で献上する' };
-  const favor = Math.min(30, Math.round(m.price / 400)), merit = Math.round(m.price / 150);
+  const favor = Math.min(30, Math.round(m.price / 400 * (1 + lv(s, 'sado') * 0.1))), merit = Math.round(m.price / 150);
   H.meibutsu = H.meibutsu!.filter((x) => x !== id); (H.given ??= []).push(id); H.jun++;
   H.favor = Math.min(100, H.favor + favor); me.merit += merit;
   return { ok: true, who: L, line: m.kind === '茶器' ? `……「${m.name}」か。これは、天下の名物ぞ。` : `よい${m.kind}だ。……${me.name}、覚えておく。`, text: `「${m.name}」を${clanName(s, me.clan!)}家の主君に献上した。主君の覚え+${favor}・功績+${merit}。` };
@@ -103,7 +104,7 @@ export function chakai(s: GameState, guests: string[]): Act {
   if (why) return { ok: false, text: why };
   const H = X(s), tea = owned(s).filter((m) => m.kind === '茶器').sort((a, b) => b.price - a.price)[0];
   H.gold -= CHAKAI.COST; H.chakai = s.turn; H.jun++;
-  const bonus = Math.round(tea.fame / 3);
+  const bonus = Math.round(tea.fame / 3) + lv(s, 'sado') * 2; // 茶道一段ごとに+2
   for (const id of guests) H.rel[id] = Math.min(100, (H.rel[id] ?? 0) + CHAKAI.REL + bonus);
   H.fame = Math.min(100, (H.fame ?? 0) + CHAKAI.FAME);
   const names = guests.slice(0, 4).map((id) => s.generals[id]?.name).filter(Boolean).join('・');

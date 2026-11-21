@@ -3,6 +3,7 @@
 // 他家の当主とは密約を結べる（謀反して家を立てた時、その家と盟を結び、主家を共に攻める＝援軍が来る）。
 // どちらも、しくじれば主君の耳に入ることがある
 import type { Act } from './hero';
+import { lv } from './skill';
 import * as R from './rules';
 import { addLog, clanName, hostile, rand } from './state';
 import type { Army, GameState, General } from './types';
@@ -34,7 +35,7 @@ export function pactBlock(s: GameState, g: General): string | null {
   if (H.plotTried?.[g.id] === s.turn) return '今月はもう話した';
   return null;
 }
-export const pactChance = (s: GameState, g: General) => Math.max(0.05, Math.min(EN.PACT_MAX, EN.PACT_BASE + (relOf(s, g.id) - EN.PACT_REL) * EN.PACT_REL_K + (s.hero!.fame ?? 0) * EN.PACT_FAME_K - (g.on ?? 50) * EN.PACT_ON_K + (g.tozama ? EN.PACT_TOZAMA : 0) + (g.kin ? -0.3 : 0)));
+export const pactChance = (s: GameState, g: General) => Math.max(0.05, Math.min(EN.PACT_MAX, lv(s, 'bensetsu') * 0.03 + EN.PACT_BASE + (relOf(s, g.id) - EN.PACT_REL) * EN.PACT_REL_K + (s.hero!.fame ?? 0) * EN.PACT_FAME_K - (g.on ?? 50) * EN.PACT_ON_K + (g.tozama ? EN.PACT_TOZAMA : 0) + (g.kin ? -0.3 : 0)));
 export function invitePact(s: GameState, gid: string): Act {
   const g = s.generals[gid], why = g ? pactBlock(s, g) : '相手がいない';
   if (why) return { ok: false, text: why };
@@ -70,7 +71,7 @@ export function secretBlock(s: GameState, clan: string): string | null {
   if (H.gold < EN.SECRET_GOLD) return `礼物の金が足りない（${EN.SECRET_GOLD}貫）`;
   return null;
 }
-export const secretChance = (s: GameState, clan: string) => { const L = s.clans[clan].leader!, me = meOf(s), foe = s.clans[me.clan!].target === clan || s.clans[clan].target === me.clan; return Math.max(0.05, Math.min(EN.SECRET_MAX, EN.SECRET_BASE + (s.hero!.fame ?? 0) * EN.SECRET_FAME_K + relOf(s, L) * EN.SECRET_REL_K + (foe ? EN.SECRET_FOE : 0))); };
+export const secretChance = (s: GameState, clan: string) => { const L = s.clans[clan].leader!, me = meOf(s), foe = s.clans[me.clan!].target === clan || s.clans[clan].target === me.clan; return Math.max(0.05, Math.min(EN.SECRET_MAX, lv(s, 'bensetsu') * 0.03 + EN.SECRET_BASE + (s.hero!.fame ?? 0) * EN.SECRET_FAME_K + relOf(s, L) * EN.SECRET_REL_K + (foe ? EN.SECRET_FOE : 0))); };
 export function offerSecret(s: GameState): Act {
   const clan = secretHere(s);
   if (!clan) return { ok: false, text: 'この城下に他家の当主はいない' };
