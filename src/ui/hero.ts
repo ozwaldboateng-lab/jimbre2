@@ -20,6 +20,7 @@ import * as MB from '../engine/meibutsu';
 import * as PL from '../engine/plot';
 import * as FA from '../engine/family';
 import * as SK from '../engine/skill';
+import * as MH from '../engine/myhyojo';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
@@ -309,7 +310,8 @@ function castleHtml(st: GameState) {
   const govs = (Object.keys(M.GOV_NAME) as M.GovAct[]).filter((k) => k !== 'kaikon' && k !== 'fushin' && (k !== 'meshi' || st.hero!.ie)).map((k) => { const g = M.govCost(st, k); return `<button class="hr-spot${k === 'mimawari' ? ' main' : ''}" data-h="gov" data-id="${k}" ${g.block ? 'disabled' : ''}><b>${M.GOV_NAME[k][0]}${g.cost ? `（${g.cost.toLocaleString('ja-JP')}貫）` : ''}</b><span>${g.block ? esc(g.block) : esc(st.hero!.story === 'toshiie' ? M.GOV_NAME[k][1] : M.genText(M.GOV_NAME[k][1]))}</span></button>`; }).join('');
   const dom = CR.freeHero(st) && KS.retainersOf(st).length ? [...(st.hero!.fuchu !== undefined ? [st.hero!.fuchu] : []), ...(st.hero!.ryo ?? [])] : [];
   const daikan = dom.map((ci) => { const gid = st.hero!.daikan?.[ci]; return `<button class="hr-spot" data-h="daikan" data-id="${ci}"><b>${esc(st.castles[ci].name)}の城代: ${gid ? esc(st.generals[gid].name) : 'なし'}</b><span>押すと家臣を順に替える。城を空けている月も、城代が見回る</span></button>`; }).join('');
-  return `<h4 class="hr-sub">${esc(c.name)}（手元${st.hero!.gold.toLocaleString('ja-JP')}貫）</h4>${tiles}${pills}<h4 class="hr-sub">城の政（大名の城の画面と同じ。費えは自分の金）</h4>${acts}<h4 class="hr-sub">治め（1旬）</h4>${govs}${daikan ? `<h4 class="hr-sub">城代</h4>${daikan}` : ''}<button class="hr-spot dim" data-h="pane" data-id="spots"><b>城下へ戻る</b><span></span></button>`;
+  const my = myHyojoHtml(st);
+  return `<h4 class="hr-sub">${esc(c.name)}（手元${st.hero!.gold.toLocaleString('ja-JP')}貫）</h4>${my}${tiles}${pills}<h4 class="hr-sub">城の政（大名の城の画面と同じ。費えは自分の金）</h4>${acts}<h4 class="hr-sub">治め（1旬）</h4>${govs}${daikan ? `<h4 class="hr-sub">城代</h4>${daikan}` : ''}<button class="hr-spot dim" data-h="pane" data-id="spots"><b>城下へ戻る</b><span></span></button>`;
 }
 // 方面の差配（方面軍団長）と、主家との縁（謀反・出奔）
 let rebelArm = 0, leaveArm = false;
@@ -333,6 +335,15 @@ function homenHtml(st: GameState) {
   const ps = PL.plotSummary(st);
   const prep = `<p class="hr-note"><b>謀反の備え</b> 味方の約束: ${ps.pact.length ? ps.pact.map((g) => `${esc(g.name)}${PL.pactCastles(st).some((i) => st.castles[i].governor === g.id) ? '（城ごと）' : ''}`).join('・') : 'なし（屋敷で「友」の武将を内々に誘う）'}。密約: ${ps.secret ? `${esc(clanName(st, ps.secret))}家（家を立てれば盟を結び、援軍が来る）` : 'なし（他家の当主の城下で持ちかける）'}。</p>`;
   return `${body}<h4 class="hr-sub">主家との縁</h4>${prep}${rebelB}${leaveB}<button class="hr-spot dim" data-h="pane" data-id="spots"><b>城下へ戻る</b><span></span></button>`;
+}
+// 自分の評定: 開いて、家臣に役目を申し付ける（押すたびに役目が替わる）
+function myHyojoHtml(st: GameState) {
+  if (!CR.freeHero(st) || MH.canHold(st)) return '';
+  const os = MH.ordersOf(st), gs = MH.orderable(st);
+  if (!gs.length && !Object.keys(os).length) return '';
+  if (!MH.holdingNow(st)) return `<h4 class="hr-sub">自分の評定</h4><button class="hr-spot main" data-h="myhyo"><b>評定を開く</b><span>家臣${gs.length}人に役目（${MH.YAKU.map((y) => MH.YAKU_NAME[y]).join('・')}）を申し付ける。月の終わりに首尾が出る（月に一度・1旬）</span></button>`;
+  const rows = gs.map((g) => { const o = os[g.id]; return `<button class="hr-spot${o ? ' main' : ''}" data-h="yaku" data-id="${g.id}"><b>${esc(g.name)}: ${o ? MH.YAKU_NAME[o.role] : '役目なし'}${o && MH.YAKU_COST[o.role] ? `（${MH.YAKU_COST[o.role]}貫）` : ''}</b><span>${o ? esc(MH.YAKU_DESC[o.role]) : '押すと役目を申し付ける（押すたびに替わる）'}・武${g.bra} 知${g.int} 統${g.lea} 魅${g.cha}</span></button>`; }).join('');
+  return `<h4 class="hr-sub">自分の評定（今月の役目）</h4>${rows}`;
 }
 function tradeHtml(st: GameState) {
   const Hh = st.hero!, c = st.castles[Hh.town];
@@ -601,6 +612,8 @@ function onClick(e: Event) {
   if (h === 'pact') { void act(() => PL.invitePact(s!, id), 'yashiki'); return; }
   if (h === 'secret') { void act(() => PL.offerSecret(s!), 'tojo'); return; }
   if (h === 'wed') { void act(() => FA.proposeWed(s!, id), 'yashiki'); return; }
+  if (h === 'myhyo') { pane = 'shiro'; void act(() => MH.hold(s!), 'tojo'); return; }
+  if (h === 'yaku') { pane = 'shiro'; say = { text: MH.cycle(s, id) }; save(); render(); return; }
   if (h === 'rise') { riseUp(id as 'youchi' | 'naio'); return; }
   if (h === 'retire') { if (!retireArm) { retireArm = true; say = { text: '家督を譲れば、一生はそこで締めになる。もう一度押すと隠居する。' }; render(); return; } retireArm = false; const ls = CR.retire(s); for (const x of ls) H.note(s, x); report = [...ls, '一生を終えた。']; save(); render(); return; }
   if (h === 'buy') { pane = 'akinai'; void act(() => T.buy(s!, +id), 'ichi'); return; }

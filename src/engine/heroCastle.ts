@@ -12,7 +12,7 @@ import type { Castle, GameState } from './types';
 
 export type CastleAct = 'inv-agri' | 'inv-com' | 'shinden' | 'fort' | 'rakuichi';
 // 主人公の金で、家の金を借りる形で本体の政を行う（家の金は増えも減りもしない）
-function withHeroGold(s: GameState, cost: number, f: () => boolean): boolean {
+export function withHeroGold(s: GameState, cost: number, f: () => boolean): boolean {
   const H = s.hero!, clan = s.generals[H.id].clan!;
   if (H.gold < cost) return false;
   const C = s.clans[clan], before = C.gold;
