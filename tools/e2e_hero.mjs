@@ -20,7 +20,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.screenshot({ path: `${out}/tojo-${vp.tag}.png` });
   await click('[data-h="pane"][data-id="yashiki"]');
   await p.screenshot({ path: `${out}/yashiki-${vp.tag}.png` });
-  await click('[data-h="visit"]');
+  await click('[data-h="meet"]'); await click('[data-h="visit"]');
   await p.screenshot({ path: `${out}/visit-${vp.tag}.png` });
   // 主命を果たしに行って帰る
   for (let i = 0; i < 24; i++) {

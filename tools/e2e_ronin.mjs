@@ -25,7 +25,8 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await idle(); await ok();
   await p.click('#hero [data-h="pane"][data-id="yashiki"]'); await p.waitForTimeout(100);
   await p.screenshot({ path: `${out}/rn-${vp.tag}-2-yashiki.png` });
-  const inv = await p.$('#hero [data-h="invite"]:not([disabled])'); if (inv) { await inv.click(); await p.waitForTimeout(150); console.log(vp.tag, 'invite:', (await say()).slice(0, 70)); }
+  const findAct = async (sel) => { const n = (await p.$$('#hero [data-h="meet"]')).length; for (let i = 0; i < n; i++) { const ms = await p.$$('#hero [data-h="meet"]'); if (!ms[i]) break; await ms[i].click(); await p.waitForTimeout(60); const e = await p.$(sel); if (e) return e; const c = await p.$('#hero [data-h="dlg-close"]'); if (c) await c.click(); await p.waitForTimeout(40); } return null; };
+  const inv = await findAct('#hero [data-h="invite"]:not([disabled])'); if (inv) { await inv.click(); await p.waitForTimeout(150); console.log(vp.tag, 'invite:', (await say()).slice(0, 70)); }
   await idle(); await ok();
   await p.click('#hero [data-h="pane"][data-id="spots"]').catch(() => {}); await p.waitForTimeout(100);
   // 旗揚げ（夜討ち）を、成るまで

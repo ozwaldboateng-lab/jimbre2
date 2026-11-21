@@ -45,6 +45,7 @@ let root: HTMLElement | null = null;
 let pane: 'spots' | 'yashiki' | 'tabi' | 'diary' | 'akinai' | 'shiro' | 'homen' = 'spots';
 let bg = 'town';
 let say: { who?: string; line?: string; text: string; hold?: boolean; offer?: boolean } | null = null; // hold: セリフの窓（押すと閉じる）。offer: 主命を承るか断るか
+let dlg: { kind: 'person'; id: string } | { kind: 'dojo' | 'tera' } | null = null; // 画面に立ち上げる窓（会う相手・道場・寺）
 let heldReport: string[] | null = null, heldBeats: Beat[] | null = null; // セリフの窓を閉じるまで待たせる、月の報告と出世の場面
 let busy = false;
 let report: string[] | null = null;
@@ -137,7 +138,8 @@ function render() {
       <section class="hr-scene${mapMode(st) ? ' map' : ''}" style="${art && !mapMode(st) ? `background-image:url(${art})` : ''}">
         ${mapMode(st) ? '<div id="hr-mapslot"></div>' : ''}
         <div class="hr-town">${H.inArmy(st) ? (() => { const a = H.inArmy(st)!; return `<b>${esc(st.generals[a.main]?.name ?? '')}の陣中</b><span>${esc(castleAt(st, a.hex)?.name ?? PROVINCES[HEXES[a.hex].p].name + 'の野')}・兵${a.troops.toLocaleString('ja-JP')}・士気${a.morale.toFixed(2)}</span>`; })() : Hh.field ? `<b>${esc(PROVINCES[HEXES[Hh.hex].p].name)}の野</b><span>旅の途中</span>` : `<b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span>`}</div>
-        ${say ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
+        ${dlg && !report ? dlgHtml(st) : ''}
+        ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
@@ -197,9 +199,8 @@ function spotsHtml(st: GameState) {
   const c = st.castles[st.hero!.town];
   const spots = H.spotsOf(st, c);
   const sick = SK.isSick(st) ? `<p class="hr-note" style="color:#d26a5c">病に伏している（あと${H.heroOf(st)!.sick}か月ほど）。休むことしかできない。</p>` : '';
-  const studies = CR.freeHero(st) && !st.hero!.field && !H.inArmy(st) ? (['dojo', 'tera'] as const).filter((sp) => spots.includes(sp)).flatMap((sp) => SK.selfList(sp)).map((k) => { const why = SK.skillBlock(st, k); if (why && SK.lv(st, k) >= SK.SK.SELF_MAX) return ''; return `<button class="hr-spot" data-h="study" data-id="${k}" ${why ? 'disabled' : ''}><b>独学: ${SK.SKILL_NAME[k]}（${SK.lv(st, k)}段・${SK.skillCost(st, k)}貫）</b><span>${why ? esc(why) : `${SK.SKILL_DESC[k]}に効く。独学は${SK.SK.SELF_MAX}段まで、その先は名人に師事（体力−${SK.HP.TRAIN}・1旬）`}</span></button>`; }).join('') : '';
   const work = H.canWork(st) ? `<button class="hr-spot main" data-h="work"><b>主命を果たす</b><span>${esc(H.QUEST_NAME[st.hero!.quest!.kind])}（1旬）</span></button>` : '';
-  const desc: Record<H.Spot, string> = { tojo: st.hero!.story === 'toshiie' ? '主命を受ける・報告する' : `上旬の評定で主命を選ぶ・報告する${st.hero!.jun === 0 ? '（いま評定の時）' : ''}`, yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
+  const desc: Record<H.Spot, string> = { tojo: st.hero!.story === 'toshiie' ? '主命を受ける・報告する' : `上旬の評定で主命を選ぶ・報告する${st.hero!.jun === 0 ? '（いま評定の時）' : ''}`, yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: CR.freeHero(st) ? '稽古で武勇・統率を磨く。武芸・築城・忍術の独学（一段まで）' : `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: CR.freeHero(st) ? '学問で知略・魅力を磨く。弁舌・算術・茶道の独学（一段まで）' : `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
   const gov = M.canGovern(st) ? `<button class="hr-spot main" data-h="pane" data-id="shiro"><b>城の政</b><span>${esc(M.fuchuText(st))}。開発・商業・新田・普請・見回り・城代など</span></button>` : '';
   const prx = KS.canProxy(st) ? `<button class="hr-spot" data-h="proxy"><b>家臣を遣わす</b><span>この主命（${esc(H.QUEST_NAME[st.hero!.quest!.kind])}）を家臣に任せる。来月に首尾が分かる（1旬）</span></button>` : '';
   const adv = M.canAdvice(st) ? `<button class="hr-spot" data-h="advice"><b>家中の進言</b><span>${st.hero!.story === 'toshiie' ? '奥村・村井' : '家老・家臣'}の話を聞いて、${st.hero!.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}のことを決める（月に一度・1旬）</span></button>` : '';
@@ -214,7 +215,7 @@ function spotsHtml(st: GameState) {
   const secret = sc && H.heroOf(st)!.clan ? (() => { const why = PL.secretBlock(st, sc); return `<button class="hr-spot dim" data-h="secret" ${why ? 'disabled' : ''}><b>密約を持ちかける</b><span>${why ? esc(why) : `${esc(clanName(st, sc))}家の当主に、謀反の折の盟を内々に持ちかける（礼物${PL.EN.SECRET_GOLD}貫・見込み${Math.round(PL.secretChance(st, sc) * 100)}%・しくじると主君の耳に入ることがある・1旬）`}</span></button>`; })() : '';
   const hf = CR.homenOf(st);
   const homen = hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>${hf.castles.length}城・${FR.frontArmies(st, hf).length}軍勢。方針（${R.FRONT_POLICY_NAME[hf.policy]}）と攻略の目標を決める。謀反・出奔もここで</span></button>` : CR.canRebel(st) === null ? `<button class="hr-spot dim" data-h="pane" data-id="homen"><b>主家との縁</b><span>謀反を起こす・出奔する</span></button>` : '';
-  return `${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${sick}${trade}${mei}${secret}${studies}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
+  return `${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${sick}${trade}${mei}${secret}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
     <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${ret}${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
 // 浪人の城下: 陣借り・用心棒・指南・牢人衆・国衆の城（探る・旗揚げ）・仕官
@@ -254,10 +255,35 @@ function peopleHtml(st: GameState) {
   const house = houseHtml(st) || (CR.freeHero(st) ? skillNote(st) : '');
   const role = (g: General) => { const c = Object.entries(dk).find(([, v]) => v === g.id); return c ? `${st.castles[+c[0]].name}の城代` : st.hero!.quest?.proxy === g.id ? '遣わし中' : '近侍'; };
   return `${house}${fol.length ? `<p class="hr-note"><b>配下</b> ${fol.map((g) => esc(g.name)).join('・')}</p>` : ''}${rs.length || KS.capOf(st) ? `<p class="hr-note"><b>家臣 ${rs.length}／${KS.capOf(st)}人</b> ${rs.map((g) => `${esc(g.name)}（${role(g)}・統${g.lea}）`).join('・') || 'まだいない。城下の浪人を召し抱えられる'}。扶持は一人月${KS.KASHIN.FUCHI}貫。</p>` : ''}<p class="hr-note">訪ねる・進物を贈ると親しくなる（1旬）。親しさ${H.HERO.FRIEND}で「友」の縁を結ぶ。${RP.isRonin(st) ? `浪人の武将は、親しさ${RP.RONIN.FOLLOW_REL}で配下に誘える。` : ''}</p>${ps.map((g) => {
-    const v = st.hero!.rel[g.id] ?? 0;
-    return `<div class="hr-person">${face(g.id, 44) || `<span class="hr-noface sm">${esc(g.name.slice(0, 1))}</span>`}<div class="hr-pi"><b>${esc(g.name)}</b><span>${g.clan ? `${esc(clanName(st, g.clan))}・${rankName(st, g)}` : '浪人'}${g.status === 'governor' ? '・城主' : ''}</span><span class="hr-rel">${H.RELNAME(v)} ${v}</span></div>
-      <div class="hr-pa">${KS.canRecruit(st, g) ? `<button class="hr-btn sm" data-h="kakae" data-id="${g.id}" ${v < KS.KASHIN.REL || KS.retainersOf(st).length >= KS.capOf(st) ? 'disabled' : ''}>家臣に召し抱える</button>` : ''}${RP.isRonin(st) && g.status === 'ronin' && !RP.isFollower(st, g) ? `<button class="hr-btn sm" data-h="invite" data-id="${g.id}" ${v < RP.RONIN.FOLLOW_REL ? 'disabled' : ''}>配下に誘う</button>` : ''}${(() => { if (!CR.freeHero(st) || g.clan !== me.clan || v < PL.EN.PACT_REL || (st.hero!.retainers ?? []).includes(g.id) || g.id === H.lordOf(st)?.id) return ''; const why = PL.pactBlock(st, g); return why === '約束を取りつけてある' ? '<span class="hr-rel">謀反の味方</span>' : `<button class="hr-btn sm" data-h="pact" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>内々に誘う</button>`; })()}${(() => { if (!CR.freeHero(st) || st.hero!.wife || !st.hero!.ie || g.clan !== me.clan || g.rank > FA.FAM.WED_RANK || (st.year - (g.born ?? st.year - 30)) < FA.FAM.WED_AGE || v < 30) return ''; const why = FA.wedBlock(st, g); return `<button class="hr-btn sm" data-h="wed" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>縁組を申し込む</button>`; })()}${(() => { const k = CR.freeHero(st) ? SK.masterSkill(g) : null; if (!k || g.status === 'young') return ''; const why = SK.skillBlock(st, k, g); return `<button class="hr-btn sm" data-h="mstudy" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : `title="${esc(SK.SKILL_DESC[k])}"`}>師事を願う（${SK.SKILL_NAME[k]}・${SK.masterCap(g)}段まで）</button>`; })()}<button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button></div></div>`;
+    const v = st.hero!.rel[g.id] ?? 0, mk = CR.freeHero(st) ? SK.masterSkill(g) : null;
+    return `<button class="hr-person hr-meet" data-h="meet" data-id="${g.id}">${face(g.id, 44) || `<span class="hr-noface sm">${esc(g.name.slice(0, 1))}</span>`}<div class="hr-pi"><b>${esc(g.name)}</b><span>${g.clan ? `${esc(clanName(st, g.clan))}・${rankName(st, g)}` : '浪人'}${g.status === 'governor' ? '・城主' : ''}${mk ? `・${SK.SKILL_NAME[mk]}の名人` : ''}</span><span class="hr-rel">${H.RELNAME(v)} ${v}</span></div><i class="hr-go">会う ▸</i></button>`;
   }).join('')}`;
+}
+// 窓を開いたら見える所まで送る（スマホでは一覧の下の方から押すと、窓が画面の外に出る）
+function showDlg() { const e = root?.querySelector('.hr-dlg') as HTMLElement | null; if (e && e.getBoundingClientRect().top < 0) e.scrollIntoView({ block: 'center' }); }
+// 窓の中のボタン: 押せない時は理由を小さく添える（title はスマホで見えない）
+const why = (html: string) => html.replace(/<button ([^>]*?)disabled title="([^"]*)"([^>]*)>([^<]*)<\/button>/g, '<button $1disabled$3>$4<small>$2</small></button>');
+// 画面の窓: 会う相手（顔・縁・できること）か、道場・寺（稽古と独学）
+function dlgHtml(st: GameState) {
+  return why(dlgHtml0(st));
+}
+function dlgHtml0(st: GameState) {
+  const d = dlg!;
+  if (d.kind === 'person') {
+    const g = st.generals[d.id]; if (!g) return '';
+    const v = st.hero!.rel[g.id] ?? 0, mk = CR.freeHero(st) ? SK.masterSkill(g) : null;
+    return `<div class="hr-dlg"><div class="hr-who">${face(g.id, 128) || ''}<div><b>${esc(g.name)}</b><p class="hr-dsub">${g.clan ? `${esc(clanName(st, g.clan))}・${rankName(st, g)}` : '浪人'}${g.status === 'governor' ? '・城主' : ''}・武${g.bra} 知${g.int} 統${g.lea} 魅${g.cha}</p><p class="hr-dsub">${H.RELNAME(v)}（親しさ${v}）${mk ? `・${SK.SKILL_NAME[mk]}の名人（${SK.masterCap(g)}段まで教えられる）` : ''}</p></div></div><div class="hr-dacts">${personActs(st, g)}</div><button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div>`;
+  }
+  const at = d.kind, name = at === 'dojo' ? '道場' : '寺';
+  const train = `<button class="hr-btn sm" data-h="train" data-id="${at}" ${st.hero!.gold < H.HERO.TRAIN_COST ? 'disabled' : ''} title="${at === 'dojo' ? '武勇か統率' : '知略か魅力'}が上がることがある">稽古する（${at === 'dojo' ? '武勇・統率' : '知略・魅力'}・${H.HERO.TRAIN_COST}貫）</button>`;
+  const selfs = CR.freeHero(st) ? SK.selfList(at).map((k) => { const why = SK.skillBlock(st, k); return `<button class="hr-btn sm" data-h="study" data-id="${k}" ${why ? `disabled title="${esc(why)}"` : `title="${esc(SK.SKILL_DESC[k])}"`}>独学: ${SK.SKILL_NAME[k]}（${SK.lv(st, k)}段・${SK.skillCost(st, k)}貫）</button>`; }).join('') : '';
+  const ms = CR.freeHero(st) ? H.townsfolk(st, st.hero!.town).filter((g) => SK.masterSkill(g) && SK.SKILL_AT[SK.masterSkill(g)!] === at) : [];
+  return `<div class="hr-dlg"><h4 class="hr-sub">${esc(st.castles[st.hero!.town].name)}の${name}</h4><p class="hr-dsub">${at === 'dojo' ? '武芸・築城・忍術' : '弁舌・算術・茶道'}は、ここで独学すれば${SK.SK.SELF_MAX}段まで。その先はその道の名人に、屋敷で師事を願う。${ms.length ? `この城下の名人: ${ms.map((g) => `${esc(g.name)}（${SK.SKILL_NAME[SK.masterSkill(g)!]}）`).join('・')}` : ''}</p><div class="hr-dacts">${train}${selfs}</div><button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div>`;
+}
+// 会った相手にできること（画面の窓に出す）
+function personActs(st: GameState, g: General) {
+  const me = H.heroOf(st)!, v = st.hero!.rel[g.id] ?? 0;
+  return `${KS.canRecruit(st, g) ? `<button class="hr-btn sm" data-h="kakae" data-id="${g.id}" ${v < KS.KASHIN.REL || KS.retainersOf(st).length >= KS.capOf(st) ? 'disabled' : ''}>家臣に召し抱える</button>` : ''}${RP.isRonin(st) && g.status === 'ronin' && !RP.isFollower(st, g) ? `<button class="hr-btn sm" data-h="invite" data-id="${g.id}" ${v < RP.RONIN.FOLLOW_REL ? 'disabled' : ''}>配下に誘う</button>` : ''}${(() => { if (!CR.freeHero(st) || g.clan !== me.clan || v < PL.EN.PACT_REL || (st.hero!.retainers ?? []).includes(g.id) || g.id === H.lordOf(st)?.id) return ''; const why = PL.pactBlock(st, g); return why === '約束を取りつけてある' ? '<span class="hr-rel">謀反の味方</span>' : `<button class="hr-btn sm" data-h="pact" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>内々に誘う</button>`; })()}${(() => { if (!CR.freeHero(st) || st.hero!.wife || !st.hero!.ie || g.clan !== me.clan || g.rank > FA.FAM.WED_RANK || (st.year - (g.born ?? st.year - 30)) < FA.FAM.WED_AGE || v < 30) return ''; const why = FA.wedBlock(st, g); return `<button class="hr-btn sm" data-h="wed" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>縁組を申し込む</button>`; })()}${(() => { const k = CR.freeHero(st) ? SK.masterSkill(g) : null; if (!k || g.status === 'young') return ''; const why = SK.skillBlock(st, k, g); return `<button class="hr-btn sm" data-h="mstudy" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : `title="${esc(SK.SKILL_DESC[k])}"`}>師事を願う（${SK.SKILL_NAME[k]}・${SK.masterCap(g)}段まで）</button>`; })()}<button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button>`;
 }
 function skillNote(st: GameState) {
   const sks = (Object.keys(SK.SKILL_NAME) as SK.SkillKey[]).filter((k) => SK.expOf(st, k) > 0).map((k) => `${SK.SKILL_NAME[k]}${SK.lv(st, k)}段`).join('・');
@@ -387,6 +413,7 @@ function playHeld() {
 }
 async function act(fn: () => H.Act, scene?: string, allowSick = false) {
   if (!s || busy) return;
+  dlg = null;
   if (!allowSick && SK.isSick(s)) { say = { text: '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
   if (heldReport) { report = heldReport; heldReport = null; render(); return; } // 閉じずに次へ進もうとした: 先に月の報告を見せる
   const r = fn();
@@ -580,7 +607,11 @@ function onClick(e: Event) {
   if (!s) return;
   if (h === 'succeed') { const r = FA.succeedSon(s); report = null; pane = 'spots'; bg = 'town'; say = { text: r.text }; H.note(s, r.text); save(); render(); return; }
   if (s.hero?.over && !['pane', 'report-ok'].includes(h)) return; // 終わったあとは見るだけ
+  if (h === 'pane') dlg = null;
   if (h === 'pane') { if (id === 'tabi') recenter = true; pane = id as typeof pane; render(); return; }
+  if (h === 'meet') { dlg = { kind: 'person', id }; say = null; render(); showDlg(); return; }
+  if (h === 'dlg-close') { dlg = null; render(); return; }
+  if (h === 'train') { void act(() => H.train(s!, id as 'dojo' | 'tera'), id); return; }
   if (h === 'report-ok') { report = null; render(); playHeld(); return; }
   if (h === 'say-close') { closeSay(); return; }
   if (h === 'q-accept') { if (say) say.text = say.text.replace('主命を申し付けられた。', '主命を承った。'); closeSay(); return; }
@@ -641,6 +672,7 @@ function onClick(e: Event) {
     const k = id as H.Spot;
     if (k === 'yashiki') { pane = 'yashiki'; render(); return; }
     if (k === 'tabi') { pane = 'tabi'; render(); return; }
+    if ((k === 'dojo' || k === 'tera') && CR.freeHero(s)) { dlg = { kind: k }; say = null; render(); showDlg(); return; } // 道場・寺は窓で稽古か独学を選ぶ
     const f: Record<string, () => H.Act> = { tojo: () => H.tojo(s!), chaya: () => H.rumor(s!), nanban: () => H.rumor(s!), ichi: () => H.buyGoods(s!), dojo: () => H.train(s!, 'dojo'), tera: () => H.train(s!, 'tera') };
     void act(f[k], k);
   }
@@ -693,6 +725,7 @@ export const CSS = `
 .hr-scene.map{background:#16222e}
 #hr-mapslot{position:absolute;inset:0}#hr-mapslot canvas{width:100%;height:100%;display:block;touch-action:none}
 .hr-scene.map .hr-town{position:relative;z-index:1;pointer-events:none}
+.hr-dlg{box-sizing:border-box;margin:auto;align-self:center;width:min(720px,calc(100% - 32px));max-height:calc(100% - 24px);overflow:auto;background:rgba(10,10,10,.9);border:1px solid rgba(207,169,94,.6);padding:18px 22px;border-radius:4px;position:relative;z-index:2}.hr-dlg .hr-dsub{margin:2px 0;font-size:12.5px;opacity:.85}.hr-dacts{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px}.hr-dacts .hr-btn{flex:1 1 180px}.hr-dacts .hr-btn small{display:block;font-size:10.5px;opacity:.85;margin-top:2px}.hr-dacts .hr-rel{align-self:center;color:#cfa95e}.hr-dclose{float:right}.hr-meet{width:100%;text-align:left;cursor:pointer;color:inherit;font:inherit;background:transparent}.hr-meet:hover{background:rgba(207,169,94,.08)}.hr-go{margin-left:auto;font-style:normal;color:#cfa95e;font-size:12px;white-space:nowrap;align-self:center}
 .hr-say.hold{cursor:pointer}.hr-close{display:block;text-align:right;font-size:12px;color:#cfa95e;opacity:.8;margin-top:6px}.hr-cands{display:flex;flex-direction:column;gap:6px;margin-top:10px}.hr-cand{text-align:left;background:rgba(207,169,94,.08);border:1px solid rgba(207,169,94,.45);color:inherit;padding:8px 12px;border-radius:3px;cursor:pointer;font:inherit}.hr-cand:hover{background:rgba(207,169,94,.2)}.hr-cand b{display:block;color:#cfa95e;font-size:14px}.hr-cand span{font-size:12.5px;opacity:.9}
 .hr-offer{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}.hr-offer .hr-btn{min-width:96px}
 .hr-say.mini{position:relative;z-index:1;margin:auto 12px 12px;width:auto;align-self:stretch;padding:10px 14px;pointer-events:none}

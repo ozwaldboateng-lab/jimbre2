@@ -16,7 +16,8 @@ await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
 const say = () => p.$eval('#hero .hr-say', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => '');
 await p.click('#hero [data-h="pane"][data-id="yashiki"]'); await p.waitForTimeout(150);
 console.log('rels', (await p.$$eval('#hero .hr-person', (es) => es.map((e) => e.textContent.replace(/\s+/g, ' ').slice(0, 60)))).filter((x) => /友|懇意|知己|味方/.test(x)).join(' / '));
-const pact = await p.$('#hero [data-h="pact"]:not([disabled])'); console.log('pact btn', !!pact);
+const findAct = async (sel) => { const n = (await p.$$('#hero [data-h="meet"]')).length; for (let i = 0; i < n; i++) { const ms = await p.$$('#hero [data-h="meet"]'); if (!ms[i]) break; await ms[i].click(); await p.waitForTimeout(60); const e = await p.$(sel); if (e) return e; const c = await p.$('#hero [data-h="dlg-close"]'); if (c) await c.click(); await p.waitForTimeout(40); } return null; };
+const pact = await findAct('#hero [data-h="pact"]:not([disabled])'); console.log('pact btn', !!pact);
 if (pact) { await pact.click(); await p.waitForTimeout(200); console.log('pact:', (await say()).slice(0, 160)); await p.screenshot({ path: `${out}/pl-1-pact.png` }); const c = await p.$('#hero [data-h="say-close"]'); if (c) await c.click(); }
 await p.click('#hero [data-h="pane"][data-id="spots"]'); await p.waitForTimeout(100);
 await p.click('#hero [data-h="pane"][data-id="homen"]'); await p.waitForTimeout(150);

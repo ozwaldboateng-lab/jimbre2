@@ -29,6 +29,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
     await p.waitForFunction(() => !document.querySelector('#hero .hr-busy'), null, { timeout: 120000 });
     if (await has('#hero [data-h="say-close"]')) { const rep = await has('#hero [data-h="report-ok"]'); console.log(vp.tag, 'held say; report visible?', rep); if (!rep && i > 0) { await p.screenshot({ path: `${out}/of-${vp.tag}-3-held.png` }); } await p.click('#hero [data-h="say-close"]'); await p.waitForTimeout(150); if (await has('#hero [data-h="report-ok"]')) { console.log(vp.tag, 'report after close'); await p.screenshot({ path: `${out}/of-${vp.tag}-4-report.png` }); break; } }
     await p.click('#hero [data-h="pane"][data-id="yashiki"]'); await p.waitForTimeout(80);
+    const mt = await p.$('#hero [data-h="meet"]'); if (mt) { await mt.click(); await p.waitForTimeout(80); }
     const v = await p.$('#hero [data-h="visit"]'); if (!v) { console.log('no visit'); break; }
     await v.click(); await p.waitForTimeout(200);
   }
