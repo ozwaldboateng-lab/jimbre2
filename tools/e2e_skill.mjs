@@ -16,6 +16,9 @@ const st = await p.$('#hero [data-h="study"]:not([disabled])'); if (st) { await 
 await p.screenshot({ path: `${out}/sk-1.png` });
 await p.click('#hero [data-h="say-close"]').catch(() => {}); 
 await p.click('#hero [data-h="pane"][data-id="yashiki"]'); await p.waitForTimeout(150);
+console.log('masters:', (await p.$$eval('#hero [data-h="mstudy"]', (es) => es.map((e) => e.closest('.hr-person').querySelector('b').textContent + ':' + e.textContent + (e.disabled ? '×(' + e.title + ')' : '')))).join(' | '));
+{ const v = await p.$('#hero .hr-person:has([data-h="mstudy"]) [data-h="visit"]'); if (v) { await v.click(); await p.waitForTimeout(150); const c = await p.$('#hero [data-h="say-close"]'); if (c) await c.click(); await p.click('#hero [data-h="pane"][data-id="yashiki"]').catch(() => {}); await p.waitForTimeout(100); }
+  const m = await p.$('#hero [data-h="mstudy"]:not([disabled])'); if (m) { await m.click(); await p.waitForTimeout(200); console.log('mstudy:', await p.$eval('#hero .hr-say', (e) => e.textContent.replace(/\s+/g, ' '))); await p.screenshot({ path: `${out}/sk-2-master.png` }); const c = await p.$('#hero [data-h="say-close"]'); if (c) await c.click(); await p.click('#hero [data-h="pane"][data-id="yashiki"]').catch(() => {}); await p.waitForTimeout(100); } else console.log('no enabled master'); }
 console.log('skills:', await p.$$eval('#hero .hr-pane .hr-note', (es) => es.map((e) => e.textContent).find((x) => x.includes('技能'))));
 // 病の止め: 保存を書き換えて病に
 await p.evaluate(() => { const k = 'sengoku-hero-auto'; const s = JSON.parse(localStorage.getItem(k)); s.generals[s.hero.id].sick = 2; localStorage.setItem(k, JSON.stringify(s)); });

@@ -15,7 +15,7 @@ import { upkeepMonth } from './meibutsu';
 import { familyYear } from './family';
 import { myHyojoMonth } from './myhyojo';
 import { reward, rewardDue } from './yari';
-import { HP, hpMax, hpMonth, hpOf, lv, spendHp } from './skill';
+import { HP, hpMax, hpMonth, hpOf, lv, masterRumor, spendHp } from './skill';
 import { becomeRonin, chigyo, followClan, freeHero, lifeSummary } from './career';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
@@ -101,8 +101,10 @@ export function spotsOf(s: GameState, c: Castle): Spot[] {
   if (lordOf(s)?.loc === c.i) out.push('tojo');
   out.push('yashiki', 'chaya');
   if (big || c.id === 'kyo' || c.id === 'kishiwada') out.push('ichi');
-  if (big) out.push('dojo');
-  if (big || ['kyo', 'ishiyama', 'kanazawa', 'shigisan'].includes(c.id)) out.push('tera');
+  // 道場と寺は大きな城下だけ（18万石以上か、12万石以上の大名の居城）。寺は京・石山・金沢・信貴山の寺町にも
+  const great = castleKoku(c) >= 18 || (big && Object.values(s.clans).some((x) => x.alive && x.leader && s.generals[x.leader]?.loc === c.i));
+  if (great) out.push('dojo');
+  if (great || ['kyo', 'ishiyama', 'kanazawa', 'shigisan'].includes(c.id)) out.push('tera');
   if (['funai', 'hirado', 'kishiwada', 'kyo'].includes(c.id)) out.push('nanban');
   out.push('tabi');
   return out;
@@ -181,6 +183,7 @@ export function rumor(s: GameState): Act {
   const news = s.log.filter((l) => l.turn >= s.turn - 1 && (l.kind === 'battle' || l.kind === 'castle')).slice(-6);
   const n = news[Math.floor(rand(s) * news.length)];
   if (n) parts.push(`噂では、${n.text.replace(/。$/, '')}`);
+  if (s.hero!.story !== 'toshiie' && rand(s) < 0.6) { const m = masterRumor(s, c.i, () => rand(s), R.hx(12), hexDist); if (m) parts.push(m); } // 名人の居所
   return { ok: true, text: `茶屋で旅人の話に耳を傾けた。${parts.length ? parts.map((p) => `「${p}」`).join('') : '目ぼしい話はなかった。'}` };
 }
 export function rest(s: GameState): Act { used(s, -HP.REST); return { ok: true, text: `体を休めた（体力${hpOf(s)}／${hpMax(s)}）。` }; }
@@ -528,7 +531,7 @@ export function work(s: GameState): Act {
     return { ok: true, text: `人足を集め、普請を差配した（${q.done}/${q.need}旬）。` };
   }
   if (q.kind === 'teisatsu') {
-    const p = 0.55 + me.int / 200;
+    const p = 0.55 + me.int / 200 + lv(s, 'ninjutsu') * 0.05;
     if (rand(s) < p) {
       learnCastle(s, c.i, me.clan!); q.done = q.need; q.ok = true;
       q.note = `${c.name}の兵はおよそ${Math.round(c.garrison / 100) * 100}、${c.governor ? `城主は${s.generals[c.governor].name}` : '城主はいない'}。`;

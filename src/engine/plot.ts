@@ -45,7 +45,7 @@ export function invitePact(s: GameState, gid: string): Act {
     (H.pact ??= []).push(gid);
     return { ok: true, who: gid, line: g.tozama ? 'わしも、もとは一国の主だった。……そなたが起つなら、わしも起つ。' : '……聞かなかったことにはできぬな。よかろう。その時は、わしもそなたの側に立つ。', text: `${g.name}から、謀反の折には味方するとの約束を取りつけた${s.castles.some((c) => c.governor === g.id && c.i !== s.generals[lordId(s) ?? '']?.loc) ? '（城ごと加わる）' : ''}。` };
   }
-  if (rand(s) < EN.LEAK) {
+  if (rand(s) < EN.LEAK * (1 - lv(s, 'ninjutsu') * 0.15)) { // 忍術で漏れにくい
     H.favor = Math.max(0, H.favor - EN.LEAK_FAVOR); H.rel[gid] = Math.max(0, relOf(s, gid) - EN.LEAK_REL);
     addLog(s, `${meOf(s).name}に謀反の企みありとの噂が立った。`, 'info', true);
     return { ok: true, who: gid, line: '……そのような話、わしは聞きとうない。殿に申し上げぬわけにはいかぬ。', text: `${g.name}は首を縦に振らず、話は主君の耳に入った。主君の覚え−${EN.LEAK_FAVOR}・${g.name}との親しさ−${EN.LEAK_REL}。` };
@@ -83,7 +83,7 @@ export function offerSecret(s: GameState): Act {
     H.secret = { clan, turn: s.turn };
     return { ok: true, who: L, line: `${clanName(s, me.clan!)}の家中に、骨のある者がおるとはな。……よかろう。そなたが起った時は、わが家が盟を結ぶ。`, text: `${clanName(s, clan)}家の当主と密約を結んだ（礼物${EN.SECRET_GOLD}貫）。謀反して家を立てれば、${clanName(s, clan)}家と盟を結び、主家を共に攻める。` };
   }
-  if (rand(s) < EN.SECRET_LEAK) {
+  if (rand(s) < EN.SECRET_LEAK * (1 - lv(s, 'ninjutsu') * 0.15)) {
     H.favor = Math.max(0, H.favor - EN.SECRET_LEAK_FAVOR);
     addLog(s, `${me.name}が${clanName(s, clan)}家と通じているとの噂が立った。`, 'info', true);
     return { ok: true, who: L, line: '面白い話だが、乗れぬな。……せいぜい、主に気取られぬことだ。', text: `密約はならず、他家と通じているとの噂が主君の耳に入った（礼物${EN.SECRET_GOLD}貫は戻らない）。主君の覚え−${EN.SECRET_LEAK_FAVOR}。` };
