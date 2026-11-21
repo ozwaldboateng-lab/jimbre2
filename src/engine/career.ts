@@ -20,6 +20,7 @@ export type Step = 'ie' | 'shiro' | 'kuni' | 'homen' | 'hitto';
 export const STEP_NAME: Record<Step, string> = { ie: '家を立てる', shiro: '城を預かる', kuni: '国持ち', homen: '方面軍団長', hitto: '家中第一の臣' };
 export const CAREER = {
   SHIRO_MERIT: 180, SHIRO_FAVOR: 60, // 城を預かる: 侍大将で、功績180・覚え60
+  RETURN_MONTHS: 24, // 出奔した家に戻れるまで
   REGRANT_MONTHS: 6, REGRANT_FAVOR: 15, // 城を失った者の預け直し: 半年後、覚え45で（功績は問わない）
   KUNI_MONTHS: 12, KUNI_CHIAN: 60, KUNI_FAVOR: 70, // 国持ち: 宿老で、城を一年持ち、治安60・覚え70
   HOMEN_FAVOR: 85, HOMEN_KASHIN: 1, HOMEN_CASTLES: 5, // 方面軍団長: 国持ちで覚え85・家臣1人。主人公の城と近くの城をまとめて5城まで
@@ -246,6 +247,8 @@ export function askService(s: GameState): { ok: boolean; text: string; who?: str
   if (!clan) return { ok: false, text: 'この城下には仕官を願える大名がいない' };
   const C = s.clans[clan], L = s.generals[C.leader!];
   H.jun++;
+  const lf = H.career?.left;
+  if (lf && lf.clan === clan && s.turn - lf.turn < CAREER.RETURN_MONTHS) { H.jun++; return { ok: true, who: L.id, line: '一度わが家を捨てた者を、また抱えると思うか。', text: `出奔した${C.name}家には、${CAREER.RETURN_MONTHS / 12}年は戻れない（あと${CAREER.RETURN_MONTHS - (s.turn - lf.turn)}か月）。` }; }
   const tried = (H.career ??= { steps: [] }).tried ??= {};
   if (tried[clan] === s.turn) return { ok: true, who: L.id, line: '今日は会わぬ。', text: '門前で待たされたまま、日が暮れた。' };
   tried[clan] = s.turn;
@@ -343,7 +346,9 @@ export function leaveLord(s: GameState): string {
   const f = homenOf(s); if (f) { s.fronts = (s.fronts ?? []).filter((x) => x !== f); for (const a of Object.values(s.armies)) if (a.front === f.id) a.front = undefined; }
   const L = me.clan && s.clans[me.clan].leader ? s.clans[me.clan].leader! : null;
   if (L) H.rel[L] = Math.max(0, (H.rel[L] ?? 0) - 30);
+  const left = me.clan;
   const msg = becomeRonin(s);
+  if (left) (H.career ??= { steps: [] }).left = { clan: left, turn: s.turn }; // 出奔した家には、二年は戻れない
   addLog(s, `${me.name}が${from}家を出奔した。`, 'info', true);
   return msg.replace(/^.*?家は滅んだ。/, `${from}家に暇を乞い、出奔した。`);
 }

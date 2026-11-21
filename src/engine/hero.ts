@@ -45,10 +45,11 @@ export interface Hero {
   wife?: { from: string; name: string; turn: number }; kids?: import('./family').Kid[]; gen?: number; wedTried?: number; heirNamed?: number; // 家族（family.ts）
   pact?: string[]; secret?: { clan: string; turn: number }; plotTried?: Record<string, number>; // 謀反の準備（plot.ts）
   orders?: Record<string, { role: import('./myhyojo').Yaku; castle: number }>; myHyojo?: number; // 自分の評定（myhyojo.ts）
+  pupil?: { gid: string; k: import('./skill').SkillKey; turn: number }; // 弟子入りを願う者（その月だけ）
   hyojo?: { turn: number; cands: Quest[] }; // 評定で示された主命の候補（その月だけ）
   declined?: number; declines?: number; // 主命を断った月・続けて断った数（果たせば0に戻る）
   kaku?: number; meibutsu?: string[]; given?: string[]; chakai?: number; // 家の格・持っている名物・献上した名物・最後の茶会（meibutsu.ts）
-  career?: { steps: import('./career').Step[]; since?: number; kuniAt?: number; ronin?: number; lostAt?: number; lostKuni?: boolean; best?: import('./career').Step[]; served?: string[]; tried?: Record<string, number> }; // 出世の階段（物語の外）: 越えた節目と、城を預かった月 // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
+  career?: { steps: import('./career').Step[]; since?: number; kuniAt?: number; ronin?: number; lostAt?: number; lostKuni?: boolean; left?: { clan: string; turn: number }; best?: import('./career').Step[]; served?: string[]; tried?: Record<string, number> }; // 出世の階段（物語の外）: 越えた節目と、城を預かった月 // 第二部: 前田家・物語の記録（戦の点・三つの道）・治める城（府中）・持たせる期限（年*12+月）
 }
 export const HERO = {
   JUN: 3, PAY: [400, 200, 100, 50], // 身分ごとの月の俸禄（宿老・侍大将・足軽大将・足軽組頭）

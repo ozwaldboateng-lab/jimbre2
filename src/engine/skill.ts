@@ -92,3 +92,40 @@ export function masterRumor(s: GameState, from: number, r: () => number, hx12: n
   const g = ms[Math.floor(r() * ms.length)];
   return `${s.castles[g.loc].name}の城下に、${SKILL_NAME[masterSkill(g)!]}の名人と聞こえた${g.name}がいるそうだ`;
 }
+
+// ───────── 弟子入り: 三段以上の技能があれば、城下の武将が師事しに来ることがある（月に一度、25%） ─────────
+export const PUPIL = { LV: 3, P: 0.25, REL: 12, FAME: 1, HP: 8, PAY: 50, STAT_P: 0.5, DECLINE_REL: 3 };
+type PuX = { pupil?: { gid: string; k: SkillKey; turn: number } };
+const PX = (s: GameState) => s.hero! as typeof s.hero & PuX;
+export const bestSkill = (s: GameState): SkillKey | null => { const ks = (Object.keys(SKILL_NAME) as SkillKey[]).filter((k) => lv(s, k) >= PUPIL.LV).sort((a, b) => expOf(s, b) - expOf(s, a)); return ks[0] ?? null; };
+// 月の終わりに: 城下の武将（townsfolk は呼ぶ側が渡す）から弟子入りを願う者を選ぶ
+export function pupilEvent(s: GameState, folk: General[], r: () => number): General | null {
+  const H = PX(s);
+  if (H.story === 'toshiie' || isSick(s) || H.field || H.army) return null;
+  const k = bestSkill(s);
+  if (!k || r() >= PUPIL.P) return null;
+  const cand = folk.filter((g) => g.status !== 'dead' && g.status !== 'young' && g.status !== 'captive' && masterSkill(g) !== k && g.id !== H.id);
+  if (!cand.length) return null;
+  const g = cand[Math.floor(r() * cand.length)];
+  H.pupil = { gid: g.id, k, turn: s.turn };
+  return g;
+}
+export const pupilOf = (s: GameState) => { const p = PX(s).pupil; return p && p.turn === s.turn ? { g: s.generals[p.gid], k: p.k } : null; };
+// 教える（1旬・体力−8）: その者との親しさ+12・名声+1・謝礼（段×50貫）。半々でその者の能力が1上がる
+export function teachPupil(s: GameState, r: () => number): { ok: boolean; text: string; who?: string; line?: string } {
+  const H = PX(s), p = pupilOf(s);
+  H.pupil = undefined;
+  if (!p || !p.g) return { ok: false, text: '弟子入りを願った者は、もう去った' };
+  const { g, k } = p, pay = lv(s, k) * PUPIL.PAY, st = SKILL_STAT[k];
+  H.jun++; spendHp(s, PUPIL.HP);
+  H.rel[g.id] = Math.min(100, (H.rel[g.id] ?? 0) + PUPIL.REL); H.fame = Math.min(100, (H.fame ?? 0) + PUPIL.FAME); H.gold += pay;
+  const up = r() < PUPIL.STAT_P && g[st] < 95; if (up) g[st]++;
+  return { ok: true, who: g.id, line: 'ありがたい。……この教え、生涯忘れませぬ', text: `${g.name}に${SKILL_NAME[k]}を教えた（謝礼${pay}貫）。${g.name}との親しさ+${PUPIL.REL}・名声+${PUPIL.FAME}${up ? `。${g.name}の${{ bra: '武勇', lea: '統率', int: '知略', cha: '魅力' }[st]}が上がった` : ''}。` };
+}
+export function declinePupil(s: GameState): { ok: boolean; text: string } {
+  const H = PX(s), p = pupilOf(s);
+  H.pupil = undefined;
+  if (!p || !p.g) return { ok: false, text: '' };
+  H.rel[p.g.id] = Math.max(0, (H.rel[p.g.id] ?? 0) - PUPIL.DECLINE_REL);
+  return { ok: true, text: `${p.g.name}の弟子入りを断った（親しさ−${PUPIL.DECLINE_REL}）。` };
+}

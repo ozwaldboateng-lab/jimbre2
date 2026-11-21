@@ -214,7 +214,7 @@ function spotsHtml(st: GameState) {
   const sc = CR.freeHero(st) ? PL.secretHere(st) : null;
   const secret = sc && H.heroOf(st)!.clan ? (() => { const why = PL.secretBlock(st, sc); return `<button class="hr-spot dim" data-h="secret" ${why ? 'disabled' : ''}><b>密約を持ちかける</b><span>${why ? esc(why) : `${esc(clanName(st, sc))}家の当主に、謀反の折の盟を内々に持ちかける（礼物${PL.EN.SECRET_GOLD}貫・見込み${Math.round(PL.secretChance(st, sc) * 100)}%・しくじると主君の耳に入ることがある・1旬）`}</span></button>`; })() : '';
   const hf = CR.homenOf(st);
-  const homen = hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>${hf.castles.length}城・${FR.frontArmies(st, hf).length}軍勢。方針（${R.FRONT_POLICY_NAME[hf.policy]}）と攻略の目標を決める。謀反・出奔もここで</span></button>` : CR.canRebel(st) === null ? `<button class="hr-spot dim" data-h="pane" data-id="homen"><b>主家との縁</b><span>謀反を起こす・出奔する</span></button>` : '';
+  const homen = hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>${hf.castles.length}城・${FR.frontArmies(st, hf).length}軍勢。方針（${R.FRONT_POLICY_NAME[hf.policy]}）と攻略の目標を決める。謀反・出奔もここで</span></button>` : CR.freeHero(st) && H.heroOf(st)!.clan && !st.hero!.field && !H.inArmy(st) ? `<button class="hr-spot dim" data-h="pane" data-id="homen"><b>主家との縁</b><span>${CR.canRebel(st) === null ? '謀反を起こす・' : ''}出奔して浪人になる（他家に仕官し直せる）</span></button>` : '';
   return `${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${sick}${trade}${mei}${secret}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
     <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${ret}${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
@@ -358,7 +358,8 @@ function homenHtml(st: GameState) {
   const rb = CR.canRebel(st);
   const lord = me.clan ? clanName(st, me.clan) : '';
   const rebelB = `<button class="hr-spot${rebelArm ? ' main' : ' dim'}" data-h="rebel" ${rb ? 'disabled' : ''}><b>${rebelArm === 0 ? '謀反を起こす' : rebelArm === 1 ? 'まことに背くか' : '旗を翻す'}</b><span>${rb ? esc(rb) : rebelArm === 0 ? `${esc(lord)}家に背き、${f ? '方面の城と軍勢' : '治める城'}ごと家を立てる。成れば大名として遊ぶ` : rebelArm === 1 ? 'もう一度押すと、主家に弓を引く覚悟を決める' : 'もう一度押すと謀反を起こす。後へは引けない'}</span></button>`;
-  const leaveB = `<button class="hr-spot dim" data-h="shuppon"><b>${leaveArm ? 'まことに出奔する' : '出奔する'}</b><span>${leaveArm ? 'もう一度押すと城を返し、家臣を連れて浪人になる' : `${esc(lord)}家に暇を乞い、家臣を連れて浪人になる（城は返す）`}</span></button>`;
+  const hasCastle = st.hero!.fuchu !== undefined || (st.hero!.ryo ?? []).length > 0;
+  const leaveB = `<button class="hr-spot dim" data-h="shuppon"><b>${leaveArm ? 'まことに出奔する' : '出奔する'}</b><span>${leaveArm ? `もう一度押すと${hasCastle ? '城を返し、' : ''}家臣を連れて浪人になる` : `${esc(lord)}家に暇を乞い、家臣を連れて浪人になる${hasCastle ? '（城は返す）' : ''}。浪人になれば、他家の当主の城下で仕官を願える（${esc(lord)}家には2年戻れない）`}</span></button>`;
   const ps = PL.plotSummary(st);
   const prep = `<p class="hr-note"><b>謀反の備え</b> 味方の約束: ${ps.pact.length ? ps.pact.map((g) => `${esc(g.name)}${PL.pactCastles(st).some((i) => st.castles[i].governor === g.id) ? '（城ごと）' : ''}`).join('・') : 'なし（屋敷で「友」の武将を内々に誘う）'}。密約: ${ps.secret ? `${esc(clanName(st, ps.secret))}家（家を立てれば盟を結び、援軍が来る）` : 'なし（他家の当主の城下で持ちかける）'}。</p>`;
   return `${body}<h4 class="hr-sub">主家との縁</h4>${prep}${rebelB}${leaveB}<button class="hr-spot dim" data-h="pane" data-id="spots"><b>城下へ戻る</b><span></span></button>`;
@@ -395,6 +396,7 @@ const dateOf = (st: GameState, turn: number) => { const m0 = (st.startMonth ?? 6
 // セリフの窓を閉じる: 言葉は消して地の文だけ残し、待たせていた月の報告（と出世の場面）を出す
 // 評定の候補（一つを選んで受ける）か、申し付けられた主命（承る／断る）
 function hyojoHtml(st: GameState) {
+  if (SK.pupilOf(st)) return '<div class="hr-offer"><button class="hr-btn primary" data-h="pupil-teach">教える</button><button class="hr-btn" data-h="pupil-no">断る</button></div>';
   if (YR.duelOf(st)) return '<div class="hr-offer"><button class="hr-btn primary" data-h="duel-yes">受けて立つ</button><button class="hr-btn" data-h="duel-no">退く</button></div>';
   const hy = st.hero!.hyojo;
   if (!hy || hy.turn !== st.turn) return '<div class="hr-offer"><button class="hr-btn primary" data-h="q-accept">承る</button><button class="hr-btn" data-h="q-decline">断る</button></div>';
@@ -454,6 +456,7 @@ async function advance() {
   if (cev) { lines.push(...cev.lines); for (const x of cev.lines) H.note(st, x); }
   if (monthPassed && CR.freeHero(st)) { // 槍働き（主人公の軍勢が戦った月）。一騎討ちを挑まれたら、受けるか退くかを先に
     const am = YR.aftermath(st); lines.push(...am.lines); for (const x of am.lines) H.note(st, x);
+    if (!am.duel && !say?.offer) { const pg = SK.pupilEvent(st, H.townsfolk(st, st.hero!.town), () => Math.random()); if (pg) { const pk = SK.pupilOf(st)!.k; say = { who: pg.id, line: `${H.heroOf(st)!.name}殿の${SK.SKILL_NAME[pk]}、聞き及んでおります。……どうか、教えを乞いたい`, text: `${pg.name}が${SK.SKILL_NAME[pk]}の弟子入りを願ってきた。教えれば親しくなり、謝礼も入る（1旬）。`, hold: true, offer: true }; } }
     if (am.duel) { const f = st.generals[am.duel]; say = { who: f.id, line: `そこな武者、名のある者と見た。${f.name}、一騎討ちを所望する！`, text: `敵将${f.name}（武勇${f.bra}）が一騎討ちを挑んできた。勝つ見込み${Math.round(YR.duelChance(st, f.id) * 100)}%。`, hold: true, offer: true }; }
   }
   const held = !!say?.hold;
@@ -654,6 +657,8 @@ function onClick(e: Event) {
   if (h === 'yaku') { pane = 'shiro'; say = { text: MH.cycle(s, id) }; save(); render(); return; }
   if (h === 'duel-yes') { const me = H.heroOf(s)!, f = YR.duelOf(s); const r = YR.fightDuel(s); H.note(s, r.text); const st = s; const after = () => { say = { who: r.who, line: r.line, text: r.text, hold: true }; save(); render(); };
     if (f && theater) { theater([{ kind: 'door', head: '一騎討ち', text: '一騎討ち', sub: `${me.name} 対 ${f.name}` }, { bg: 'jinmaku', text: `両軍の兵が退き、二人の間に間合いができた。${f.name}の槍が先に動いた。` }, { who: me.id, bg: 'jinmaku', text: r.won ? '……もらった！' : 'くっ……！' }, { bg: 'jinmaku', text: r.won ? `${me.name}の槍が、${f.name}の脇を深く払った。${f.name}は馬から落ち、郎党に担がれて退いた。` : `${f.name}の穂先が${me.name}の肩を裂いた。${me.name}は郎党に助けられ、陣へ引いた。` }], after, undefined, opt(st)); } else after(); return; }
+  if (h === 'pupil-teach') { const r = SK.teachPupil(s, () => Math.random()); H.note(s, r.text); say = { who: r.who, line: r.line, text: r.text, hold: true }; save(); render(); return; } // 月の報告は、この窓を閉じてから
+  if (h === 'pupil-no') { const r = SK.declinePupil(s); say = { text: r.text, hold: true }; save(); render(); return; }
   if (h === 'duel-no') { const r = YR.declineDuel(s); say = { text: r.text, hold: true }; save(); render(); return; }
   if (h === 'rise') { riseUp(id as 'youchi' | 'naio'); return; }
   if (h === 'retire') { if (!retireArm) { retireArm = true; say = { text: '家督を譲れば、一生はそこで締めになる。もう一度押すと隠居する。' }; render(); return; } retireArm = false; const ls = CR.retire(s); for (const x of ls) H.note(s, x); report = [...ls, '一生を終えた。']; save(); render(); return; }
