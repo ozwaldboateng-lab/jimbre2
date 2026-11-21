@@ -330,6 +330,7 @@ export function rebel(s: GameState): { ok: boolean; text: string; clan?: string;
   const castles = [...new Set([...(f?.castles ?? []), ...domain(s).filter((c) => c.owner === from).map((c) => c.i), ...pactCastles(s)])]; // 約束した味方の城も
   const armies = [...new Set([...Object.values(s.armies).filter((a) => a.clan === from && (a.heroLed || (f && a.front === f.id))), ...pactArmies(s)])];
   const lordName = s.clans[from].leader ? s.generals[s.clans[from].leader!].name : '';
+  for (const id of H.retainers ?? []) { const g = s.generals[id]; if (g && g.clan === from && g.status !== 'dead' && g.status !== 'captive') g.liege = me.id; } // 家臣（一門の子も）は名簿から改めて主人公の陪臣にして、皆ついて来させる
   me.status = 'free';
   const id = splitClan(s, me, from, castles, armies, '謀反');
   if (!id) { me.status = 'hero'; return { ok: false, text: '謀反は成らなかった' }; }

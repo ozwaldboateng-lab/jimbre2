@@ -239,7 +239,7 @@ export function cleanFronts(s: GameState) {
     }
   }
   // 陪臣の主がいなくなった（領が解かれた・他家へ移った）ら直参に
-  for (const g of Object.values(s.generals)) if (g.liege && (g.clan !== s.player || !frontsOf(s).some((f) => f.leader === g.liege))) g.liege = undefined;
+  for (const g of Object.values(s.generals)) if (g.liege && g.status !== 'kashin' && (g.clan !== s.player || !frontsOf(s).some((f) => f.leader === g.liege))) g.liege = undefined; // 武将で遊ぶの主人公の家臣（kashin）は、主人公が方面軍団長でなくても主人公の家臣のまま
   // 部隊の所属: 領主か陪臣が率いる部隊はその領に
   for (const a of clanArmies(s, s.player)) {
     if (a.ikki) continue;
