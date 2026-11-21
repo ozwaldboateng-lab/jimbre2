@@ -21,6 +21,7 @@ import * as PL from '../engine/plot';
 import * as FA from '../engine/family';
 import * as SK from '../engine/skill';
 import * as MH from '../engine/myhyojo';
+import * as YR from '../engine/yari';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
@@ -368,6 +369,7 @@ const dateOf = (st: GameState, turn: number) => { const m0 = (st.startMonth ?? 6
 // セリフの窓を閉じる: 言葉は消して地の文だけ残し、待たせていた月の報告（と出世の場面）を出す
 // 評定の候補（一つを選んで受ける）か、申し付けられた主命（承る／断る）
 function hyojoHtml(st: GameState) {
+  if (YR.duelOf(st)) return '<div class="hr-offer"><button class="hr-btn primary" data-h="duel-yes">受けて立つ</button><button class="hr-btn" data-h="duel-no">退く</button></div>';
   const hy = st.hero!.hyojo;
   if (!hy || hy.turn !== st.turn) return '<div class="hr-offer"><button class="hr-btn primary" data-h="q-accept">承る</button><button class="hr-btn" data-h="q-decline">断る</button></div>';
   return `<div class="hr-cands">${hy.cands.map((q, i) => `<button class="hr-cand" data-h="q-pick" data-id="${i}"><b>${esc(H.QUEST_NAME[q.kind])}</b><span>${esc(H.questText(st, q))}</span></button>`).join('')}</div><div class="hr-offer"><button class="hr-btn" data-h="q-decline">どれも断る</button></div>`;
@@ -423,6 +425,10 @@ async function advance() {
   if (monthPassed && FA.inherited(st)) { save(); render(); inherit(st, lines); return; } // 主家の家督を継いだ: 大名プレイへ
   const cev = monthPassed && CR.careerMonth(st);
   if (cev) { lines.push(...cev.lines); for (const x of cev.lines) H.note(st, x); }
+  if (monthPassed && CR.freeHero(st)) { // 槍働き（主人公の軍勢が戦った月）。一騎討ちを挑まれたら、受けるか退くかを先に
+    const am = YR.aftermath(st); lines.push(...am.lines); for (const x of am.lines) H.note(st, x);
+    if (am.duel) { const f = st.generals[am.duel]; say = { who: f.id, line: `そこな武者、名のある者と見た。${f.name}、一騎討ちを所望する！`, text: `敵将${f.name}（武勇${f.bra}）が一騎討ちを挑んできた。勝つ見込み${Math.round(YR.duelChance(st, f.id) * 100)}%。`, hold: true, offer: true }; }
+  }
   const held = !!say?.hold;
   if (lines.length) { if (held) heldReport = [...new Set(lines)]; else report = [...new Set(lines)]; }
   // 城下に着いたら、城下の画面へ戻る
@@ -614,6 +620,9 @@ function onClick(e: Event) {
   if (h === 'wed') { void act(() => FA.proposeWed(s!, id), 'yashiki'); return; }
   if (h === 'myhyo') { pane = 'shiro'; void act(() => MH.hold(s!), 'tojo'); return; }
   if (h === 'yaku') { pane = 'shiro'; say = { text: MH.cycle(s, id) }; save(); render(); return; }
+  if (h === 'duel-yes') { const me = H.heroOf(s)!, f = YR.duelOf(s); const r = YR.fightDuel(s); H.note(s, r.text); const st = s; const after = () => { say = { who: r.who, line: r.line, text: r.text, hold: true }; save(); render(); };
+    if (f && theater) { theater([{ kind: 'door', head: '一騎討ち', text: '一騎討ち', sub: `${me.name} 対 ${f.name}` }, { bg: 'jinmaku', text: `両軍の兵が退き、二人の間に間合いができた。${f.name}の槍が先に動いた。` }, { who: me.id, bg: 'jinmaku', text: r.won ? '……もらった！' : 'くっ……！' }, { bg: 'jinmaku', text: r.won ? `${me.name}の槍が、${f.name}の脇を深く払った。${f.name}は馬から落ち、郎党に担がれて退いた。` : `${f.name}の穂先が${me.name}の肩を裂いた。${me.name}は郎党に助けられ、陣へ引いた。` }], after, undefined, opt(st)); } else after(); return; }
+  if (h === 'duel-no') { const r = YR.declineDuel(s); say = { text: r.text, hold: true }; save(); render(); return; }
   if (h === 'rise') { riseUp(id as 'youchi' | 'naio'); return; }
   if (h === 'retire') { if (!retireArm) { retireArm = true; say = { text: '家督を譲れば、一生はそこで締めになる。もう一度押すと隠居する。' }; render(); return; } retireArm = false; const ls = CR.retire(s); for (const x of ls) H.note(s, x); report = [...ls, '一生を終えた。']; save(); render(); return; }
   if (h === 'buy') { pane = 'akinai'; void act(() => T.buy(s!, +id), 'ichi'); return; }

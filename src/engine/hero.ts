@@ -14,6 +14,7 @@ import { leadMonth } from './heroArmy';
 import { upkeepMonth } from './meibutsu';
 import { familyYear } from './family';
 import { myHyojoMonth } from './myhyojo';
+import { reward, rewardDue } from './yari';
 import { HP, hpMax, hpMonth, hpOf, lv, spendHp } from './skill';
 import { becomeRonin, chigyo, followClan, freeHero, lifeSummary } from './career';
 import { delegateOf } from './delegate';
@@ -317,6 +318,7 @@ export function tojo(s: GameState): Act {
   const H = s.hero!, me = heroOf(s)!, L = lordOf(s)!;
   const b = questBlock(s); if (b) return { ok: false, text: b };
   used(s);
+  if (H.story !== 'toshiie' && rewardDue(s)) { H.jun--; return reward(s, L.id); } // 論功行賞（旬は使わない。続けて登城すれば評定や報告）
   const q = H.quest;
   if (q && q.done >= q.need) {
     // 報告

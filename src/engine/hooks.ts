@@ -1,5 +1,6 @@
 // 戦闘解決の差し替え口。UIはプレイヤーが関わる合戦を戦術マップで戦わせる。
 import { battle } from './combat';
+import { recordBattle } from './yari';
 import type { Target } from './move';
 import type { Army, BattleReport, GameState } from './types';
 
@@ -13,6 +14,7 @@ export async function resolveBattle(s: GameState, a: Army, t: Target, charge: bo
   if (hook && !s.hero && ((a.clan === s.player && command) || defClan === s.player)) return hook(s, a, t, joined);
   // 武将で遊ぶ: 主人公が加わっている軍勢の合戦は、合戦の画面で主人公の一隊だけを采配する（ほかの部隊はAI）。「任せる」にしていればAIだけで
   const H = s.hero;
-  if (hook && H && H.selfCommand && H.army !== null && H.army !== undefined && (a.id === H.army || joined.some((j) => j.id === H.army) || (t.kind === 'army' && t.army.id === H.army))) return hook(s, a, t, joined);
-  return battle(s, a, t, charge, joined);
+  const r = hook && H && H.selfCommand && H.army !== null && H.army !== undefined && (a.id === H.army || joined.some((j) => j.id === H.army) || (t.kind === 'army' && t.army.id === H.army)) ? await hook(s, a, t, joined) : await battle(s, a, t, charge, joined);
+  if (H) recordBattle(s, a, t, joined, r); // 武将で遊ぶ: 槍働きと論功行賞のため、主人公の軍勢の合戦を記録
+  return r;
 }
