@@ -29,6 +29,7 @@ import { STORY_PORTRAITS } from '../data/portraits_story';
 import * as R from '../engine/rules';
 import { rankName } from '../engine/ranks';
 import { newGame } from '../engine/setup';
+import { SCENARIOS } from '../data/scenarios';
 import { castleAt, clanCastles, clanName } from '../engine/state';
 import type { GameState, General } from '../engine/types';
 
@@ -79,20 +80,32 @@ function mount() {
 }
 function close() { if (root) root.hidden = true; onQuit(); }
 
-// ───────── 主人公を選ぶ（試作は1560年の織田家） ─────────
-let pickState: GameState | null = null;
-const PICKS = ['kinoshita_tokichiro', 'maeda_toshiie', 'takigawa_kazumasu', 'sassa_narimasa', 'kawajiri_hidetaka', 'ikeda_tsuneoki', 'niwa_nagahide', 'shibata_katsuie'];
+// ───────── 主人公を選ぶ: 年代 → 家（または浪人） → 武将 ─────────
+let pickState: GameState | null = null, pickScen = '', pickClan: string | null = null; // pickClan: 家の id か 'ronin'
+const pickReady = () => { if (!pickState || pickState.scenario !== pickScen) { let st = newGame('oda', 'normal', undefined, pickScen); if (!st.clans.oda?.alive) { const big = Object.values(st.clans).filter((c) => c.alive && clanCastles(st, c.id).length).sort((a, b) => clanCastles(st, b.id).length - clanCastles(st, a.id).length)[0]; st = newGame(big.id, 'normal', undefined, pickScen); } pickState = st; } return pickState; };
+const candOf = (st: GameState, clan: string) => Object.values(st.generals).filter((g) => (clan === 'ronin' ? !g.clan && g.status === 'ronin' : g.clan === clan && st.clans[clan].leader !== g.id) && g.status !== 'young' && g.status !== 'dead' && g.status !== 'captive' && !g.ikki)
+  .sort((a, b) => a.rank - b.rank || (b.bra + b.int + b.lea + b.cha) - (a.bra + a.int + a.lea + a.cha));
 function renderPick() {
-  pickState = newGame('oda', 'normal', undefined, '1560');
-  const gs = PICKS.map((id) => pickState!.generals[id]).filter((g): g is General => !!g && g.clan === 'oda' && g.status !== 'young' && g.status !== 'dead');
-  root!.innerHTML = `<div class="hr-pick">
-    <div class="hr-top"><button class="hr-btn ghost" data-h="quit">← タイトルへ</button><span class="hr-tag">武将で遊ぶ（試作）</span></div>
-    <h2>永禄三年 尾張 ― 織田家の家臣として生きる</h2>
-    <p class="hr-lede">桶狭間の勝ちから間もない清洲。大名の織田家は信長（AI）が動かす。あなたは家臣の一人として城下を歩き、主命を果たし、人と交わって出世を目指す。1か月は上旬・中旬・下旬の3旬。1旬に一つ行う。</p>
-    ${heroSaved() ? '<div class="hr-cont"><button class="hr-btn primary" data-h="continue">続きから</button></div>' : ''}
-    <div class="hr-grid">${gs.map((g) => `<button class="hr-card" data-h="pick" data-id="${g.id}">${face(g.id, 96) || `<span class="hr-noface">${esc(g.name.slice(0, 2))}</span>`}
-      <b>${esc(g.name)}</b><span>${R.RANK_NAME[g.rank]}・${pickState!.year - (g.born ?? pickState!.year)}歳</span><span class="hr-st">武${g.bra} 知${g.int} 統${g.lea} 魅${g.cha}</span></button>`).join('')}</div>
-  </div>`;
+  const top = `<div class="hr-top"><button class="hr-btn ghost" data-h="${pickScen ? 'pback' : 'quit'}">${pickScen ? '← 戻る' : '← タイトルへ'}</button><span class="hr-tag">武将で遊ぶ</span></div>`;
+  const cont = heroSaved() ? '<div class="hr-cont"><button class="hr-btn primary" data-h="continue">続きから</button></div>' : '';
+  if (!pickScen) { // 年代
+    root!.innerHTML = `<div class="hr-pick">${top}<h2>どの時代に生きるか</h2><p class="hr-lede">大名の家は大名（AI）が動かす。あなたは家臣の一人（または浪人）として城下を歩き、主命を果たし、人と交わって出世を目指す。謀反・出奔・仕官・旗揚げもできる。1か月は上旬・中旬・下旬の3旬。1旬に一つ行う。</p>${cont}
+      <div class="hr-grid">${[...SCENARIOS].sort((a, b) => a.year - b.year).map((x) => `<button class="hr-card hr-era" data-h="pscen" data-id="${x.id}"><b>${esc(x.title)}</b><span>${x.year}年${x.month}月</span><span class="hr-st">${esc(x.lede)}</span></button>`).join('')}</div></div>`;
+    return;
+  }
+  const st = pickReady(), sc = SCENARIOS.find((x) => x.id === pickScen)!;
+  if (!pickClan) { // 家
+    const cs = Object.values(st.clans).filter((c) => c.alive && clanCastles(st, c.id).length && candOf(st, c.id).length).sort((a, b) => clanCastles(st, b.id).length - clanCastles(st, a.id).length);
+    const ronin = candOf(st, 'ronin').length;
+    root!.innerHTML = `<div class="hr-pick">${top}<h2>${esc(sc.title)} ― どの家に仕えるか</h2><p class="hr-lede">${esc(sc.lede)}</p>
+      <div class="hr-grid hr-clans">${cs.map((c) => { const L = c.leader ? st.generals[c.leader] : null; return `<button class="hr-card hr-clan" data-h="pclan" data-id="${c.id}"><span class="hr-cbar" style="background:${c.color}"></span>${L ? face(L.id, 64) : ''}<b>${esc(c.name)}家</b><span>当主 ${esc(L?.name ?? '―')}</span><span class="hr-st">${clanCastles(st, c.id).length}城・家臣${candOf(st, c.id).length}人</span></button>`; }).join('')}
+      ${ronin ? `<button class="hr-card hr-clan" data-h="pclan" data-id="ronin"><span class="hr-cbar" style="background:#777"></span><b>浪人として</b><span>主を持たない</span><span class="hr-st">陣借り・仕官・旗揚げから（${ronin}人）</span></button>` : ''}</div></div>`;
+    return;
+  }
+  const gs = candOf(st, pickClan);
+  root!.innerHTML = `<div class="hr-pick">${top}<h2>${esc(sc.title)} ― ${pickClan === 'ronin' ? '浪人' : `${esc(clanName(st, pickClan))}家の家臣`}</h2><p class="hr-lede">${pickClan === 'ronin' ? '主を持たない身から始める。陣借りで名を上げて仕官するか、配下を集めて国衆の城で旗揚げする。' : '始めの身分によって、家を構えた所・城を預かった所から始まる（宿老は城持ちから）。'}</p>
+    <div class="hr-grid">${gs.map((g) => { const mk = SK.masterSkill(g); return `<button class="hr-card" data-h="pick" data-id="${g.id}">${face(g.id, 96) || `<span class="hr-noface">${esc(g.name.slice(0, 2))}</span>`}
+      <b>${esc(g.name)}</b><span>${g.clan ? R.RANK_NAME[g.rank] : '浪人'}・${st.year - (g.born ?? st.year - 30)}歳${mk ? `・${SK.SKILL_NAME[mk]}の名人` : ''}</span><span class="hr-st">武${g.bra} 知${g.int} 統${g.lea} 魅${g.cha}</span></button>`; }).join('')}</div></div>`;
 }
 
 // 物語（前田利家 ― 残り火）の第一幕から、1560年の世界の武将で遊ぶへ引き継ぐ
@@ -106,14 +119,17 @@ export function openHeroWith(f: Face, quit: () => void, st: GameState, first: { 
 // ───────── 本体 ─────────
 function begin(id: string) {
   s = pickState ?? newGame('oda', 'normal', undefined, '1560');
+  pickState = null; pickScen = ''; pickClan = null;
   const gov = s.castles.find((c) => c.governor === id)?.i ?? null; // 城主だった城（startHero で外す前に）
+  const ronin = !s.generals[id].clan;
   H.startHero(s, id); cmdDefault(s);
+  if (ronin) { s.hero!.career = { steps: [], ronin: s.turn }; s.hero!.title = '浪人'; s.hero!.favor = 0; } // 浪人から始める
   const start = CR.startCareer(s, gov);
   for (const x of start) H.note(s, x);
   bg = 'town'; pane = 'spots';
   const me = H.heroOf(s)!, L = H.lordOf(s), town = s.castles[s.hero!.town].name;
   const line = !L ? '' : me.rank === 0 ? `${me.name}。そなたを頼りにしておる。主命は登城して受けよ。` : me.rank === 1 ? `${me.name}か。${town}の城下で励め。主命は登城して受けよ。` : `${me.name}か。この${town}の城下で励め。主命は登城して受けよ。`;
-  say = { who: L?.id, line, text: `${me.name}（${R.RANK_NAME[me.rank]}）として、${town}の城下に立った。${start.length ? start.join('。') + '。' : ''}` };
+  say = ronin ? { text: `${me.name}は浪人として、${town}の城下に立った。陣借りや用心棒で名を上げ、大名の城下で仕官を願うか、配下を集めて旗揚げする。` } : { who: L?.id, line, text: `${me.name}（${R.RANK_NAME[me.rank]}）として、${town}の城下に立った。${start.length ? start.join('。') + '。' : ''}` };
   save(); render();
 }
 function render() {
@@ -606,6 +622,9 @@ function onClick(e: Event) {
   const h = b.dataset.h!, id = b.dataset.id ?? '';
   if (h === 'quit') { save(); s = null; close(); return; }
   if (h === 'pick') { begin(id); return; }
+  if (h === 'pscen') { pickScen = id; pickClan = null; renderPick(); return; }
+  if (h === 'pclan') { pickClan = id; renderPick(); return; }
+  if (h === 'pback') { if (pickClan) pickClan = null; else pickScen = ''; renderPick(); return; }
   if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { cmdDefault(s); s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; render(); runStory(); } return; }
   if (!s) return;
   if (h === 'succeed') { const r = FA.succeedSon(s); report = null; pane = 'spots'; bg = 'town'; say = { text: r.text }; H.note(s, r.text); save(); render(); return; }
@@ -705,6 +724,7 @@ export const CSS = `
 .hr-lede{color:#b8ab92;line-height:1.8;margin:0 0 14px;font-size:14px}
 .hr-cont{margin:0 0 14px}
 .hr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.hr-era{align-items:flex-start;text-align:left;padding:14px 14px}.hr-era b{font-size:16px}.hr-clan{position:relative;overflow:hidden}.hr-cbar{position:absolute;left:0;top:0;bottom:0;width:5px}.hr-clans .hr-card img{width:64px;height:auto}
 .hr-card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:1px solid rgba(207,169,94,.28);background:#151517;border-radius:4px}
 .hr-card:hover{border-color:#cfa95e}
 .hr-card img{border-radius:3px}

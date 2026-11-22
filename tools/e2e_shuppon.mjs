@@ -13,7 +13,7 @@ const b = await chromium.launch(); const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
-  await p.click('[data-h="pick"][data-id="kinoshita_tokichiro"]'); await p.waitForTimeout(300);
+  await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200); await p.click('[data-h="pick"][data-id="kinoshita_tokichiro"]'); await p.waitForTimeout(300);
   const en = await p.$('#hero [data-h="pane"][data-id="homen"]'); console.log('主家との縁:', en ? (await en.textContent()).replace(/\s+/g, ' ') : 'none');
   await en.click(); await p.waitForTimeout(150);
   console.log('rebel disabled:', await p.$eval('#hero [data-h="rebel"]', (e) => e.disabled + ' ' + e.textContent.replace(/\s+/g, ' ')));

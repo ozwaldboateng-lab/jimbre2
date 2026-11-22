@@ -13,7 +13,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.screenshot({ path: `${out}/title-${vp.tag}.png` });
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(400);
   await p.screenshot({ path: `${out}/pick-${vp.tag}.png` });
-  await p.click('[data-h="pick"][data-id="kinoshita_tokichiro"]'); await p.waitForTimeout(300);
+  await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200); await p.click('[data-h="pick"][data-id="kinoshita_tokichiro"]'); await p.waitForTimeout(300);
   await p.screenshot({ path: `${out}/start-${vp.tag}.png` });
   const click = async (sel) => { await p.waitForFunction(() => !document.querySelector('.hr-busy'), null, { timeout: 120000 }); for (const sel of ['[data-h="q-pick"]', '[data-h="q-accept"]', '[data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } const r0 = await p.$('[data-h="report-ok"]'); if (r0) { await r0.click(); await p.waitForTimeout(150); } const e = await p.$(sel); if (e) { await e.click(); await p.waitForTimeout(250); const ok = await p.$('[data-h="report-ok"]'); if (ok) { if (vp.tag === 'pc') await p.screenshot({ path: `${out}/report-${vp.tag}.png` }); await ok.click(); await p.waitForTimeout(150); } return true; } return false; };
   await click('[data-h="spot"][data-id="tojo"]');

@@ -80,7 +80,8 @@ export const JUN_NAME = ['上旬', '中旬', '下旬'];
 
 export function startHero(s: GameState, id: string) {
   const g = s.generals[id];
-  s.player = g.clan!;
+  // 浪人から始める時は、世の中の月の処理を一番大きな家の側から回す（遊び手の家は持たない）
+  s.player = g.clan ?? Object.values(s.clans).filter((c) => c.alive && clanCastles(s, c.id).length).sort((a, b) => clanCastles(s, b.id).length - clanCastles(s, a.id).length)[0].id;
   // 家の政はみな大名（AI）が行う
   const d = delegateOf(s); for (const k of Object.keys(d) as (keyof typeof d)[]) d[k] = true;
   // 部隊・城主・奉行から外し、城下に立つ
