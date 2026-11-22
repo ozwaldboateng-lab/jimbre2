@@ -318,7 +318,7 @@ export const ADULT_BORN_MAX = 1545; // 1560年に元服済みの武将の生年�
 // 毎月、病にかかる見込み（年齢ごと）。病でなければ死なない
 export const sickChance = (age: number) => (age < 15 ? 0 : age < 40 ? 0.0015 : age < 50 ? 0.003 : age < 60 ? 0.006 : age < 70 ? 0.012 : 0.025);
 // 病のあいだ、毎月それで亡くなる見込み
-export const sickDeath = (age: number) => Math.max(0.05, Math.min(0.4, 0.08 + (age - 40) * 0.006));
+export const sickDeath = (age: number) => Math.max(0.02, Math.min(0.2, 0.02 + (age - 40) * 0.004)); // 病の月ごとの死亡率: 40歳まで2%、50歳6%・60歳10%・70歳14%（20%まで）。一度病に倒れて死ぬのは50歳で2割弱・60歳で4分の1・70歳で3分の1ほど
 export const SICK_MONTHS_MAX = 5; // 病は1〜5か月続く
 // 若いうちは25歳まで毎年伸びる（1段で武勇・統率+2、知略・魅力+1。最大10段）
 export const GROW_AGE = 25;

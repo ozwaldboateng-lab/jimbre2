@@ -38,7 +38,7 @@ export function monthlyLife(s: GameState) {
     if (g.status === 'young') continue;
     const age = ageOf(s, g) ?? 40;
     if (g.sick) {
-      if (rand(s) < R.sickDeath(age) && !storyProtected(s, g.id) && !(s.hero?.id === g.id && age < 50)) { die(s, g); continue; } // 武将で遊ぶの主人公は、50歳までは病では死なない（無理がたたった病で一生が終わらないよう） // 物語の人物は史実の没年までは病では死なない
+      if (rand(s) < R.sickDeath(age) && !storyProtected(s, g.id) && !(s.hero?.id === g.id && (age < 50 || (s.hero as { sickMild?: boolean }).sickMild))) { die(s, g); continue; } // 武将で遊ぶの主人公は、50歳までは病では死なない。無理がたたった病（体力が尽きて倒れた）では年に関わらず死なない // 物語の人物は史実の没年までは病では死なない
       if (--g.sick <= 0) { g.sick = undefined; if (visible(s, g)) addLog(s, `${g.name}は病が癒えた。`, 'info', g.clan === s.player); }
     } else if (rand(s) < R.sickChance(age)) {
       g.sick = 1 + Math.floor(rand(s) * R.SICK_MONTHS_MAX);

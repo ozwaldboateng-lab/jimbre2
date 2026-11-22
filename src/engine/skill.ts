@@ -42,9 +42,10 @@ export function hpMonth(s: GameState, r: () => number): string[] {
   const H = X(s); if (H.story === 'toshiie') return [];
   const me = s.generals[H.id];
   if (isSick(s)) { H.hp = Math.min(hpMax(s), hpOf(s) + HP.MONTH); return []; }
+  (H as { sickMild?: boolean }).sickMild = undefined; // 病が癒えた
   if (hpOf(s) <= HP.LOW && r() < (hpOf(s) <= 0 ? 1 : HP.SICK_P)) {
-    me.sick = 1 + Math.floor(r() * HP.SICK_MAX);
-    return [`無理がたたり、${me.name}は病に倒れた（${me.sick}か月ほど。休むことしかできない）。`];
+    me.sick = 1 + Math.floor(r() * HP.SICK_MAX); (H as { sickMild?: boolean }).sickMild = true; // 無理がたたった病は、休めば治る（命は取られない）
+    return [`無理がたたり、${me.name}は病に倒れた（${me.sick}か月ほど。休むことしかできない。命に障る病ではない）。`];
   }
   H.hp = Math.min(hpMax(s), hpOf(s) + HP.MONTH);
   return [];
