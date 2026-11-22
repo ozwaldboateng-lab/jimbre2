@@ -145,6 +145,7 @@ export function grantShiro(s: GameState, c: Castle): CareerEvent {
   car.steps.push('shiro'); H.fuchu = c.i; car.since = s.turn; if (first) addFame(s, 8);
   const sv = (H.sv ??= {}); sv.fchian = c.chian; sv.fember = c.ember ?? 0; sv.fturn = s.turn;
   H.title = `${c.name}城主`; if (first) { addMerit(s, me.id, 20); H.gold += 500; }
+  syncGovernor(s);
   c.garrison = Math.max(c.garrison, Math.round(garrisonMax(c) * 0.5));
   addLog(s, `${me.name}が${c.name}を預かった。`, 'info', true);
   const yo = first ? yoriki(s) : null; // 初めて城を預かった時、主君が与力を一人預けてくれる
@@ -184,6 +185,7 @@ export function startCareer(s: GameState, gov: number | null): string[] {
     out.push(`${c.name}を預かっている（城持ち）`);
   }
   car.best = [...car.steps]; // 始めからの節目には、取り立ての褒美を出さない
+  syncGovernor(s);
   return out;
 }
 // 登城して城を願い出る（条件を満たしていれば）
@@ -230,6 +232,7 @@ export function becomeRonin(s: GameState): string {
   retainersToFollowers(s); // 家臣は配下になってついて来る
   me.clan = null; me.status = 'hero'; me.army = null; H.fuchu = undefined; H.ryo = []; H.quest = null; H.title = '浪人'; H.favor = 0; H.army = null;
   car.ronin = s.turn;
+  syncGovernor(s); // 預かっていた城の城主を外す
   // 世の中の月の処理は、生き残っている一番大きな家の側から回す（遊び手の家が滅んだままだと月が進まない）
   const big = Object.values(s.clans).filter((c) => c.alive && clanCastles(s, c.id).length).sort((a, b) => clanCastles(s, b.id).length - clanCastles(s, a.id).length)[0];
   if (big) { s.player = big.id; const d = delegateOf(s); for (const k of Object.keys(d) as (keyof typeof d)[]) d[k] = true; }
@@ -285,6 +288,17 @@ export function followClan(s: GameState): string | null {
   return `${me.name}は${clanName(s, me.clan)}家に降った。`;
 }
 
+// ───────── 本体の城主の欄: 主人公が預かった居城の城主は主人公（status は 'hero' のまま） ─────────
+export function syncGovernor(s: GameState) {
+  const H = s.hero; if (!H || H.story === 'toshiie') return;
+  const me = s.generals[H.id];
+  for (const c of s.castles) if (c.governor === H.id && (c.i !== H.fuchu || c.owner !== me.clan || !me.clan)) c.governor = null;
+  if (H.fuchu === undefined || !me.clan || me.status === 'dead' || me.status === 'captive') return;
+  const c = s.castles[H.fuchu];
+  if (c.owner !== me.clan || c.governor === H.id) return;
+  if (c.governor) { const x = s.generals[c.governor]; if (x && x.status === 'governor') x.status = 'free'; } // 前の城主は待機に
+  c.governor = H.id;
+}
 // ───────── 方面軍団長（本体の方面軍団＝知行の仕組みを使う） ─────────
 export const homenOf = (s: GameState): Front | undefined => (s.fronts ?? []).find((f) => f.leader === s.hero?.id && !f.vacant);
 function makeHomen(s: GameState): Front | null {
@@ -338,6 +352,7 @@ export function rebel(s: GameState): { ok: boolean; text: string; clan?: string;
   (H.career ??= { steps: [] }).served = [...(H.career.served ?? []), clanName(s, from)];
   addFame(s, 10);
   const home = domain(s)[0]?.i ?? castles[0];
+  for (const c of s.castles) if (c.governor === me.id) c.governor = null; // 当主になる（城主の欄は空ける）
   const notes = afterRebel(s, id, from, home);
   return { ok: true, clan: id, notes, text: `${clanName(s, from)}家（${lordName}）に背き、${castles.filter((i) => s.castles[i].owner === id).length}城を率いて${s.clans[id].name}家を立てた。${notes.join('')}` };
 }

@@ -16,7 +16,7 @@ import { familyYear } from './family';
 import { myHyojoMonth } from './myhyojo';
 import { reward, rewardDue } from './yari';
 import { HP, hpMax, hpMonth, hpOf, lv, masterRumor, spendHp } from './skill';
-import { becomeRonin, chigyo, followClan, freeHero, lifeSummary } from './career';
+import { becomeRonin, chigyo, followClan, freeHero, lifeSummary, syncGovernor } from './career';
 import { delegateOf } from './delegate';
 import { addMerit } from './ranks';
 import * as R from './rules';
@@ -602,7 +602,7 @@ export function heroMonth(s: GameState): string[] {
   H.gold += pay + chi; out.push(`俸禄 ${pay}貫${chi ? `と知行 ${chi}貫` : ''}を受け取った（手元 ${H.gold}貫）。`);
   out.push(...ieMonth(s));
   if (freeHero(s)) out.push(...upkeepMonth(s));
-  if (freeHero(s)) out.push(...myHyojoMonth(s)); // 自分の評定で申し付けた役目の首尾
+  if (freeHero(s)) { syncGovernor(s); out.push(...myHyojoMonth(s)); } // 自分の評定で申し付けた役目の首尾
   if (freeHero(s) && s.month === 1) out.push(...familyYear(s));
   if (freeHero(s)) out.push(...hpMonth(s, () => rand(s))); // 体力が戻る・尽きかけていれば病に // 正月: 子の誕生と元服
   out.push(...roninMonth(s));

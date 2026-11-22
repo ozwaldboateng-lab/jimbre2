@@ -3,7 +3,7 @@
 // 年貢・商いの8割は領の蔵へ、2割は主家へ（本体の領の仕組みのまま）。内政の費えは領の蔵から。城をすべて失えば、また城下を歩く武将に戻る
 import { frontsOf } from './fronts';
 import { HERO, heroEnd } from './hero';
-import { careerMonth } from './career';
+import { careerMonth, syncGovernor } from './career';
 import { familyYear } from './family';
 import { hpMonth } from './skill';
 import { addLog, clanCastles, rand } from './state';
@@ -37,6 +37,7 @@ export function toRyoshu(s: GameState): Front | null {
   // 家臣は領の陪臣（部隊を率い、城主になれる）に。主人公に仕えるまま
   for (const id of H.retainers ?? []) { const g = s.generals[id]; if (g && g.status === 'kashin') { g.status = 'free'; g.liege = me.id; g.loc = f.seat!; } }
   H.mode = 'ryoshu';
+  syncGovernor(s);
   const seat = s.castles[f.seat!]; H.town = seat.i; H.hex = seat.hex; H.field = false; H.dest = null; me.loc = seat.i; // 領主は居城にいる
   addLog(s, `${me.name}が${f.castles.map((i) => s.castles[i].name).join('・')}の領主となった。`, 'info', true);
   return f;
@@ -67,6 +68,7 @@ export function ryoshuAfter(s: GameState): { lines: string[]; back: boolean; bea
   const me = s.generals[H.id], out: string[] = [];
   const end = heroEnd(s);
   if (end || !me.clan || me.clan !== s.player) { toHero(s); return { lines: end ? [end] : [], back: true, beats: [] }; }
+  syncGovernor(s);
   const pay = HERO.PAY[me.rank] ?? 50; H.gold += pay;
   out.push(`俸禄${pay}貫を受け取った（手元${H.gold}貫）。`);
   if (s.month === 1) out.push(...familyYear(s));

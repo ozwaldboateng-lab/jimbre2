@@ -61,7 +61,7 @@ function organize(s: GameState, clan: string) {
   for (;;) {
     const capLeft = mobilizeCap(s, clan) - farmTroops(s, clan);
     if (capLeft < 4000 || c.food < clanTroops(s, clan) * R.FOOD_PER_SOLDIER * 4) break;
-    const govs = clanCastles(s, clan).filter((k) => k.governor).map((k) => s.generals[k.governor!]);
+    const govs = clanCastles(s, clan).filter((k) => k.governor).map((k) => s.generals[k.governor!]).filter((x) => x.status === 'governor'); // 武将で遊ぶの主人公（城主でも status 'hero'）は野戦の大将に回さない
     if (!govs.length) break;
     const sc = (x: General) => (x.lea + x.bra) * troopMult(s, x);
     const g = govs.reduce((b, x) => (sc(x) > sc(b) ? x : b));

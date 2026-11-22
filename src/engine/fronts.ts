@@ -74,7 +74,7 @@ export function grantCastle(s: GameState, g: General, c: Castle): Front | null {
   }
   f.castles.push(c.i);
   // 城にいた直参の城主は退く（領の城主は領主と陪臣から）
-  if (c.governor && c.governor !== g.id && !s.generals[c.governor]?.liege) { const x = s.generals[c.governor]; c.governor = null; if (x) x.status = 'free'; }
+  if (c.governor && c.governor !== g.id && !s.generals[c.governor]?.liege && s.generals[c.governor]?.status !== 'hero') { const x = s.generals[c.governor]; c.governor = null; if (x) x.status = 'free'; }
   if (fresh) {
     // 領主は居城へ入る（部隊を率いていれば、その部隊ごと領に入る）
     if (g.status !== 'army') {
@@ -163,7 +163,7 @@ export function setHeir(s: GameState, f: Front, g: General): boolean {
   while (f.castles.length > fiefCap(g)) { const i = f.castles.find((x) => x !== f.seat) ?? f.castles[f.castles.length - 1]; f.castles = f.castles.filter((x) => x !== i); }
   if (f.seat === undefined || !f.castles.includes(f.seat)) f.seat = f.castles[0];
   const seat = s.castles[f.seat];
-  if (g.status !== 'army') { for (const c of s.castles) if (c.governor === g.id) c.governor = null; if (seat.governor && s.generals[seat.governor]) s.generals[seat.governor].status = 'free'; g.status = 'governor'; g.loc = seat.i; seat.governor = g.id; }
+  if (g.status !== 'army') { for (const c of s.castles) if (c.governor === g.id) c.governor = null; if (seat.governor && s.generals[seat.governor] && s.generals[seat.governor].status !== 'hero') s.generals[seat.governor].status = 'free'; g.status = 'governor'; g.loc = seat.i; seat.governor = g.id; }
   else if (g.army !== null && s.armies[g.army]) s.armies[g.army].front = f.id;
   bump(g, R.fiefOn(fiefKoku(s, f)));
   addLog(s, `${g.name}に${oldName}の領（${fiefKoku(s, f).toFixed(1)}万石）を継がせた。`, 'info', true);
@@ -181,7 +181,7 @@ export function enfeoffSurrendered(s: GameState, from: string, castles: number[]
   lord.rank = Math.min(lord.rank, need); lord.tozama = from;
   const f: Front = { id: (s.nextFrontId = (s.nextFrontId ?? 0) + 1), leader: lord.id, castles: [...castles], policy: 'defend', target: null, seat: castles.includes(lord.loc) ? lord.loc : castles[0], gold: stores.gold, food: stores.food };
   frontsOf(s).push(f);
-  if (lord.status !== 'army') { for (const c of s.castles) if (c.governor === lord.id) c.governor = null; const seat = s.castles[f.seat!]; if (seat.governor && seat.governor !== lord.id) s.generals[seat.governor].status = 'free'; seat.governor = lord.id; lord.status = 'governor'; lord.loc = seat.i; }
+  if (lord.status !== 'army') { for (const c of s.castles) if (c.governor === lord.id) c.governor = null; const seat = s.castles[f.seat!]; if (seat.governor && seat.governor !== lord.id && s.generals[seat.governor].status !== 'hero') s.generals[seat.governor].status = 'free'; seat.governor = lord.id; lord.status = 'governor'; lord.loc = seat.i; }
   lord.on = R.ON_NEW + 15; // 本領を安堵された恩
   for (const g of gens) if (g !== lord && g.status !== 'dead') { g.liege = lord.id; g.paid = g.merit; }
   for (const a of Object.values(s.armies)) if (a.clan === s.player && (a.main === lord.id || s.generals[a.main]?.liege === lord.id)) a.front = f.id;

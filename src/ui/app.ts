@@ -883,11 +883,11 @@ function onPanelClick(e: Event) {
     if (act === 'set-governor') {
       const g = st.generals[($('sel-gov') as HTMLSelectElement).value];
       if (!g) return;
-      if (c.governor) { const old = st.generals[c.governor]; old.status = 'free'; }
+      if (c.governor) { const old = st.generals[c.governor]; if (old.status !== 'hero') old.status = 'free'; }
       c.governor = g.id; g.status = 'governor'; g.loc = c.i;
       toast(`${g.name}を${c.name}の城主に任じた`); select({ kind: 'castle', i: c.i }); return;
     }
-    if (act === 'drop-governor' && c.governor) { st.generals[c.governor].status = 'free'; c.governor = null; select({ kind: 'castle', i: c.i }); return; }
+    if (act === 'drop-governor' && c.governor) { if (st.generals[c.governor].status !== 'hero') st.generals[c.governor].status = 'free'; c.governor = null; select({ kind: 'castle', i: c.i }); return; }
     if (act === 'form') {
       const g = st.generals[($('sel-form') as HTMLSelectElement).value];
       const troops = g ? Math.min(+($('sel-troops') as HTMLSelectElement).value, capOf(g)) : 0;

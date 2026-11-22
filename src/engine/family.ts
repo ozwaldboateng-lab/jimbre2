@@ -5,6 +5,7 @@
 import type { Act } from './hero';
 import { lv } from './skill';
 import { initOn } from './on';
+import { syncGovernor } from './career';
 import * as R from './rules';
 import { addLog, clanName, rand, surnameOf } from './state';
 import type { GameState, General } from './types';
@@ -99,7 +100,7 @@ export function succeedSon(s: GameState): Act {
   for (const k of H.kids ?? []) if (k.gid === son.id) k.gid = undefined;
   H.kids = []; H.wife = undefined; // 子の代の家族は、また縁組から
   for (const a of Object.values(s.armies)) { if (a.main === son.id) { const st = (a.staff ?? []).shift(); if (st) a.main = st; } a.staff = (a.staff ?? []).filter((x) => x !== son.id); }
-  for (const c of s.castles) if (c.governor === son.id) c.governor = null;
+  for (const c of s.castles) if (c.governor === son.id || c.governor === old.id) c.governor = null; // 跡を継ぐ: 先代の城主の欄は空けて、子を城主に（下で）
   for (const [k, v] of Object.entries(H.daikan ?? {})) if (v === son.id) delete H.daikan![+k];
   son.status = 'hero'; son.liege = undefined; son.army = null;
   son.clan = lostClan ? null : old.clan; son.loc = H.town;
@@ -112,6 +113,7 @@ export function succeedSon(s: GameState): Act {
   if (!car.steps.includes('ie')) car.steps.unshift('ie');
   car.since = car.steps.includes('shiro') ? s.turn : undefined; car.kuniAt = car.steps.includes('kuni') ? s.turn : undefined;
   s.fronts = (s.fronts ?? []).filter((f) => f.leader !== old.id);
+  syncGovernor(s); // 子が居城の城主に
   addLog(s, `${son.name}が${old.name}の跡を継いだ。`, 'info', true);
   return { ok: true, text: `${old.name}の跡を、${son.name}が継いだ（${H.gen}代目）。家と家臣、城を継ぐ。主君の覚えは改めて50から。` };
 }
