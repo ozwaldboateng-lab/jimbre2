@@ -82,7 +82,8 @@ export function advance(s: GameState, ci: number): Act {
 export function disband(s: GameState): Act {
   const a = leading(s), H = s.hero!, me = s.generals[H.id];
   if (!a) return { ok: false, text: '軍勢を率いていない' };
-  if (Object.values(s.armies).some((x) => hostile(s, me.clan!, x.clan) && Math.abs(x.hex - a.hex) <= 0)) return { ok: false, text: '敵と向き合っていて解けない' };
+  const sick = (me.sick ?? 0) > 0;
+  if (!sick && Object.values(s.armies).some((x) => hostile(s, me.clan!, x.clan) && Math.abs(x.hex - a.hex) <= 0)) return { ok: false, text: '敵と向き合っていて解けない' };
   const shu = Math.min(a.troops, H.leadShu ?? 0), rest = a.troops - shu;
   const home = s.castles.filter((c) => c.owner === me.clan).sort((x, y) => Math.abs(x.hex - a.hex) - Math.abs(y.hex - a.hex))[0];
   if (home) home.garrison = Math.min(garrisonMax(home), home.garrison + rest);
@@ -90,7 +91,8 @@ export function disband(s: GameState): Act {
   delete s.armies[a.id]; s.orders = (s.orders ?? []).filter((o) => o.army !== a.id);
   endLead(s);
   H.jun++;
-  return { ok: true, text: `軍勢を解いた。兵は${home?.name ?? '城'}へ、手勢${shu}は家へ戻った。` };
+  if (sick && home) { H.town = home.i; H.hex = home.hex; H.field = false; H.dest = null; me.loc = home.i; } // 病なら、兵とともに城へ下がる
+  return { ok: true, text: `軍勢を解いた。兵は${home?.name ?? '城'}へ、手勢${shu}は家へ戻った。${sick ? `病の身は${home?.name ?? '城'}の城下で養生する。` : ''}` };
 }
 export function endLead(s: GameState) {
   const H = s.hero!, me = s.generals[H.id];

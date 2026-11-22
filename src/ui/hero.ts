@@ -209,7 +209,7 @@ function spotsHtml(st: GameState) {
     <button class="hr-spot" data-h="campwait"><b>陣中で過ごす</b><span>1旬。戦を待つ</span></button>
     <button class="hr-spot" data-h="visit" data-id="${a.main}"><b>軍議に出る</b><span>主将${esc(st.generals[a.main]?.name ?? '')}を訪ねる（1旬）</span></button>
     <button class="hr-spot" data-h="pane" data-id="yashiki"><b>陣中の武将を訪ねる</b><span>同じ軍勢の顔ぶれ</span></button>
-    <button class="hr-spot dim" data-h="leavecamp"><b>陣を離れる</b><span>敵が近いときは離れられない</span></button>`;
+    ${SK.isSick(st) ? `<p class="hr-note" style="color:#d26a5c">病に伏している。陣中で過ごすか、陣を離れて近くの城へ下がり養生する。</p>` : ""}<button class="hr-spot${SK.isSick(st) ? " main" : " dim"}" data-h="leavecamp"><b>陣を離れる</b><span>${SK.isSick(st) ? "病の身なら、敵が近くても離れて近くの城へ下がる" : "敵が近いときは離れられない"}</span></button>`;
   const join = H.armiesHere(st).map((x) => `<button class="hr-spot main" data-h="join" data-id="${x.id}"><b>陣に加わる</b><span>${esc(st.generals[x.main]?.name ?? '')}の軍勢（兵${x.troops.toLocaleString('ja-JP')}）${st.hero!.quest?.kind === 'shutsujin' && st.hero!.quest.army === x.id ? '・主命の軍勢' : ''}</span></button>`).join('');
   if (st.hero!.field) return join +  `<p class="hr-note">城下ではない野にいる。旅を続けるか、休むことしかできない。</p><button class="hr-spot" data-h="pane" data-id="tabi"><b>旅を続ける</b><span>地図で行き先を選ぶ</span></button><button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>`;
   const c = st.castles[st.hero!.town];
@@ -432,7 +432,7 @@ function playHeld() {
 async function act(fn: () => H.Act, scene?: string, allowSick = false) {
   if (!s || busy) return;
   dlg = null;
-  if (!allowSick && SK.isSick(s)) { say = { text: '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
+  if (!allowSick && SK.isSick(s)) { say = { text: H.inArmy(s) || HA.leading(s) ? '病に伏していて、動けない。陣中で過ごすか、陣を離れて（軍勢を解いて）城へ下がる。' : '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
   if (heldReport) { report = heldReport; heldReport = null; render(); return; } // 閉じずに次へ進もうとした: 先に月の報告を見せる
   const r = fn();
   if (!r.ok) { say = { text: r.text }; render(); return; }
@@ -647,7 +647,7 @@ function onClick(e: Event) {
   if (h === 'askshiro') { askShiro(); return; }
   if (h === 'lead') { recenter = true; void act(() => HA.lead(s!), 'town'); return; }
   if (h === 'advance') { recenter = true; void act(() => HA.advance(s!, +id), 'town'); return; }
-  if (h === 'disband') { void act(() => HA.disband(s!), 'town'); return; }
+  if (h === 'disband') { void act(() => HA.disband(s!), 'town', true); return; }
   if (h === 'selfcmd') { s.hero!.selfCommand = !s.hero!.selfCommand; save(); render(); return; }
   if (h === 'cact') { pane = 'shiro'; void act(() => HC.castleAct(s!, id as HC.CastleAct), 'town'); return; }
   if (h === 'kakae') { void act(() => KS.recruit(s!, id), 'yashiki'); return; }
@@ -655,7 +655,7 @@ function onClick(e: Event) {
   if (h === 'daikan') { pane = 'shiro'; const ci = +id, rs = KS.retainersOf(s), cur = s.hero!.daikan?.[ci]; const i = cur ? rs.findIndex((g) => g.id === cur) : -1; const nx = rs[i + 1]; KS.setDaikan(s, ci, nx ? nx.id : null); say = { text: nx ? `${s.castles[ci].name}の城代に${nx.name}を置いた。` : `${s.castles[ci].name}の城代を外した。` }; save(); render(); return; }
   if (h === 'shikan') { void act(() => CR.askService(s!), 'tojo'); return; }
   if (h === 'jingari') { void act(() => RP.jingari(s!, +id), 'town'); return; }
-  if (h === 'leavemerc') { void act(() => RP.leaveMerc(s!), 'town'); return; }
+  if (h === 'leavemerc') { void act(() => RP.leaveMerc(s!), 'town', true); return; }
   if (h === 'yojinbo') { void act(() => RP.yojinbo(s!), 'ichi'); return; }
   if (h === 'teach') { void act(() => RP.teach(s!), 'dojo'); return; }
   if (h === 'hire') { void act(() => RP.hire(s!), 'town'); return; }
@@ -689,8 +689,8 @@ function onClick(e: Event) {
   if (h === 'gift') { void act(() => H.giveGift(s!, id), 'yashiki'); return; }
   if (h === 'goto') { onHex(+id); return; }
   if (h === 'join') { void act(() => H.joinArmy(s!, +id), 'town'); return; }
-  if (h === 'leavecamp') { void act(() => H.leaveCamp(s!), 'town'); return; }
-  if (h === 'campwait') { void act(() => H.campWait(s!), 'town'); return; }
+  if (h === 'leavecamp') { void act(() => H.leaveCamp(s!), 'town', true); return; } // 病でも陣は離れられる（後送）
+  if (h === 'campwait') { void act(() => H.campWait(s!), 'town', true); return; }
   if (h === 'goon') { recenter = true; void act(() => H.goOn(s!), 'tabi'); return; }
   if (h === 'spot') {
     const k = id as H.Spot;
