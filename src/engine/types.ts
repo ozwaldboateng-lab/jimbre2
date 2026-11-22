@@ -117,6 +117,7 @@ export type FrontPolicy = 'attack' | 'defend' | 'build';
 export interface Front {
   id: number; leader: string; castles: number[]; policy: FrontPolicy; target: string | null;
   seat?: number; // 居城（城の番号）
+  manual?: boolean; // 武将で遊ぶの主人公（領主）の領: 大名のAIは動かさず、遊び手が動かす
   gold?: number; food?: number; // 領の蔵（年貢・商いの8割が入り、領の兵の兵糧・足軽の給金・陪臣の恩賞をここから払う）
   boss?: number; // 与力として従う寄親の領（方針と目標はこちらに従う）
   vacant?: boolean; asked?: number; // 領主がいなくなった（後継ぎを決めるまで直轄として扱う）／後継ぎを尋ねたターン

@@ -33,7 +33,7 @@ export const baishinOf = (s: GameState, f: Front) => Object.values(s.generals).f
 // 当家が直接使える武将か（陪臣でない）
 export const isDirect = (g: General) => !g.liege;
 // プレイヤーが自分で動かせない部隊（領に属するか、軍事を委任している）
-export const delegatedArmy = (s: GameState, a: Army) => a.clan === s.player && ((!!frontOfArmy(s, a) && !frontOfArmy(s, a)!.vacant) || !!delegateOf(s).military);
+export const delegatedArmy = (s: GameState, a: Army) => { if (a.clan !== s.player) return false; const f = frontOfArmy(s, a); if (f?.manual) return false; return (!!f && !f.vacant) || !!delegateOf(s).military; }; // 領主（主人公）の領の部隊は遊び手が動かす
 // 城持ちの城の数の上限（身分による）
 export const fiefCap = (g: General) => R.FIEF_CAP[g.rank] ?? 0;
 export const leaderOk = (s: GameState, g: General | undefined) => !!g && g.clan === s.player && s.clans[s.player].leader !== g.id && !g.liege && fiefCap(g) > 0
@@ -243,7 +243,8 @@ export function cleanFronts(s: GameState) {
   // 部隊の所属: 領主か陪臣が率いる部隊はその領に
   for (const a of clanArmies(s, s.player)) {
     if (a.ikki) continue;
-    if (a.heroLed) { a.front = undefined; continue; } // 武将で遊ぶの主人公が率いる軍勢は、方面にも直轄にも入れない
+    if (a.heroLed) { a.front = undefined; continue; }
+    if (frontById(s, a.front)?.manual) continue; // 領主の領で編成した部隊は、その領のまま // 武将で遊ぶの主人公が率いる軍勢は、方面にも直轄にも入れない
     const m = s.generals[a.main];
     const f = m ? frontsOf(s).find((x) => x.leader === a.main || x.leader === m.liege) : undefined;
     a.front = f?.id;
@@ -292,7 +293,7 @@ export function fiefAccounts(s: GameState) {
     if (f.food > fcap) { f.gold += Math.round((f.food - fcap) * R.RICE_SELL); f.food = Math.round(fcap); }
     // 余った金は領の城の開発へ
     const cap = R.fiefGoldCap(fiefKoku(s, f));
-    if (f.gold > cap && castles.length) {
+    if (!f.manual && f.gold > cap && castles.length) { // 領主の領の金は遊び手が使う
       const extra = f.gold - cap; f.gold = cap;
       for (const c of castles) { const k = R.devCap(c.chian); c.dev = Math.min(k, c.dev + (extra * R.FIEF_DEV_PER_GOLD) / castles.length); c.cdev = Math.min(k, c.cdev + (extra * R.FIEF_DEV_PER_GOLD) / castles.length); }
     }
@@ -471,7 +472,7 @@ export async function runFronts(s: GameState) {
   if (!C?.alive) return;
   cleanFronts(s);
   decideStance(s, s.player); // 家全体の構えと主な敵（目標を任せた方面はこの敵へ向かう）
-  for (const f of [...frontsOf(s)]) if (!f.vacant) await commandFront(s, f, f.id);
+  for (const f of [...frontsOf(s)]) if (!f.vacant && !f.manual) await commandFront(s, f, f.id); // 領主（主人公）の領は遊び手が動かす
   if (delegateOf(s).military) {
     // 直轄: 家全体の方針（攻勢・均衡・守勢）で当主に代わってAIが動かす
     const castles = clanCastles(s, s.player).filter((c) => { const f = frontOfCastle(s, c); return !f || f.vacant; });

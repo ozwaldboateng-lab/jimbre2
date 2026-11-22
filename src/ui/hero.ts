@@ -22,6 +22,7 @@ import * as FA from '../engine/family';
 import * as SK from '../engine/skill';
 import * as MH from '../engine/myhyojo';
 import * as YR from '../engine/yari';
+import * as RY from '../engine/ryoshu';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
@@ -129,6 +130,7 @@ function begin(id: string) {
   bg = 'town'; pane = 'spots';
   const me = H.heroOf(s)!, L = H.lordOf(s), town = s.castles[s.hero!.town].name;
   const line = !L ? '' : me.rank === 0 ? `${me.name}。そなたを頼りにしておる。主命は登城して受けよ。` : me.rank === 1 ? `${me.name}か。${town}の城下で励め。主命は登城して受けよ。` : `${me.name}か。この${town}の城下で励め。主命は登城して受けよ。`;
+  if (!ronin && CR.hasStep(s, 'shiro')) { save(); if (maybeRyoshu(s)) return; }
   say = ronin ? { text: `${me.name}は浪人として、${town}の城下に立った。陣借りや用心棒で名を上げ、大名の城下で仕官を願うか、配下を集めて旗揚げする。` } : { who: L?.id, line, text: `${me.name}（${R.RANK_NAME[me.rank]}）として、${town}の城下に立った。${start.length ? start.join('。') + '。' : ''}` };
   save(); render();
 }
@@ -229,9 +231,10 @@ function spotsHtml(st: GameState) {
   const mei = mo ? `<button class="hr-spot" data-h="buymei" data-id="${mo.id}" ${st.hero!.gold < mo.price ? 'disabled' : ''}><b>名物を求める: ${esc(mo.name)}（${mo.price.toLocaleString('ja-JP')}貫）</b><span>${mo.kind}の名物が売りに出ている。名声+${mo.fame}。茶会に使え、主君への献上は覚えと功績に大きく効く</span></button>` : '';
   const sc = CR.freeHero(st) ? PL.secretHere(st) : null;
   const secret = sc && H.heroOf(st)!.clan ? (() => { const why = PL.secretBlock(st, sc); return `<button class="hr-spot dim" data-h="secret" ${why ? 'disabled' : ''}><b>密約を持ちかける</b><span>${why ? esc(why) : `${esc(clanName(st, sc))}家の当主に、謀反の折の盟を内々に持ちかける（礼物${PL.EN.SECRET_GOLD}貫・見込み${Math.round(PL.secretChance(st, sc) * 100)}%・しくじると主君の耳に入ることがある・1旬）`}</span></button>`; })() : '';
+  const ryo = CR.freeHero(st) && toRyoshuUI && CR.hasStep(st, 'shiro') && !H.inArmy(st) && !HA.leading(st) && H.heroOf(st)!.clan ? `<button class="hr-spot main" data-h="ryo-back"><b>${st.hero!.mode === 'ryoshu' ? '領へ戻る' : '領主として治める'}</b><span>大名の画面で自分の領（城・軍勢・家臣）を治める（月刻み）。主家のことは主君が決める</span></button>` : '';
   const hf = CR.homenOf(st);
   const homen = hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>${hf.castles.length}城・${FR.frontArmies(st, hf).length}軍勢。方針（${R.FRONT_POLICY_NAME[hf.policy]}）と攻略の目標を決める。謀反・出奔もここで</span></button>` : CR.freeHero(st) && H.heroOf(st)!.clan && !st.hero!.field && !H.inArmy(st) ? `<button class="hr-spot dim" data-h="pane" data-id="homen"><b>主家との縁</b><span>${CR.canRebel(st) === null ? '謀反を起こす・' : ''}出奔して浪人になる（他家に仕官し直せる）</span></button>` : '';
-  return `${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${sick}${trade}${mei}${secret}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
+  return `${ryo}${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${sick}${trade}${mei}${secret}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
     <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${ret}${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
 // 浪人の城下: 陣借り・用心棒・指南・牢人衆・国衆の城（探る・旗揚げ）・仕官
@@ -427,7 +430,8 @@ function closeSay() {
 }
 function playHeld() {
   const b = heldBeats; heldBeats = null;
-  if (b && b.length && theater && s) { const st = s; theater(b, () => { save(); render(); }, undefined, opt(st)); }
+  if (b && b.length && theater && s) { const st = s; theater(b, () => { save(); render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, undefined, opt(st)); }
+  else if (s && !report && pendRyo) { pendRyo = false; maybeRyoshu(s); }
 }
 async function act(fn: () => H.Act, scene?: string, allowSick = false) {
   if (!s || busy) return;
@@ -468,7 +472,9 @@ async function advance() {
     if (end) { report = [...lines, end, CR.freeHero(st) ? '一生を終えた。' : '試作はここまで。']; render(); try { localStorage.removeItem(KEY); } catch { /* 続ける */ } return; }
   }
   if (monthPassed && FA.inherited(st)) { save(); render(); inherit(st, lines); return; } // 主家の家督を継いだ: 大名プレイへ
+  const hadShiro = CR.hasStep(st, 'shiro');
   const cev = monthPassed && CR.careerMonth(st);
+  if (cev && !hadShiro && CR.hasStep(st, 'shiro')) pendRyo = true; // 城を預かった: 場面と報告のあと領主の画面へ
   if (cev) { lines.push(...cev.lines); for (const x of cev.lines) H.note(st, x); }
   if (monthPassed && CR.freeHero(st)) { // 槍働き（主人公の軍勢が戦った月）。一騎討ちを挑まれたら、受けるか退くかを先に
     const am = YR.aftermath(st); lines.push(...am.lines); for (const x of am.lines) H.note(st, x);
@@ -480,7 +486,7 @@ async function advance() {
   // 城下に着いたら、城下の画面へ戻る
   if (bg === 'tabi' && !st.hero!.field && (st.hero!.dest === null || st.hero!.dest === undefined)) { bg = 'town'; pane = 'spots'; }
   save(); render();
-  if (cev && cev.beats.length && theater) { if (held || report) { heldBeats = cev.beats; return; } theater(cev.beats, () => { save(); render(); }, undefined, opt(st)); return; } // 出世の節目の場面（セリフの窓・月の報告を閉じてから）
+  if (cev && cev.beats.length && theater) { if (held || report) { heldBeats = cev.beats; return; } theater(cev.beats, () => { save(); render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, undefined, opt(st)); return; } // 出世の節目の場面（セリフの窓・月の報告を閉じてから）
   runStory();
 }
 // 物語（前田利家 ― 残り火）: 時期の来た場面を、物語の画面で見せる
@@ -519,6 +525,21 @@ function resetWorld(sc: string, pre: string[] = []) {
 // 旗揚げ: 成れば、その家の当主として大名プレイへ移る
 let toDaimyo: ((st: GameState) => void) | null = null;
 export function setDaimyo(f: (st: GameState) => void) { toDaimyo = f; }
+// 城を預かったら: 領主として大名の画面へ（月刻み。自分の領だけを動かす）
+let toRyoshuUI: ((st: GameState) => void) | null = null;
+let pendRyo = false; // 城を預かったばかり（場面・報告を閉じたら領主の画面へ）
+export function setRyoshu(f: (st: GameState) => void) { toRyoshuUI = f; }
+function maybeRyoshu(st: GameState, force = false): boolean {
+  if (!toRyoshuUI || !CR.freeHero(st) || st.hero!.over || !CR.hasStep(st, 'shiro') || !H.heroOf(st)!.clan) return false;
+  if (st.hero!.out && !force) return false; // 城下に出ている間は、自分で「領へ戻る」まで
+  if (H.inArmy(st) || HA.leading(st)) return false;
+  st.hero!.out = undefined;
+  if (!RY.toRyoshu(st)) return false;
+  try { localStorage.removeItem(KEY); } catch { /* 続ける */ }
+  if (root) root.hidden = true;
+  toRyoshuUI(st);
+  return true;
+}
 function toDaimyoPlay(st: GameState, clan: string) {
   const C2 = st.clans[clan]; C2.delegate = undefined;
   st.player = clan; st.hero = undefined; st.over = null;
@@ -625,7 +646,7 @@ function onClick(e: Event) {
   if (h === 'pscen') { pickScen = id; pickClan = null; renderPick(); return; }
   if (h === 'pclan') { pickClan = id; renderPick(); return; }
   if (h === 'pback') { if (pickClan) pickClan = null; else pickScen = ''; renderPick(); return; }
-  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { cmdDefault(s); s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; render(); runStory(); } return; }
+  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { cmdDefault(s); s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; if (CR.freeHero(s) && !s.hero!.over && s.hero!.mode === 'ryoshu' && maybeRyoshu(s)) return; render(); runStory(); } return; }
   if (!s) return;
   if (h === 'succeed') { const r = FA.succeedSon(s); report = null; pane = 'spots'; bg = 'town'; say = { text: r.text }; H.note(s, r.text); save(); render(); return; }
   if (s.hero?.over && !['pane', 'report-ok'].includes(h)) return; // 終わったあとは見るだけ
@@ -676,6 +697,7 @@ function onClick(e: Event) {
   if (h === 'yaku') { pane = 'shiro'; say = { text: MH.cycle(s, id) }; save(); render(); return; }
   if (h === 'duel-yes') { const me = H.heroOf(s)!, f = YR.duelOf(s); const r = YR.fightDuel(s); H.note(s, r.text); const st = s; const after = () => { say = { who: r.who, line: r.line, text: r.text, hold: true }; save(); render(); };
     if (f && theater) { theater([{ kind: 'door', head: '一騎討ち', text: '一騎討ち', sub: `${me.name} 対 ${f.name}` }, { bg: 'jinmaku', text: `両軍の兵が退き、二人の間に間合いができた。${f.name}の槍が先に動いた。` }, { who: me.id, bg: 'jinmaku', text: r.won ? '……もらった！' : 'くっ……！' }, { bg: 'jinmaku', text: r.won ? `${me.name}の槍が、${f.name}の脇を深く払った。${f.name}は馬から落ち、郎党に担がれて退いた。` : `${f.name}の穂先が${me.name}の肩を裂いた。${me.name}は郎党に助けられ、陣へ引いた。` }], after, undefined, opt(st)); } else after(); return; }
+  if (h === 'ryo-back') { save(); maybeRyoshu(s, true); return; }
   if (h === 'pupil-teach') { const r = SK.teachPupil(s, () => Math.random()); H.note(s, r.text); say = { who: r.who, line: r.line, text: r.text, hold: true }; save(); render(); return; } // 月の報告は、この窓を閉じてから
   if (h === 'pupil-no') { const r = SK.declinePupil(s); say = { text: r.text, hold: true }; save(); render(); return; }
   if (h === 'duel-no') { const r = YR.declineDuel(s); say = { text: r.text, hold: true }; save(); render(); return; }

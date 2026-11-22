@@ -106,7 +106,7 @@ export function aiInvest(s: GameState, C: Clan, income: number) {
   const reserve = Math.max(6000, income * 5);
   let spend = Math.floor((C.gold - reserve) * 0.5);
   if (spend <= 0) return;
-  const cs = clanCastles(s, C.id);
+  const cs = clanCastles(s, C.id).filter((c) => !(s.fronts ?? []).some((f) => f.manual && f.castles.includes(c.i))); // 領主（主人公）の領は、主人公が治める
   const pay = (f: () => boolean, cost: number) => { if (cost > spend) return false; const g0 = C.gold; if (!f()) return false; spend -= g0 - C.gold; return true; };
   // 敵に近い城の普請（石垣・櫓まで。天守は大きな城だけ）
   const front = cs.filter((c) => s.castles.some((x) => x.owner && x.owner !== C.id && hostile(s, C.id, x.owner) && hexDist(x.hex, c.hex) <= R.hx(3))).sort((a, b) => castleKoku(b) - castleKoku(a));

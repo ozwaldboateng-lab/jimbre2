@@ -1,4 +1,4 @@
-// 武将で遊ぶ（物語の外）: 出世の階段。侍大将・功績190・覚え66の保存から、家を立てる → 城を預かる → 家中の進言（家老・家臣）→ 治めの投資
+// 武将で遊ぶ（物語の外）: 出世の階段。侍大将・功績190・覚え66の保存から、家を立てる → 城を預かる（領主の画面へ移る）。城持ちより先は e2e_ryoshu
 // 使い方: node tools/e2e_career.mjs <保存JSON> <画像の出力先>
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -29,11 +29,13 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
     if (await p.$('#story:not([hidden]) .st-scene')) { steps.push(...await theaterThrough('step')); continue; }
     await ok(); await p.waitForTimeout(150);
     if (await p.$('#story:not([hidden]) .st-scene')) continue;
+    if (await p.evaluate(() => document.querySelector('#hero')?.hidden)) break; // 城を預かると領主の画面へ
     const say = await p.$eval('#hero .hr-text', (e) => e.textContent).catch(() => '');
     if (/預かった/.test(say)) break;
     const rest = await p.$('#hero [data-h="rest"]'); if (rest) { await rest.click(); await p.waitForTimeout(150); }
   }
   console.log(vp.tag, 'steps', steps.join(' / '));
+  if (await p.evaluate(() => document.querySelector('#hero')?.hidden)) { console.log(vp.tag, 'ryoshu:', await p.$eval('#stats', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => '')); await snap('ryoshu'); await p.close(); continue; } // 城持ちから先は領主の画面（e2e_ryoshu）
   await idle(); await ok();
   console.log(vp.tag, 'goal1', (await goal()).slice(0, 80), '|', await p.$eval('#hero .hr-id', (e) => e.textContent));
   // 預かった城へ行く
