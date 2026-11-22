@@ -28,6 +28,11 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   console.log(vp.tag, 'naisei tabs', tabs.join('|'));
   for (const id of rows.map((r) => r.replace('x', ''))) { await p.click(`#modal-body [data-act="inv-agri"][data-id="${id}"]`, { force: true }).catch(() => {}); await p.waitForTimeout(150); console.log(vp.tag, 'inv', id, ':', await p.$eval('#toast', (e) => e.textContent).catch(() => '')); }
   await p.screenshot({ path: `${out}/ry-${vp.tag}-2-naisei.png` });
+  console.log(vp.tag, 'naisei row:', (await p.$$eval('#modal-body .naisei-tbl tbody tr', (es) => es.map((e) => e.textContent.replace(/\s+/g, ' ').slice(0, 40)))).join(' / '));
+  await p.click('#modal-close').catch(() => {}); await p.waitForTimeout(100);
+  await p.click('#btn-jinji'); await p.waitForTimeout(300);
+  console.log(vp.tag, 'vassal row:', (await p.$$eval('#modal-body tbody tr', (es) => es.map((e) => e.textContent.replace(/\s+/g, ' ')).filter((x) => x.includes('柴田勝家')).map((x) => x.slice(0, 120)))).join(' / '));
+  await p.screenshot({ path: `${out}/ry-${vp.tag}-2b-jinji.png` });
   await p.click('#modal-close').catch(() => {}); await p.waitForTimeout(150);
   console.log(vp.tag, 'stats after:', await p.$eval('#stats', (e) => e.textContent.replace(/\s+/g, ' ')));
   // 評定終了

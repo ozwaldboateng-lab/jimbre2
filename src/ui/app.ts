@@ -1537,7 +1537,14 @@ function regionGroups<T>(key: string, items: T[], regionOfItem: (x: T) => string
 const nameLink = (g: General) => `<button type="button" class="glink" data-act="gen" data-id="${g.id}">${esc(g.name)}</button>`;
 // 能力が見えるか: 自家・在野・自家の捕虜・交戦した武将
 const statsKnown = (st: GameState, g: General) => g.clan === st.player || g.status === 'ronin' || g.captor === st.player || st.revealed.includes(g.id);
+// 武将で遊ぶ: 主人公は「城主（〇〇城）」か「主人公」、主人公の家臣は「〇〇の家臣」と呼ぶ（内部の名 hero・kashin を出さない）
+function heroRole(st: GameState, g: General): string | null {
+  if (g.status === 'hero') { const c = st.castles.find((x) => x.governor === g.id); return c ? `城主（${c.name}）` : st.hero?.id === g.id ? (g.clan ? '主人公' : '主人公（浪人）') : '待機'; }
+  if (g.status === 'kashin') { const L = g.liege ? st.generals[g.liege] : null; return L ? `${L.name}の家臣` : '家臣'; }
+  return null;
+}
 function genStatus(st: GameState, g: General) {
+  { const r = heroRole(st, g); if (r) return r; }
   if (g.status === 'dead') return '故人';
   if (g.status === 'young') return (g.born ?? 0) > st.year ? `誕生前（${g.born}年生）` : `元服前（${g.genpuku}年に元服）`;
   if (g.status === 'ronin') return '在野';
@@ -2034,7 +2041,7 @@ const TABS: Record<string, (st: GameState) => string> = {
     const label = tsukaiLabel(st.player), ts = tsukaiOf(st, st.player);
     const leaderId = st.clans[st.player].leader;
     const statusName = (g: General) => g.status === 'camp' ? (g.army && st.camps?.[g.army]?.main === g.id ? '部隊長（陣払い）' : '補佐（陣払い）') : g.status === 'army' ? (g.army && st.armies[g.army]?.main === g.id ? '部隊長' : '補佐') : g.status === 'governor' ? '城主' : g.status === 'free' ? '待機'
-      : g.status === 'bugyo' ? `奉行（${roleOf(g) === 'com' ? '商業' : '農政'}）` : g.status === 'tsukai' ? (ts[0]?.id === g.id ? `${label}筆頭` : label) : g.status === 'young' ? ((g.born ?? 0) > st.year ? `誕生前（${g.born}年生）` : `元服前（${g.genpuku}年）`) : g.status;
+      : g.status === 'bugyo' ? `奉行（${roleOf(g) === 'com' ? '商業' : '農政'}）` : g.status === 'tsukai' ? (ts[0]?.id === g.id ? `${label}筆頭` : label) : g.status === 'young' ? ((g.born ?? 0) > st.year ? `誕生前（${g.born}年生）` : `元服前（${g.genpuku}年）`) : heroRole(st, g) ?? g.status;
     const nextAt = (g: General) => g.rank > 0 ? R.MERIT_AT[g.rank - 1] : null;
     const all = Object.values(st.generals).filter((g) => g.clan === st.player && !g.ikki && g.status !== 'dead' && g.status !== 'captive');
     const isFiefLord = (g: General) => (st.fronts ?? []).some((f) => f.leader === g.id && !f.vacant);
@@ -2251,7 +2258,7 @@ const TABS: Record<string, (st: GameState) => string> = {
     if (!teaHost || !chajins.some((g) => g.id === teaHost)) teaHost = chajins[0]?.id ?? '';
     const tw = teaBlock(st, st.generals[teaHost]);
     const fushinCs = clanCastles(st, st.player).filter((c) => govTrait(st, c) === 'chikujo');
-    const roleOf2 = (g: General) => (g.id === me.ninja && head ? '忍び頭' : g.status === 'governor' ? `城主（${esc(st.castles[g.loc].name)}）` : g.status === 'army' ? `${esc(st.generals[st.armies[g.army!]?.main ?? g.id]?.name ?? '')}隊` : g.status === 'free' ? '待機' : g.status === 'bugyo' ? '奉行' : g.status === 'tsukai' ? esc(tsukaiLabel(st.player)) : g.status === 'young' ? '元服前' : g.status === 'ronin' ? '在野' : g.status);
+    const roleOf2 = (g: General) => (g.id === me.ninja && head ? '忍び頭' : g.status === 'governor' ? `城主（${esc(st.castles[g.loc].name)}）` : g.status === 'army' ? `${esc(st.generals[st.armies[g.army!]?.main ?? g.id]?.name ?? '')}隊` : g.status === 'free' ? '待機' : g.status === 'bugyo' ? '奉行' : g.status === 'tsukai' ? esc(tsukaiLabel(st.player)) : g.status === 'young' ? '元服前' : g.status === 'ronin' ? '在野' : heroRole(st, g) ?? g.status);
     void chajins; void fushinCs; void roleOf2; void tw;
     return `${ninjaClan ? `<div class="deleg-bar on"><span class="lbl">狙う家</span><span>${esc(clanName(st, ninjaClan))}家の城と武将だけを出している</span><button class="mini" data-act="ninja-clan-off">すべての家から選ぶ</button><button class="mini" data-act="dip-open" data-id="${ninjaClan}">${esc(clanName(st, ninjaClan))}家の札へ</button></div>` : ''}<h3 class="sect-h" style="margin-top:0">忍び頭</h3>
     <div class="picker" style="margin:0 0 8px"><label for="sel-ninja-head">待機の「忍び」から一人。部隊や役に就けると外れる</label>
