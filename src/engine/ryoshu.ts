@@ -6,6 +6,7 @@ import { HERO, heroEnd } from './hero';
 import { careerMonth, syncGovernor } from './career';
 import { familyYear } from './family';
 import { hpMonth } from './skill';
+import { KASHIN, capOf, retainersOf, take } from './kashin';
 import { addLog, clanCastles, rand } from './state';
 import type { Castle, Front, GameState, General } from './types';
 
@@ -79,4 +80,22 @@ export function ryoshuAfter(s: GameState): { lines: string[]; back: boolean; bea
   if (f) for (const i of domainOf(s)) if (s.castles[i].owner === me.clan && !f.castles.includes(i)) { for (const o of frontsOf(s)) if (o !== f) o.castles = o.castles.filter((x) => x !== i); f.castles.push(i); } // 国持ちで預かった城を領に
   if (!ryoshuOf(s) || !domainOf(s).some((i) => s.castles[i].owner === me.clan)) { toHero(s); return { lines: [...out, '治める城をすべて失い、城下を歩く身に戻った。'], back: true, beats: cev?.beats ?? [] }; }
   return { lines: out, back: false, beats: cev?.beats ?? [] };
+}
+
+// 領主が自分の領の城にいる浪人を、自分の家臣として召し抱える（支度金は手元の金から。家臣の枠まで）
+export function recruitRonin(s: GameState, g: General): { ok: boolean; text: string } {
+  const f = ryoshuOf(s), H = s.hero!;
+  if (!f) return { ok: false, text: '領主でない' };
+  if (g.status !== 'ronin' || !f.castles.includes(g.loc)) return { ok: false, text: '自分の領の城にいる浪人だけ' };
+  if (retainersOf(s).length >= capOf(s)) return { ok: false, text: `家臣はいま${capOf(s)}人まで（出世や屋敷の格で増える）` };
+  if (H.gold < KASHIN.SHITAKU) return { ok: false, text: `支度金${KASHIN.SHITAKU}貫が要る（手元の金から）` };
+  const me = s.generals[H.id], rel = H.rel[g.id] ?? 0;
+  const p = Math.min(0.9, 0.3 + (H.fame ?? 0) / 150 + me.cha / 300 + rel / 200);
+  if (rand(s) >= p) { H.rel[g.id] = Math.max(0, rel - 5); return { ok: true, text: `${g.name}は召し抱えに応じなかった（見込み${Math.round(p * 100)}%）。` }; }
+  H.gold -= KASHIN.SHITAKU;
+  const at = g.loc;
+  take(s, g);
+  g.status = 'free'; g.liege = me.id; g.loc = at; // 領の陪臣として（部隊を率い、城主になれる）
+  addLog(s, `${g.name}が${me.name}の家臣となった。`, 'info', true);
+  return { ok: true, text: `${g.name}を家臣に召し抱えた（支度金${KASHIN.SHITAKU}貫。家臣${retainersOf(s).length}／${capOf(s)}人）。` };
 }

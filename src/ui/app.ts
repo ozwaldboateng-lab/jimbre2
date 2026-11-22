@@ -285,6 +285,7 @@ const RYO_VIEW = ['goto', 'next', 'todo', 'view-castle', 'cancel-pick', 'back', 
 // 軍事の画面（陣立て）: 領主なら、自分の領の城・名簿・部隊と、自分の家臣だけ
 function ryoModalGate(st: GameState, act: string, id: string): string | null {
   const f = RY.ryoshuOf(st);
+  if (f && (act.startsWith('offer-') || act.startsWith('cap-'))) return '仕官の願い出と捕虜の処遇は主家が決める';
   if (!f || !act.startsWith('jin-')) return null;
   const notMine = '自分の領の部隊ではない（主家の部隊は主君が動かす）';
   if (act === 'jin-form' || act === 'jin-form-muster' || act === 'jin-form-hurry') {
@@ -306,7 +307,6 @@ function ryoGate(st: GameState, act: string, btn: HTMLElement): string | null {
   if (mode.kind === 'castle' && !RYO_VIEW.includes(act)) {
     const c = st.castles[mode.i];
     if (c.owner === st.player && !RY.canRule(st, c)) return '自分の領の城ではない（主家の城は主君が治める）';
-    if (act === 'ronin') return '浪人を召し抱えるのは、私事から（家臣になる）';
     const sel = act === 'set-governor' ? 'sel-gov' : act === 'form' ? 'sel-form' : null;
     if (sel) { const g = st.generals[(document.getElementById(sel) as HTMLSelectElement | null)?.value ?? '']; if (g && !RY.canUse(st, g)) return '使えるのは自分の家臣だけ'; }
   }
@@ -901,6 +901,7 @@ function onPanelClick(e: Event) {
     }
     if (act === 'ronin') {
       const g = st.generals[btn.dataset.id!];
+      if (g && RY.isRyoshu(st)) { toast(RY.recruitRonin(st, g).text); refresh(); select({ kind: 'castle', i: c.i }); return; } // 領主: 自分の家臣に
       if (g) { const ok = recruitRonin(st, g, st.player); if (ok) g.loc = c.i; toast(ok ? `${g.name}が仕官した` : `${g.name}は仕官を断った`); select({ kind: 'castle', i: c.i }); }
       return;
     }
@@ -1344,7 +1345,7 @@ let yorikiFor: number | null = null; // 知行: 与力を選ぶ一覧を開い�
 let castFilter = 'all', armyFilter = 'all'; const regOpen = new Map<string, boolean>(); // 城・部隊の一覧: 絞り込みと、地方ごとの開閉 // 軍団: 空きのない隊も出すか／開いている隊
 const lastTab = Object.fromEntries(MENUS.map((m) => [m.key, m.tabs[0][0]])) as Record<MenuKey, string>;
 
-const RYO_TABS = new Set(['shiro', 'jindate', 'butai', 'vassals', 'log', 'save', 'help']);
+const RYO_TABS = new Set(['shiro', 'jindate', 'butai', 'vassals', 'jinzai', 'log', 'save', 'help']);
 function openMenu(m: MenuKey = curMenu, tab: string = lastTab[m]) {
   if (!s) return;
   const st = s, me = st.clans[st.player];
@@ -2925,6 +2926,7 @@ function onModalClick(e: Event) {
   if (act === 'ship-cannon') { if (buyShipCannon(st, st.player, 1)) { toast('大筒1門を買った'); capitan('shipCannon', {}); } refresh(); openMenu(); return; }
   if (act === 'ship-item') { const it = st.items[id]; if (it && buyShipItem(st, st.player, id)) { toast(`「${it.name}」を手に入れた`); capitan('shipItem', { item: it.name }); } refresh(); openMenu(); return; }
   if (act === 'arm-cannon-m' || act === 'unarm-cannon-m') { const a = st.armies[+id]; if (a && nearOwn(st, a)) armCannon(st, a, act === 'arm-cannon-m' ? R.CANNON_MAX : -(a.cannon ?? 0)); refresh(); openMenu(); return; }
+  if (act === 'ronin-m' && RY.isRyoshu(st)) { const g = st.generals[id]; if (g) toast(RY.recruitRonin(st, g).text); refresh(); openMenu(); return; } // 領主: 自分の家臣に
   if (act === 'ronin-m') { const g = st.generals[id]; const ok = recruitRonin(st, g, st.player); toast(ok ? `${g.name}が仕官した` : `${g.name}は仕官を断った`); cutin(st, g, ok ? 'roninYes' : 'roninNo'); refresh(); openMenu(); return; }
   if (act === 'gen') { openGeneral(id, menuShown); return; }
   if (act === 'gen-back') { openMenu(); return; }

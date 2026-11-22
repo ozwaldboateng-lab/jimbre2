@@ -187,6 +187,10 @@ export function rumor(s: GameState): Act {
   const n = news[Math.floor(rand(s) * news.length)];
   if (n) parts.push(`噂では、${n.text.replace(/。$/, '')}`);
   if (s.hero!.story !== 'toshiie' && rand(s) < 0.6) { const m = masterRumor(s, c.i, () => rand(s), R.hx(12), hexDist); if (m) parts.push(m); } // 名人の居所
+  if (s.hero!.story !== 'toshiie') { // 浪人の居所（近く hx(10) 以内の、名の聞こえた者から二人まで）
+    const rs = Object.values(s.generals).filter((g) => g.status === 'ronin' && !g.ikki && g.loc !== c.i && hexDist(s.castles[g.loc].hex, c.hex) <= R.hx(10)).sort((a, b) => (b.bra + b.int + b.lea + b.cha) - (a.bra + a.int + a.lea + a.cha)).slice(0, 2);
+    if (rs.length) parts.push(`浪人なら、${rs.map((g) => `${s.castles[g.loc].name}の城下に${g.name}がいる`).join('。')}と聞く`);
+  }
   return { ok: true, text: `茶屋で旅人の話に耳を傾けた。${parts.length ? parts.map((p) => `「${p}」`).join('') : '目ぼしい話はなかった。'}` };
 }
 export function rest(s: GameState): Act { used(s, -HP.REST); return { ok: true, text: `体を休めた（体力${hpOf(s)}／${hpMax(s)}）。` }; }
