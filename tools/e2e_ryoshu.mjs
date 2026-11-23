@@ -39,7 +39,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.click('#btn-end'); await p.waitForTimeout(500);
   await p.waitForFunction(() => !document.getElementById('btn-end')?.hasAttribute('disabled'), null, { timeout: 120000 });
   await p.waitForTimeout(500);
-  for (let k = 0; k < 6; k++) { const c = await p.$('#modal:not([hidden]) #modal-close'); if (c) { await c.click().catch(() => {}); await p.waitForTimeout(150); } }
+  for (let k = 0; k < 8; k++) { const rh = await p.$('#modal-body [data-act="rh-ken"][data-id="pass"]') ?? await p.$('#modal-body [data-act="rh-decline"]') ?? await p.$('#modal-body [data-act="rh-close"]'); if (rh) { await rh.click(); await p.waitForTimeout(150); continue; } const c = await p.$('#modal:not([hidden]) #modal-close'); if (c && await c.isVisible()) { await c.click().catch(() => {}); await p.waitForTimeout(150); } } // 評定（月のはじめ）に答えてから
   console.log(vp.tag, 'after month:', await p.$eval('#date', (e) => e.textContent), '|', await p.$eval('#stats', (e) => e.textContent.replace(/\s+/g, ' ')));
   await p.screenshot({ path: `${out}/ry-${vp.tag}-3-month.png` });
   // 城下へ出る → 武将の画面 → 領へ戻る
