@@ -200,7 +200,7 @@ function spotsHtml(st: GameState) {
   if (st.hero!.over) return `<p class="hr-note">${esc(st.hero!.over)}</p><button class="hr-spot main" data-h="quit"><b>タイトルへ</b><span>この遊びは終わった</span></button>`;
   const rn = roninSpots(st); if (rn !== null) return rn;
   const ld = HA.leading(st);
-  const cmdBtn = `<button class="hr-spot" data-h="selfcmd"><b>合戦の采配: ${st.hero!.selfCommand ? '自ら' : '任せる'}</b><span>${st.hero!.selfCommand ? '合戦の画面で自分の隊（総大将なら軍勢の全部隊）を動かす。押すと任せる' : '合戦はAIに任せる。押すと自ら采配する'}</span></button>`;
+  const cmdBtn = H.heroOf(st)!.rank > 2 && !HA.leading(st) ? '<p class="hr-note">足軽組頭は一兵として戦う（自分の部隊を率いる立場ではないので、合戦は任せる）。</p>' : `<button class="hr-spot" data-h="selfcmd"><b>合戦の采配: ${st.hero!.selfCommand ? '自ら' : '任せる'}</b><span>${st.hero!.selfCommand ? '合戦の画面で自分の隊（総大将なら軍勢の全部隊）を動かす。押すと任せる' : '合戦はAIに任せる。押すと自ら采配する'}</span></button>`;
   if (ld) return `<p class="hr-note">総大将として軍勢（兵${ld.troops.toLocaleString('ja-JP')}・士気${ld.morale.toFixed(2)}・残りの足${ld.mp}）を率いている。地図で行き先を押せば進み、敵の城か軍勢を押せば出陣を命じる（月の終わりに合戦）。${st.hero!.order !== undefined ? `出陣先: ${esc(castleAt(st, st.hero!.order)?.name ?? '敵の軍勢')}` : ''}</p>
     ${st.hero!.order !== undefined ? `<p class="hr-note"><b>出陣を命じてある</b>（${esc(castleAt(st, st.hero!.order)?.name ?? '敵の軍勢')}）。陣中で過ごせば、月の終わりに合戦となる。</p>` : st.hero!.quest?.kind === 'kouryaku' ? (() => { const qc = st.castles[st.hero!.quest!.castle], adj = attackTargets(st, ld).some((x) => x.hex === qc.hex); return `<button class="hr-spot main" data-h="advance" data-id="${qc.i}"><b>${adj ? `${esc(qc.name)}を攻める` : `${esc(qc.name)}へ進む`}</b><span>${adj ? '隣まで来た。出陣を命じる（月の終わりに合戦）' : '攻略の城へ、今月の足の分だけ近づく'}</span></button>`; })() : ''}
     <button class="hr-spot" data-h="pane" data-id="tabi"><b>地図で軍勢を動かす</b><span>行き先・出陣先を選ぶ</span></button>${cmdBtn}
