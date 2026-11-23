@@ -133,11 +133,33 @@ export function battleBoost(s: GameState): number {
 }
 // 浪人になる時: 家臣は配下（仲間）になってついて来る
 export function retainersToFollowers(s: GameState) {
-  const H = s.hero!;
+  const H = s.hero!, me = s.generals[H.id];
+  for (const g of azukeOf(s)) if (g.clan === me.clan && g.status === 'free') { g.clan = null; g.status = 'ronin'; g.liege = undefined; (H.followers ??= []).includes(g.id) || H.followers!.push(g.id); } // 預けていた者も、縁を頼ってついて来る
+  H.azuke = [];
   for (const g of retainersOf(s)) { g.clan = null; g.status = 'ronin'; g.liege = undefined; (H.followers ??= []).includes(g.id) || H.followers!.push(g.id); }
   H.retainers = []; H.daikan = {};
 }
-// 仕官する時: 配下は家臣になる（上限まで。あふれた者は主家の武将に）
+// 預け: 家臣の枠を超えた配下を、主家の直臣として預けておく（主人公との縁は残り、枠が空けば呼び戻せる）
+export const azukeOf = (s: GameState) => (s.hero?.azuke ?? []).map((id) => s.generals[id]).filter((g) => g && g.status !== 'dead');
+export function recallBlock(s: GameState, g: General): string | null {
+  const H = s.hero!, me = s.generals[H.id];
+  if (!(H.azuke ?? []).includes(g.id)) return '預けた者ではない';
+  if (g.clan !== me.clan) return '家中にいない';
+  if (retainersOf(s).length >= capOf(s)) return `家臣の枠がいっぱい（${capOf(s)}人まで）`;
+  if (g.status !== 'free') return 'いま役目に就いている（城主・部隊・奉行を解かれてから）';
+  return null;
+}
+export function recall(s: GameState, gid: string): Act {
+  const g = s.generals[gid], H = s.hero!;
+  const why = g ? recallBlock(s, g) : 'その者はいない';
+  if (why) return { ok: false, text: why };
+  H.azuke = (H.azuke ?? []).filter((x) => x !== gid);
+  const at = g.loc;
+  take(s, g);
+  if (H.mode === 'ryoshu') { g.status = 'free'; g.liege = H.id; g.loc = at; } // 領主なら領の陪臣として
+  return { ok: true, who: gid, line: 'お呼びを待っておりました。', text: `預けていた${g.name}を呼び戻し、家臣にした（家臣${retainersOf(s).length}／${capOf(s)}人）。` };
+}
+// 仕官する時: 配下は家臣になる（上限まで。あふれた者は「預け」として主家の武将に）
 export function followersToRetainers(s: GameState): string[] {
   const H = s.hero!, out: string[] = [];
   for (const id of [...(H.followers ?? [])]) { const g = s.generals[id]; if (!g || g.status === 'dead') continue; if (retainersOf(s).length < capOf(s)) { take(s, g); out.push(g.name); } }

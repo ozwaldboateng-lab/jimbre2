@@ -271,7 +271,7 @@ function peopleHtml(st: GameState) {
   const ps = (H.inArmy(st) ? H.comrades(st) : H.townsfolk(st, st.hero!.town)).sort((a, b) => (st.hero!.rel[b.id] ?? 0) - (st.hero!.rel[a.id] ?? 0) || Number(b.clan === me.clan) - Number(a.clan === me.clan) || a.rank - b.rank);
   if (!ps.length) return '<p class="hr-none">この町に訪ねられる武将はいない。</p>';
   const fol = RP.followersOf(st), rs = KS.retainersOf(st), dk = st.hero!.daikan ?? {};
-  const house = houseHtml(st) || (CR.freeHero(st) ? skillNote(st) : '');
+  const house = (houseHtml(st) || (CR.freeHero(st) ? skillNote(st) : '')) + azukeHtml(st);
   const role = (g: General) => { const c = Object.entries(dk).find(([, v]) => v === g.id); return c ? `${st.castles[+c[0]].name}の城代` : st.hero!.quest?.proxy === g.id ? '遣わし中' : '近侍'; };
   return `${house}${fol.length ? `<p class="hr-note"><b>配下</b> ${fol.map((g) => esc(g.name)).join('・')}</p>` : ''}${rs.length || KS.capOf(st) ? `<p class="hr-note"><b>家臣 ${rs.length}／${KS.capOf(st)}人</b> ${rs.map((g) => `${esc(g.name)}（${role(g)}・統${g.lea}）`).join('・') || 'まだいない。城下の浪人を召し抱えられる'}。扶持は一人月${KS.KASHIN.FUCHI}貫。</p>` : ''}<p class="hr-note">訪ねる・進物を贈ると親しくなる（1旬）。親しさ${H.HERO.FRIEND}で「友」の縁を結ぶ。${RP.isRonin(st) ? `浪人の武将は、親しさ${RP.RONIN.FOLLOW_REL}で配下に誘える。` : ''}</p>${ps.map((g) => {
     const v = st.hero!.rel[g.id] ?? 0, mk = CR.freeHero(st) ? SK.masterSkill(g) : null;
@@ -303,6 +303,12 @@ function dlgHtml0(st: GameState) {
 function personActs(st: GameState, g: General) {
   const me = H.heroOf(st)!, v = st.hero!.rel[g.id] ?? 0;
   return `${KS.canRecruit(st, g) ? `<button class="hr-btn sm" data-h="kakae" data-id="${g.id}" ${v < KS.KASHIN.REL || KS.retainersOf(st).length >= KS.capOf(st) ? 'disabled' : ''}>家臣に召し抱える</button>` : ''}${RP.isRonin(st) && g.status === 'ronin' && !RP.isFollower(st, g) ? `<button class="hr-btn sm" data-h="invite" data-id="${g.id}" ${v < RP.RONIN.FOLLOW_REL ? 'disabled' : ''}>配下に誘う</button>` : ''}${(() => { if (!CR.freeHero(st) || g.clan !== me.clan || v < PL.EN.PACT_REL || (st.hero!.retainers ?? []).includes(g.id) || g.id === H.lordOf(st)?.id) return ''; const why = PL.pactBlock(st, g); return why === '約束を取りつけてある' ? '<span class="hr-rel">謀反の味方</span>' : `<button class="hr-btn sm" data-h="pact" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>内々に誘う</button>`; })()}${(() => { if (!CR.freeHero(st) || st.hero!.wife || !st.hero!.ie || g.clan !== me.clan || g.rank > FA.FAM.WED_RANK || (st.year - (g.born ?? st.year - 30)) < FA.FAM.WED_AGE || v < 30) return ''; const why = FA.wedBlock(st, g); return `<button class="hr-btn sm" data-h="wed" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>縁組を申し込む</button>`; })()}${(() => { const k = CR.freeHero(st) ? SK.masterSkill(g) : null; if (!k || g.status === 'young') return ''; const why = SK.skillBlock(st, k, g); return `<button class="hr-btn sm" data-h="mstudy" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : `title="${esc(SK.SKILL_DESC[k])}"`}>師事を願う（${SK.SKILL_NAME[k]}・${SK.masterCap(g)}段まで）</button>`; })()}<button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button>`;
+}
+// 預けている者（家臣の枠を超えて主家に預けた配下）: 枠が空けば呼び戻せる
+function azukeHtml(st: GameState) {
+  const az = KS.azukeOf(st);
+  if (!az.length) return '';
+  return `<h4 class="hr-sub">預けている者</h4>${az.map((g) => { const why = KS.recallBlock(st, g); return `<div class="hr-person">${face(g.id, 44) || ''}<div class="hr-pi"><b>${esc(g.name)}</b><span>${g.clan ? esc(clanName(st, g.clan)) + '家の直臣' : '浪人'}・統${g.lea} 武${g.bra}</span></div><div class="hr-pa"><button class="hr-btn sm" data-h="recall" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>呼び戻す</button>${why ? `<small class="hr-note">${esc(why)}</small>` : ''}</div></div>`; }).join('')}`;
 }
 function skillNote(st: GameState) {
   const sks = (Object.keys(SK.SKILL_NAME) as SK.SkillKey[]).filter((k) => SK.expOf(st, k) > 0).map((k) => `${SK.SKILL_NAME[k]}${SK.lv(st, k)}段`).join('・');
@@ -692,6 +698,7 @@ function onClick(e: Event) {
   if (h === 'chakai') { const me = H.heroOf(s)!; const gs = H.townsfolk(s, s.hero!.town).filter((g) => g.clan && g.id !== me.id).map((g) => g.id); void act(() => MB.chakai(s!, gs), 'yashiki'); return; }
   if (h === 'pact') { void act(() => PL.invitePact(s!, id), 'yashiki'); return; }
   if (h === 'secret') { void act(() => PL.offerSecret(s!), 'tojo'); return; }
+  if (h === 'recall') { void act(() => KS.recall(s!, id), 'yashiki'); return; }
   if (h === 'wed') { void act(() => FA.proposeWed(s!, id), 'yashiki'); return; }
   if (h === 'myhyo') { pane = 'shiro'; void act(() => MH.hold(s!), 'tojo'); return; }
   if (h === 'yaku') { pane = 'shiro'; say = { text: MH.cycle(s, id) }; save(); render(); return; }

@@ -172,9 +172,11 @@ export function serviceChance(s: GameState, clan: string): number {
   return clamp(lv(s, 'bensetsu') * 0.03 + 0.15 + fameOf(s) / 150 + me.cha / 400 + me.merit / 3000 + (L ? (H.rel[L.id] ?? 0) / 250 : 0) + Math.min(2, friends) * 0.1 + Math.min(3, H.kubi ?? 0) * 0.05 + followersOf(s).length * 0.03, 0.05, 0.95);
 }
 // 仕官したときの身分（名声と、連れて行く配下・手勢で決まる）
+// 迎えられる身分: 連れて来る一党（配下・手勢）と名声で決まる。配下2人を連れれば侍大将（家臣3人まで持てる）、1人なら足軽大将
 export function serviceRank(s: GameState): number {
   const f = fameOf(s), n = followersOf(s).length, shu = s.hero!.ie?.shu ?? 0;
-  return f >= 60 || n >= 3 || shu >= 800 ? 1 : f >= 25 || n >= 1 || shu >= 300 ? 2 : 3;
+  const band = n + Math.floor(shu / 300) + Math.floor(f / 30); // 一党の力: 配下一人＝1、手勢300人ごとに1、名声30ごとに1
+  return n >= 2 || band >= 3 || f >= 60 ? 1 : n >= 1 || band >= 1 ? 2 : 3;
 }
 // 近くの国衆の城（旗揚げの的の目安）
 export const nearKunishu = (s: GameState) => s.castles.filter((c) => !c.owner).sort((a, b) => hexDist(a.hex, s.hero!.hex) - hexDist(b.hex, s.hero!.hex)).slice(0, 3);

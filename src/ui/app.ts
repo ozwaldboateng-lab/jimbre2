@@ -1,6 +1,7 @@
 // 画面の組み立てと操作
 import { openHero, openHeroWith, setDaimyo, setRyoshu } from './hero';
 import * as RY from '../engine/ryoshu';
+import * as KS from '../engine/kashin';
 import { runClanAI } from '../engine/ai';
 import { openStory } from './story';
 import { coalitionAgainst, GEKI, gekiBlock, gekiCandidates, gekiChance, issueGeki, leaveCoalition, sameCoalition, setGekiHook } from '../engine/coalition';
@@ -288,7 +289,7 @@ function openShuke(st: GameState) {
     <dt>主家の構え</dt><dd>${esc(C.stance ?? '均衡')}${C.target ? `・狙う家 <b>${esc(clanName(st, C.target))}家</b>` : '・狙う家なし'}</dd>
     <dt>攻めてよい家</dt><dd>${[C.target ? `${esc(clanName(st, C.target))}家` : '', g && !g.done ? `軍役の${esc(clanName(st, g.clan))}家` : ''].filter(Boolean).join('・') || 'いまはない'}（領に寄せてきた敵の軍勢はどの家でも討てる）</dd>
     <dt>上納</dt><dd>領の商いから月${fmt(tr.gold)}貫ほど（年貢・商いの${Math.round(R.FIEF_TRIBUTE * 100)}%。十月の収穫からも同じ割合）</dd>
-    <dt>軍役</dt><dd>${g ? (g.done ? `${esc(clanName(st, g.clan))}家攻めの軍役は果たした（来月、覚えに）` : `${esc(clanName(st, g.clan))}家攻めに兵${fmt(g.troops)}（${dateLabel({ ...st, turn: g.until } as GameState)}まで）。その家との合戦に領の部隊を出すか、兵を差し出す。<br><button class="act" data-act="ryo-send">兵${fmt(g.troops)}を差し出す</button>`) : '申し付けられていない'}</dd></dl>`);
+    <dt>軍役</dt><dd>${g ? (g.done ? `${esc(clanName(st, g.clan))}家攻めの軍役は果たした（来月、覚えに）` : `${esc(clanName(st, g.clan))}家攻めに兵${fmt(g.troops)}（${dateLabel({ ...st, turn: g.until } as GameState)}まで）。その家との合戦に領の部隊を出すか、兵を差し出す。<br><button class="act" data-act="ryo-send">兵${fmt(g.troops)}を差し出す</button>`) : '申し付けられていない'}</dd>${KS.azukeOf(st).length ? `<dt>預けている者</dt><dd>${KS.azukeOf(st).map((g) => { const why = KS.recallBlock(st, g); return `${esc(g.name)} <button class="mini" data-act="ryo-recall" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>呼び戻す</button>${why ? `<span class="hint" style="margin:0">（${esc(why)}）</span>` : ''}`; }).join('<br>')}</dd>` : ''}</dl>`);
 }
 // 領主の画面で、遊び手が触れない操作（主家のこと）を止める。止める時は理由を返す
 const RYO_MONEY = ['inv-agri', 'inv-com', 'shinden', 'fort', 'rakuichi'];
@@ -2921,6 +2922,7 @@ function onModalClick(e: Event) {
   if (!s) return;
   const st = s;
   { const why = ryoModalGate(st, act, id); if (why) { toast(why); return; } }
+  if (act === 'ryo-recall') { toast(KS.recall(st, id).text); refresh(); openShuke(st); return; }
   if (act === 'ryo-send') { toast(RY.sendTroops(st).text); refresh(); openShuke(st); return; }
   if (act === 'offer-hire' || act === 'offer-refuse') {
     const g = st.generals[id];

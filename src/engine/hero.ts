@@ -47,6 +47,7 @@ export interface Hero {
   orders?: Record<string, { role: import('./myhyojo').Yaku; castle: number }>; myHyojo?: number; // 自分の評定（myhyojo.ts）
   pupil?: { gid: string; k: import('./skill').SkillKey; turn: number }; // 弟子入りを願う者（その月だけ）
   gunyaku?: { clan: string; troops: number; until: number; done?: boolean }; // 領主の軍役（ryoshu.ts）
+  azuke?: string[]; // 預け: 家臣の枠を超えて主家に預けた配下（kashin.ts）
   mode?: 'ryoshu'; out?: boolean; // out: 領主が城下に出ている（武将の画面で私事・主家との縁） // 城持ちより上: 大名の画面で自分の領を動かす（ryoshu.ts）
   hyojo?: { turn: number; cands: Quest[] }; // 評定で示された主命の候補（その月だけ）
   declined?: number; declines?: number; // 主命を断った月・続けて断った数（果たせば0に戻る）
