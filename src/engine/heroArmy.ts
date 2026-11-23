@@ -10,7 +10,7 @@ import * as R from './rules';
 import { castleAt, garrisonMax, hexOwner, hostile, occupancy } from './state';
 import type { Army, Castle, GameState } from './types';
 
-export const LEAD = { SHARE: 0.6, MIN: 1000 }; // 城兵の6割まで連れて出る。千人に満たなければ出られない
+export const LEAD = { SHARE: 0.6, MIN: 500 }; // 城兵の6割まで連れて出る。五百人に満たなければ出られない
 export const leading = (s: GameState): Army | null => { const id = s.hero?.leads; return id !== undefined && s.armies[id] ? s.armies[id] : null; };
 export function canLead(s: GameState): string | null {
   const H = s.hero!, me = s.generals[H.id];
@@ -19,8 +19,12 @@ export function canLead(s: GameState): string | null {
   if (H.quest?.kind !== 'kouryaku' || H.quest.done >= H.quest.need) return '攻略の主命を受けている時だけ';
   if (H.field || H.army !== null && H.army !== undefined) return '城下にいる時だけ';
   const c = s.castles[H.town];
-  if (c.owner !== me.clan) return '自家の城から出る';
-  if (Math.min(heiCap(s), Math.round(c.garrison * LEAD.SHARE) + (H.ie?.shu ?? 0)) < LEAD.MIN) return `兵が${LEAD.MIN}人に満たない`;
+  const enough = (x: { garrison: number }) => Math.min(heiCap(s), Math.round(x.garrison * LEAD.SHARE) + (H.ie?.shu ?? 0)) >= LEAD.MIN;
+  if (c.owner !== me.clan || !enough(c)) { // 出られない時は、出られるいちばん近い自家の城を教える
+    const alt = s.castles.filter((x) => x.owner === me.clan && x.i !== c.i && enough(x)).sort((x, y) => hexDist(x.hex, c.hex) - hexDist(y.hex, c.hex))[0];
+    const base = c.owner !== me.clan ? '自家の城の城下から出陣する' : `この城の兵では${LEAD.MIN}人に満たない`;
+    return `${base}${alt ? `（${alt.name}からなら出られる。旅で向かう）` : ''}`;
+  }
   return null;
 }
 export function lead(s: GameState): Act {

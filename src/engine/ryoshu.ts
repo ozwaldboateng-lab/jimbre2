@@ -41,6 +41,7 @@ export function toRyoshu(s: GameState): Front | null {
   f.manual = true; f.seat = f.castles.includes(H.fuchu ?? -1) ? H.fuchu : f.castles[0];
   // 家臣は領の陪臣（部隊を率い、城主になれる）に。主人公に仕えるまま
   for (const id of H.retainers ?? []) { const g = s.generals[id]; if (g && g.status === 'kashin') { g.status = 'free'; g.liege = me.id; g.loc = f.seat!; } }
+  if (H.quest && !H.army && H.leads === undefined) { H.quest = null; H.hyojo = undefined; } // 武将の主命は解く（領主は評定で命を受ける。覚えは下げない）
   H.mode = 'ryoshu';
   syncGovernor(s);
   const seat = s.castles[f.seat!]; H.town = seat.i; H.hex = seat.hex; H.field = false; H.dest = null; me.loc = seat.i; // 領主は居城にいる
