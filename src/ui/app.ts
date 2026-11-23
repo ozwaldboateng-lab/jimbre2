@@ -2,6 +2,7 @@
 import { openHero, openHeroWith, setDaimyo, setRyoshu } from './hero';
 import * as RY from '../engine/ryoshu';
 import * as KS from '../engine/kashin';
+import * as RH from '../engine/ryohyojo';
 import { runClanAI } from '../engine/ai';
 import { openStory } from './story';
 import { coalitionAgainst, GEKI, gekiBlock, gekiCandidates, gekiChance, issueGeki, leaveCoalition, sameCoalition, setGekiHook } from '../engine/coalition';
@@ -280,6 +281,30 @@ function mapMood(st: GameState) {
 setDaimyo((st) => { startWith(st); store(AUTO_KEY, JSON.stringify(st)); toast(`${st.clans[st.player].name}家の当主として、大名プレイを始める`); });
 // 武将で遊ぶで城を預かったら、領主として大名の画面へ（自分の領だけを動かす）
 setRyoshu((st) => { startWith(st); store(AUTO_KEY, JSON.stringify(st)); const f = RY.ryoshuOf(st); toast(`${st.generals[st.hero!.id].name}、${f ? f.castles.map((i) => st.castles[i].name).join('・') : ''}の領主として領を治める`); });
+// その月（ターン）の年月: 期日の表示に
+const turnDate = (st: GameState, turn: number) => { const m0 = st.month - 1 + (turn - st.turn); return `${st.year + Math.floor(m0 / 12)}年${((m0 % 12) + 12) % 12 + 1}月`; };
+// 領主の評定（月のはじめ）: 主君から命を受けるか、献策を求められる。閉じたら next
+let hyojoNext: (() => void) | null = null;
+function openRyoHyojo(st: GameState, next: () => void) {
+  const ev = RY.isRyoshu(st) ? RH.hyojoEvent(st) : null;
+  if (!ev) { next(); return; }
+  hyojoNext = next;
+  const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null;
+  const who = (line: string) => `<div class="cutin-line" style="display:flex;gap:12px;align-items:center">${L ? face(L.id, 72) : ''}<div><b>${esc(L?.name ?? '')}</b><p style="margin:4px 0 0">「${esc(line)}」</p></div></div>`;
+  let body = '';
+  if (ev.kind === 'order') body = `${who(`${st.generals[st.hero!.id].name}。${RH.orderText(st, ev.order)}。`)}<p class="hint">果たせば主君の覚え+${RH.ORDER.REWARD[ev.order.kind][0]}・功績+${RH.ORDER.REWARD[ev.order.kind][1]}。${['kenkin', 'shisha'].includes(ev.order.kind) ? 'その場で行う。' : `怠れば覚え−${RH.ORDER.FAIL[ev.order.kind] ?? RH.ORDER.FAIL_DEF}。`}断れば覚え−${RH.ORDER.DECLINE}。</p><div class="actions"><button class="act primary" data-act="rh-accept">承る</button><button class="act" data-act="rh-decline">断る</button></div>`;
+  else if (ev.kind === 'kensaku') {
+    const q = ev.k.topic === 'target' ? '次に攻めるべきは、どこと見る。' : `主家の構え、いまは${C.stance}としておるが、どう見る。`;
+    const opts = ev.k.topic === 'target' ? ev.k.choices.map((c) => `<button class="act" data-act="rh-ken" data-id="${c ?? 'none'}">${c ? `${esc(clanName(st, c))}家を攻めるべき` : '今は攻めず、守りを固めるべき'}</button>`) : ev.k.choices.map((c) => `<button class="act" data-act="rh-ken" data-id="${c}">${c}に構えるべき</button>`);
+    body = `${who(`${st.generals[st.hero!.id].name}、そなたの考えを聞きたい。${q}`)}<p class="hint">献策が通れば、6か月のあいだ主家の方針がそのようになる（覚え+3）。家中第一の臣ほど通りやすい。</p><div class="actions" style="flex-wrap:wrap">${opts.join('')}<button class="act" data-act="rh-ken" data-id="pass">意見を控える</button></div>`;
+  } else body = `${who(ev.line)}<div class="actions"><button class="act primary" data-act="rh-close">退出する</button></div>`;
+  openModal(`<h2 id="modal-title">評定 ― ${esc(C.name)}家（${esc(dateLabel(st))}）</h2>${body}`, false);
+}
+function hyojoResult(st: GameState, r: { text: string; line: string }) {
+  const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null;
+  openModal(`<h2 id="modal-title">評定 ― ${esc(C.name)}家</h2>${r.line ? `<div style="display:flex;gap:12px;align-items:center">${L ? face(L.id, 72) : ''}<div><b>${esc(L?.name ?? '')}</b><p style="margin:4px 0 0">「${esc(r.line)}」</p></div></div>` : ''}<p>${esc(r.text)}</p><div class="actions"><button class="act primary" data-act="rh-close">退出する</button></div>`, false);
+  refresh();
+}
 // 主家の欄: 主君と覚え、主家の構えと狙う家、領の上納、軍役（兵を差し出す）
 function openShuke(st: GameState) {
   const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null, H0 = st.hero!, g = RY.gunyakuOf(st);
@@ -288,8 +313,10 @@ function openShuke(st: GameState) {
     <dl class="kv"><dt>主君</dt><dd>${L ? `${face(L.id, 48)} ${esc(L.name)}` : '―'}</dd><dt>主君の覚え</dt><dd>${H0.favor}</dd>
     <dt>主家の構え</dt><dd>${esc(C.stance ?? '均衡')}${C.target ? `・狙う家 <b>${esc(clanName(st, C.target))}家</b>` : '・狙う家なし'}</dd>
     <dt>攻めてよい家</dt><dd>${[C.target ? `${esc(clanName(st, C.target))}家` : '', g && !g.done ? `軍役の${esc(clanName(st, g.clan))}家` : ''].filter(Boolean).join('・') || 'いまはない'}（領に寄せてきた敵の軍勢はどの家でも討てる）</dd>
+    <dt>承っている命</dt><dd>${RH.currentOrder(st) ? esc(RH.orderText(st, RH.currentOrder(st)!)) : 'なし（月のはじめの評定で受ける）'}</dd>
+    ${C.kensaku && st.turn <= C.kensaku.until ? `<dt>通った献策</dt><dd>${[C.kensaku.target !== undefined && st.turn <= (C.kensaku.tUntil ?? C.kensaku.until) ? `${C.kensaku.target ? `${esc(clanName(st, C.kensaku.target))}家を攻める` : '守りを固める'}（${turnDate(st, C.kensaku.tUntil ?? C.kensaku.until)}まで）` : '', C.kensaku.stance && st.turn <= (C.kensaku.sUntil ?? C.kensaku.until) ? `${C.kensaku.stance}に構える（${turnDate(st, C.kensaku.sUntil ?? C.kensaku.until)}まで。攻められて危うい時は守りを優先）` : ''].filter(Boolean).join('・')}</dd>` : ''}
     <dt>上納</dt><dd>領の商いから月${fmt(tr.gold)}貫ほど（年貢・商いの${Math.round(R.FIEF_TRIBUTE * 100)}%。十月の収穫からも同じ割合）</dd>
-    <dt>軍役</dt><dd>${g ? (g.done ? `${esc(clanName(st, g.clan))}家攻めの軍役は果たした（来月、覚えに）` : `${esc(clanName(st, g.clan))}家攻めに兵${fmt(g.troops)}（${dateLabel({ ...st, turn: g.until } as GameState)}まで）。その家との合戦に領の部隊を出すか、兵を差し出す。<br><button class="act" data-act="ryo-send">兵${fmt(g.troops)}を差し出す</button>`) : '申し付けられていない'}</dd>${KS.azukeOf(st).length ? `<dt>預けている者</dt><dd>${KS.azukeOf(st).map((g) => { const why = KS.recallBlock(st, g); return `${esc(g.name)} <button class="mini" data-act="ryo-recall" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>呼び戻す</button>${why ? `<span class="hint" style="margin:0">（${esc(why)}）</span>` : ''}`; }).join('<br>')}</dd>` : ''}</dl>`);
+    <dt>軍役</dt><dd>${g ? (g.done ? `${esc(clanName(st, g.clan))}家攻めの軍役は果たした（来月、覚えに）` : `${esc(clanName(st, g.clan))}家攻めに兵${fmt(g.troops)}（${turnDate(st, g.until)}まで）。その家との合戦に領の部隊を出すか、兵を差し出す。<br><button class="act" data-act="ryo-send">兵${fmt(g.troops)}を差し出す</button>`) : '申し付けられていない'}</dd>${KS.azukeOf(st).length ? `<dt>預けている者</dt><dd>${KS.azukeOf(st).map((g) => { const why = KS.recallBlock(st, g); return `${esc(g.name)} <button class="mini" data-act="ryo-recall" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>呼び戻す</button>${why ? `<span class="hint" style="margin:0">（${esc(why)}）</span>` : ''}`; }).join('<br>')}</dd>` : ''}</dl>`);
 }
 // 領主の画面で、遊び手が触れない操作（主家のこと）を止める。止める時は理由を返す
 const RYO_MONEY = ['inv-agri', 'inv-com', 'shinden', 'fort', 'rakuichi'];
@@ -957,7 +984,7 @@ function doEndTurn() {
     if (st.over) { showGameOver(); return; }
     mapMood(st);
     if (st.log.some((l) => l.turn === st.turn - 1 && l.kind === 'castle' && l.text.includes(`${st.clans[st.player].name}家が`) && l.text.includes('を攻略'))) sfx('castle');
-    playEvents(st, () => afterTurnReports(st));
+    playEvents(st, () => openRyoHyojo(st, () => afterTurnReports(st)));
   }, 30);
 }
 function afterTurnReports(st: GameState) {
@@ -2922,6 +2949,10 @@ function onModalClick(e: Event) {
   if (!s) return;
   const st = s;
   { const why = ryoModalGate(st, act, id); if (why) { toast(why); return; } }
+  if (act === 'rh-accept') { hyojoResult(st, RH.acceptOrder(st)); return; }
+  if (act === 'rh-decline') { hyojoResult(st, RH.declineOrder(st)); return; }
+  if (act === 'rh-ken') { hyojoResult(st, RH.kensaku(st, id)); return; }
+  if (act === 'rh-close') { closeModal(); store(AUTO_KEY, JSON.stringify(st)); const n = hyojoNext; hyojoNext = null; n?.(); return; }
   if (act === 'ryo-recall') { toast(KS.recall(st, id).text); refresh(); openShuke(st); return; }
   if (act === 'ryo-send') { toast(RY.sendTroops(st).text); refresh(); openShuke(st); return; }
   if (act === 'offer-hire' || act === 'offer-refuse') {

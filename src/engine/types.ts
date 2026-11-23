@@ -80,7 +80,9 @@ export interface Army {
   front?: number; // 属する方面軍団（なければ直轄）
 }
 
+export type ClanStance = '攻勢' | '均衡' | '守勢';
 export interface Clan {
+  kensaku?: { target?: string | null; stance?: ClanStance; until: number; tUntil?: number; sUntil?: number }; // tUntil・sUntil: 狙う家・構えそれぞれの期日 // 武将で遊ぶの領主の献策（通った方針。期日まで）
   id: string; name: string; color: string; leader: string | null;
   prestige: number; food: number; alive: boolean; stance: '攻勢' | '均衡' | '守勢';
   offensiveSince?: number; // AI: 攻勢に転じたターン（しばらく様子を見てから陣触を出す）

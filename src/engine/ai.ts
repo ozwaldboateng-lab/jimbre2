@@ -132,6 +132,12 @@ export function decideStance(s: GameState, clan: string) {
   else c.stance = '均衡';
   // 1年以上戦がなく、主攻勢力と互角以上なら攻勢に転じる（膠着の打開）
   if (c.stance === '均衡' && target && s.turn - (c.lastWar ?? 0) >= 12 && own >= power(target) * 0.8) c.stance = '攻勢';
+  // 家臣（武将で遊ぶの領主）の献策が通っていれば、その間は方針をそのように（狙う家が滅んだ・盟を結んだら外す。攻められて危うい時は守りを優先）
+  const ks = c.kensaku;
+  if (ks && s.turn <= ks.until) {
+    if (ks.target !== undefined && s.turn <= (ks.tUntil ?? ks.until)) { if (ks.target === null) c.target = null; else if (s.clans[ks.target]?.alive && hostile(s, clan, ks.target)) c.target = ks.target; }
+    if (ks.stance && s.turn <= (ks.sUntil ?? ks.until) && !(threat > localOwn * 1.5 && ks.stance !== '守勢')) c.stance = ks.stance;
+  } else if (ks) c.kensaku = undefined;
 }
 
 // 方面軍団などから使うときの絞り込み: allow で攻めてよい目標、noise で見込みの読み違い（知略の低い大将ほど大きい）

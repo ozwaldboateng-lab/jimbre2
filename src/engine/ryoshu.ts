@@ -6,6 +6,7 @@ import { HERO, heroEnd } from './hero';
 import { careerMonth, syncGovernor } from './career';
 import { familyYear } from './family';
 import { hpMonth } from './skill';
+import { orderMonth } from './ryohyojo';
 import { KASHIN, capOf, retainersOf, take } from './kashin';
 import { addLog, clanCastles, clanName, rand } from './state';
 import { NEIGHBORS, hexDist } from './map';
@@ -81,6 +82,7 @@ export function ryoshuAfter(s: GameState): { lines: string[]; back: boolean; bea
   if (s.month === 1) out.push(...familyYear(s));
   out.push(...hpMonth(s, () => rand(s)));
   out.push(...gunyakuMonth(s));
+  out.push(...orderMonth(s));
   const cev = careerMonth(s);
   if (cev) out.push(...cev.lines);
   const f = ryoshuOf(s);
