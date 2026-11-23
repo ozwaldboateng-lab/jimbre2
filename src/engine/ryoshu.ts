@@ -7,7 +7,11 @@ import { careerMonth, syncGovernor } from './career';
 import { familyYear } from './family';
 import { hpMonth } from './skill';
 import { KASHIN, capOf, retainersOf, take } from './kashin';
-import { addLog, clanCastles, rand } from './state';
+import { addLog, clanCastles, clanName, rand } from './state';
+import { NEIGHBORS, hexDist } from './map';
+import { castleCom } from './money';
+import { taxDef } from './invest';
+import * as R from './rules';
 import type { Castle, Front, GameState, General } from './types';
 
 export const RYO = { SEED_GOLD: 500 }; // 領を立てた時、主君から預かる元手（領の蔵）
@@ -69,11 +73,13 @@ export function ryoshuAfter(s: GameState): { lines: string[]; back: boolean; bea
   const me = s.generals[H.id], out: string[] = [];
   const end = heroEnd(s);
   if (end || !me.clan || me.clan !== s.player) { toHero(s); return { lines: end ? [end] : [], back: true, beats: [] }; }
+  if (me.status === 'free' || me.status === 'governor') me.status = 'hero'; // 率いていた部隊を解いた
   syncGovernor(s);
   const pay = HERO.PAY[me.rank] ?? 50; H.gold += pay;
   out.push(`俸禄${pay}貫を受け取った（手元${H.gold}貫）。`);
   if (s.month === 1) out.push(...familyYear(s));
   out.push(...hpMonth(s, () => rand(s)));
+  out.push(...gunyakuMonth(s));
   const cev = careerMonth(s);
   if (cev) out.push(...cev.lines);
   const f = ryoshuOf(s);
@@ -98,4 +104,66 @@ export function recruitRonin(s: GameState, g: General): { ok: boolean; text: str
   g.status = 'free'; g.liege = me.id; g.loc = at; // 領の陪臣として（部隊を率い、城主になれる）
   addLog(s, `${g.name}が${me.name}の家臣となった。`, 'info', true);
   return { ok: true, text: `${g.name}を家臣に召し抱えた（支度金${KASHIN.SHITAKU}貫。家臣${retainersOf(s).length}／${capOf(s)}人）。` };
+}
+
+// ───────── 主家の縛り（第二段） ─────────
+// 攻め先: 主家の狙う家と、軍役で申し付けられた家。自分の領（城と、その隣）に寄せてきた敵の軍勢は、どの家でも討てる
+export function attackBlock(s: GameState, targetClan: string | null, hex: number): string | null {
+  const f = ryoshuOf(s);
+  if (!f || !targetClan) return null;
+  const C = s.clans[s.player], gy = gunyakuOf(s);
+  if (targetClan === C.target || (gy && gy.clan === targetClan)) return null;
+  const nearFief = f.castles.some((i) => { const c = s.castles[i]; return c.hex === hex || NEIGHBORS[c.hex].includes(hex) || hexDist(c.hex, hex) <= 1; });
+  const isArmy = Object.values(s.armies).some((a) => a.hex === hex && a.clan === targetClan);
+  if (isArmy && nearFief) return null;
+  const tgt = C.target ? `${clanName(s, C.target)}家` : null;
+  return `主君の許しがない（攻めてよいのは${[tgt, gy ? `軍役の${clanName(s, gy.clan)}家` : null].filter(Boolean).join('と') || 'いまはない'}。領に寄せてきた敵の軍勢は討てる）`;
+}
+// 上納: 領の商い（毎月）と収穫（十月）のうち、主家へ納める分
+export function tributeOf(s: GameState): { gold: number } {
+  const f = ryoshuOf(s); if (!f) return { gold: 0 };
+  const tx = taxDef(s, s.player).income;
+  const cs = f.castles.map((i) => s.castles[i]).filter((c) => c.owner === s.player);
+  return { gold: Math.round(cs.reduce((t, c) => t + castleCom(c), 0) * R.FIEF_TRIBUTE * tx) };
+}
+// 軍役: 主家が戦を構えている（狙う家がある）と、ときどき「〇〇家攻めに兵を出せ」と申し付けられる。
+// 期日（3か月）までに、その家との合戦に領の部隊が加わるか、兵を差し出せば果たす（覚え+5・功績+20）。怠れば覚え−10
+export const GUNYAKU = { P: 0.3, SHARE: 0.3, MIN: 500, MONTHS: 3, FAVOR_OK: 5, MERIT_OK: 20, FAVOR_NG: 10 };
+type GX = { gunyaku?: { clan: string; troops: number; until: number; done?: boolean } };
+const GXo = (s: GameState) => s.hero as (NonNullable<GameState['hero']> & GX) | undefined;
+export const gunyakuOf = (s: GameState) => GXo(s)?.gunyaku;
+function fiefGarrison(s: GameState): number { const f = ryoshuOf(s); return f ? f.castles.reduce((t, i) => t + (s.castles[i].owner === s.player ? s.castles[i].garrison : 0), 0) : 0; }
+export function gunyakuMonth(s: GameState): string[] {
+  const H = GXo(s), f = ryoshuOf(s); if (!H || !f) return [];
+  const C = s.clans[s.player], out: string[] = [], me = s.generals[H.id];
+  const g = H.gunyaku;
+  if (g) {
+    if (g.done) { H.gunyaku = undefined; H.favor = Math.min(100, H.favor + GUNYAKU.FAVOR_OK); me.merit += GUNYAKU.MERIT_OK; out.push(`軍役（${clanName(s, g.clan)}家攻め）を果たした。主君の覚え+${GUNYAKU.FAVOR_OK}・功績+${GUNYAKU.MERIT_OK}。`); }
+    else if (s.turn > g.until || !s.clans[g.clan]?.alive) { H.gunyaku = undefined; if (s.clans[g.clan]?.alive) { H.favor = Math.max(0, H.favor - GUNYAKU.FAVOR_NG); out.push(`軍役（${clanName(s, g.clan)}家攻めに兵${g.troops}）を怠った。主君の覚え−${GUNYAKU.FAVOR_NG}。`); } }
+    return out;
+  }
+  if (C.target && s.clans[C.target]?.alive && rand(s) < GUNYAKU.P) {
+    const troops = Math.max(GUNYAKU.MIN, Math.round(fiefGarrison(s) * GUNYAKU.SHARE / 100) * 100);
+    H.gunyaku = { clan: C.target, troops, until: s.turn + GUNYAKU.MONTHS };
+    out.push(`主君から軍役を申し付けられた: ${clanName(s, C.target)}家攻めに兵${troops}を出せ（${GUNYAKU.MONTHS}か月のうちに。その家との合戦に領の部隊を出すか、「主家」から兵を差し出す）。`);
+  }
+  return out;
+}
+// 兵を差し出す: 領の城兵から、主家の居城（なければ主家のいちばん大きな城）へ
+export function sendTroops(s: GameState): { ok: boolean; text: string } {
+  const H = GXo(s), f = ryoshuOf(s), g = H?.gunyaku;
+  if (!H || !f || !g || g.done) return { ok: false, text: '申し付けられた軍役はない' };
+  if (fiefGarrison(s) < g.troops) return { ok: false, text: `領の城兵が足りない（${fiefGarrison(s)}／${g.troops}）` };
+  const L = s.clans[s.player].leader ? s.generals[s.clans[s.player].leader!] : null;
+  const to = (L && s.castles[L.loc]?.owner === s.player ? s.castles[L.loc] : null) ?? clanCastles(s, s.player).filter((c) => !f.castles.includes(c.i)).sort((a, b) => b.garrison - a.garrison)[0];
+  let need = g.troops;
+  for (const i of [...f.castles].sort((a, b) => s.castles[b].garrison - s.castles[a].garrison)) { const c = s.castles[i]; const k = Math.min(need, Math.max(0, c.garrison - 100)); c.garrison -= k; need -= k; if (need <= 0) break; }
+  if (to) to.garrison += g.troops - need;
+  g.done = true;
+  return { ok: true, text: `軍役として、兵${g.troops - need}を${to ? to.name : '主家'}へ差し出した（来月、主君の覚え+${GUNYAKU.FAVOR_OK}）。` };
+}
+// 合戦の記録（hooks.ts から）: 軍役の家との合戦に領の部隊が加わったら果たした
+export function gunyakuBattle(s: GameState, armies: { front?: number; clan: string }[], foeClan: string | null) {
+  const f = ryoshuOf(s), g = gunyakuOf(s);
+  if (f && g && !g.done && foeClan === g.clan && armies.some((a) => a.front === f.id)) g.done = true;
 }

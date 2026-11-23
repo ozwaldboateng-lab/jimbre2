@@ -279,6 +279,17 @@ function mapMood(st: GameState) {
 setDaimyo((st) => { startWith(st); store(AUTO_KEY, JSON.stringify(st)); toast(`${st.clans[st.player].name}家の当主として、大名プレイを始める`); });
 // 武将で遊ぶで城を預かったら、領主として大名の画面へ（自分の領だけを動かす）
 setRyoshu((st) => { startWith(st); store(AUTO_KEY, JSON.stringify(st)); const f = RY.ryoshuOf(st); toast(`${st.generals[st.hero!.id].name}、${f ? f.castles.map((i) => st.castles[i].name).join('・') : ''}の領主として領を治める`); });
+// 主家の欄: 主君と覚え、主家の構えと狙う家、領の上納、軍役（兵を差し出す）
+function openShuke(st: GameState) {
+  const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null, H0 = st.hero!, g = RY.gunyakuOf(st);
+  const tr = RY.tributeOf(st);
+  openModal(`<h2 id="modal-title">主家 ― ${esc(C.name)}家</h2>
+    <dl class="kv"><dt>主君</dt><dd>${L ? `${face(L.id, 48)} ${esc(L.name)}` : '―'}</dd><dt>主君の覚え</dt><dd>${H0.favor}</dd>
+    <dt>主家の構え</dt><dd>${esc(C.stance ?? '均衡')}${C.target ? `・狙う家 <b>${esc(clanName(st, C.target))}家</b>` : '・狙う家なし'}</dd>
+    <dt>攻めてよい家</dt><dd>${[C.target ? `${esc(clanName(st, C.target))}家` : '', g && !g.done ? `軍役の${esc(clanName(st, g.clan))}家` : ''].filter(Boolean).join('・') || 'いまはない'}（領に寄せてきた敵の軍勢はどの家でも討てる）</dd>
+    <dt>上納</dt><dd>領の商いから月${fmt(tr.gold)}貫ほど（年貢・商いの${Math.round(R.FIEF_TRIBUTE * 100)}%。十月の収穫からも同じ割合）</dd>
+    <dt>軍役</dt><dd>${g ? (g.done ? `${esc(clanName(st, g.clan))}家攻めの軍役は果たした（来月、覚えに）` : `${esc(clanName(st, g.clan))}家攻めに兵${fmt(g.troops)}（${dateLabel({ ...st, turn: g.until } as GameState)}まで）。その家との合戦に領の部隊を出すか、兵を差し出す。<br><button class="act" data-act="ryo-send">兵${fmt(g.troops)}を差し出す</button>`) : '申し付けられていない'}</dd></dl>`);
+}
 // 領主の画面で、遊び手が触れない操作（主家のこと）を止める。止める時は理由を返す
 const RYO_MONEY = ['inv-agri', 'inv-com', 'shinden', 'fort', 'rakuichi'];
 const RYO_VIEW = ['goto', 'next', 'todo', 'view-castle', 'cancel-pick', 'back', 'close', 'open-fiefs'];
@@ -344,9 +355,11 @@ function refresh() {
       stat('手元', `${fmt(H0.gold)}貫`),
       stat('主君の覚え', `${H0.favor}`),
       stat('治安', `${Math.round(fc.reduce((t2, c) => t2 + c.chian, 0) / Math.max(1, fc.length))}`),
+      '<button type="button" class="plaque" id="btn-shuke" title="主君・主家の方針・上納・軍役">主家</button>',
       '<button type="button" class="plaque" id="btn-jokaku" title="武将として城下を歩く（屋敷・茶屋・主家との縁など）">城下へ出る</button>',
     ].join('');
-    const jb = document.getElementById('btn-jokaku'); if (jb) jb.onclick = () => { if (!s || busy) return; const st2 = s; st2.hero!.out = true; store(AUTO_KEY, null); openHeroWith((id, w) => face(id, w), () => openTitle(), st2, { text: `${st2.castles[st2.hero!.town].name}の城下に出た。用が済んだら「領へ戻る」。` }); };
+    { const sb = document.getElementById('btn-shuke'); if (sb) sb.onclick = () => { if (s) openShuke(s); }; if (sb && RY.gunyakuOf(st) && !RY.gunyakuOf(st)!.done) sb.classList.add('warn'); }
+    const jb = document.getElementById('btn-jokaku'); if (jb) jb.onclick = () => { if (!s || busy) return; const st2 = s; if (!['hero', 'free', 'governor'].includes(st2.generals[st2.hero!.id].status)) { toast('部隊を率いている間は、城下へ出られない'); return; } st2.generals[st2.hero!.id].status = 'hero'; st2.hero!.out = true; store(AUTO_KEY, null); openHeroWith((id, w) => face(id, w), () => openTitle(), st2, { text: `${st2.castles[st2.hero!.town].name}の城下に出た。用が済んだら「領へ戻る」。` }); };
     for (const k of ['gaiko', 'akinai']) { const b = document.getElementById(`btn-${k}`); if (b) b.hidden = true; }
   } else for (const k of ['gaiko', 'akinai']) { const b = document.getElementById(`btn-${k}`); if (b) b.hidden = false; }
   if (!fief) $('stats').innerHTML = [
@@ -637,6 +650,7 @@ function armyPanel(a: Army | undefined) {
 }
 
 function freeGenerals(): General[] {
+  if (RY.isRyoshu(s!)) { const hid = s!.hero!.id; return Object.values(s!.generals).filter((g) => g.clan === s!.player && ((g.status === 'free' && g.liege === hid) || (g.id === hid && (g.status === 'hero' || g.status === 'free') && !g.sick))).sort((a, b) => capOf(b) - capOf(a) || b.lea + b.bra - (a.lea + a.bra)); } // 領主: 主人公と自分の家臣
   return Object.values(s!.generals).filter((g) => g.clan === s!.player && g.status === 'free' && !g.liege).sort((a, b) => capOf(b) - capOf(a) || b.lea + b.bra - (a.lea + a.bra));
 }
 // 身分を含めた兵数の上限
@@ -817,6 +831,7 @@ function onPanelClick(e: Event) {
   if (act === 'cancel-pick') { picker = null; renderPanel(); return; }
   if (act === 'back' && mode.kind === 'attack') { select({ kind: 'army', id: mode.army }); return; }
   if ((act === 'order-cmd' || act === 'order-auto') && mode.kind === 'attack') {
+    { const tc = mode.target.kind === 'castle' ? st.castles[mode.target.castle].owner : mode.target.army.clan; const why = RY.attackBlock(st, tc, mode.target.hex); if (why) { toast(why); return; } }
     const a = st.armies[mode.army];
     orderAttack(st, a, mode.target.hex, act === 'order-cmd');
     const n = ordersAt(st, mode.target.hex, st.player).length;
@@ -924,6 +939,7 @@ function doEndTurn() {
   setTimeout(async () => {
     const st = s!;
     const ryo = RY.isRyoshu(st);
+    if (ryo) { const me0 = st.generals[st.hero!.id]; if (me0.status === 'free' || me0.status === 'governor') me0.status = 'hero'; } // 率いていた部隊を解いた主人公を、主家のAIに使わせない
     if (ryo) await runClanAI(st, st.player); // 主家のこと（外交・直轄の軍勢・内政）は主君（AI）が決める
     await endTurn(st);
     if (ryo && !st.over) { // 領主: 俸禄・出世の節目・家族。城を失えば城下を歩く武将に戻る
@@ -2339,9 +2355,9 @@ const TABS: Record<string, (st: GameState) => string> = {
       ])}`;
   },
   jindate: (st) => {
-    const own = clanCastles(st, st.player);
+    const own = RY.fiefCastles(st); // 領主なら自分の領の城だけ
     if (!own.length) return '<p class="lede">城がない。</p>';
-    if (jinCastle === null || st.castles[jinCastle]?.owner !== st.player) jinCastle = (capital(st, st.player) ?? own[0]).i;
+    if (jinCastle === null || st.castles[jinCastle]?.owner !== st.player || !own.some((x) => x.i === jinCastle)) jinCastle = (RY.ryoshuOf(st) ? own[0] : capital(st, st.player) ?? own[0]).i;
     const c = st.castles[jinCastle], occ = occupancy(st);
     const near = (a: Army) => a.hex === c.hex || NEIGHBORS[c.hex].includes(a.hex);
     const armiesAt = (x: Castle) => clanArmies(st, st.player).filter((a) => !a.ikki && (a.hex === x.hex || NEIGHBORS[x.hex].includes(a.hex)));
@@ -2905,6 +2921,7 @@ function onModalClick(e: Event) {
   if (!s) return;
   const st = s;
   { const why = ryoModalGate(st, act, id); if (why) { toast(why); return; } }
+  if (act === 'ryo-send') { toast(RY.sendTroops(st).text); refresh(); openShuke(st); return; }
   if (act === 'offer-hire' || act === 'offer-refuse') {
     const g = st.generals[id];
     if (act === 'offer-hire') { if (hire(st, g, st.player)) { toast(`${g.name}を召し抱えた`); cutin(st, g, 'offerHire'); } } else { refuse(st, g, st.player); toast(`${g.name}の仕官を断った`); cutin(st, g, 'offerRefused'); }

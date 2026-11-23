@@ -3,6 +3,7 @@ import { setTacticalSound } from '../engine/tactical';
 setTacticalSound((kind, charge) => sfx(kind === 'shoot' ? 'gun' : kind === 'attack' ? (charge ? 'charge' : 'clash') : kind === 'gate' || kind === 'sneak' ? 'gate' : kind === 'fire' ? 'fire' : kind === 'bow' ? 'tick' : 'tick'));
 // 合戦画面: 戦術ヘックスで部隊を操作する
 import { applyTactical } from '../engine/combat';
+import * as RY from '../engine/ryoshu';
 import type { Target } from '../engine/move';
 import { addLog, castleKoku, clanName } from '../engine/state';
 import {
@@ -748,7 +749,7 @@ class BattleView {
     const S = this.size;
     const clan = u.clan;
     const color = clan ? s.clans[clan].color : '#7d735c';
-    const mine = t.playerSide === u.side && (s.hero ? u.general === s.hero.id || (s.hero.leads !== undefined && u.army === s.hero.leads) : clan === s.player); // 武将で遊ぶでは主人公の一隊（総大将なら軍勢）だけが自分の色
+    const mine = t.playerSide === u.side && (RY.ryoshuOf(s) ? u.general === s.hero!.id || (u.army !== null && u.army !== undefined && s.armies[u.army]?.front === RY.ryoshuOf(s)!.id) : s.hero ? u.general === s.hero.id || (s.hero.leads !== undefined && u.army === s.hero.leads) : clan === s.player); // 武将で遊ぶでは主人公の一隊（総大将なら軍勢）だけが自分の色
     const ally = t.playerSide === u.side && !mine;
     const edge = mine ? '#d3ae62' : ally ? '#9fd27a' : 'rgba(246,239,224,0.9)';
     const fill = u.routed ? '#6b6158' : color;
@@ -942,7 +943,7 @@ function startPlayerPhase() {
 }
 
 // 操作できるのは自家の部隊だけ（同盟国の援軍はAIが動かす）
-const isMine = (u: TUnit) => !!tac && !!gs && u.side === tac.playerSide && (gs.hero ? u.general === gs.hero.id || (gs.hero.leads !== undefined && u.army === gs.hero.leads) : u.clan === gs.player); // 武将で遊ぶでは主人公の一隊だけ（総大将なら率いる軍勢の全部隊）
+const isMine = (u: TUnit) => !!tac && !!gs && u.side === tac.playerSide && (RY.ryoshuOf(gs) ? u.general === gs.hero!.id || (u.army !== null && u.army !== undefined && gs.armies[u.army]?.front === RY.ryoshuOf(gs)!.id) : gs.hero ? u.general === gs.hero.id || (gs.hero.leads !== undefined && u.army === gs.hero.leads) : u.clan === gs.player); // 武将で遊ぶでは主人公の一隊だけ（総大将なら率いる軍勢の全部隊）
 function mineActive(): TUnit[] {
   const t = tac!;
   return t.units.filter((u) => !u.out && isMine(u) && !u.acted && !u.routed && u.confused <= 0 && canOrder(t, u));

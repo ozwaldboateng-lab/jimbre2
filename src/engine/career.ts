@@ -293,7 +293,7 @@ export function syncGovernor(s: GameState) {
   const H = s.hero; if (!H || H.story === 'toshiie') return;
   const me = s.generals[H.id];
   for (const c of s.castles) if (c.governor === H.id && (c.i !== H.fuchu || c.owner !== me.clan || !me.clan)) c.governor = null;
-  if (H.fuchu === undefined || !me.clan || me.status === 'dead' || me.status === 'captive') return;
+  if (H.fuchu === undefined || !me.clan || ['dead', 'captive', 'army', 'camp'].includes(me.status)) return; // 部隊を率いている間は城主の欄を空ける
   const c = s.castles[H.fuchu];
   if (c.owner !== me.clan || c.governor === H.id) return;
   if (c.governor) { const x = s.generals[c.governor]; if (x && x.status === 'governor') x.status = 'free'; } // 前の城主は待機に

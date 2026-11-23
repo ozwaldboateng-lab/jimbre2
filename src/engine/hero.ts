@@ -46,6 +46,7 @@ export interface Hero {
   pact?: string[]; secret?: { clan: string; turn: number }; plotTried?: Record<string, number>; // 謀反の準備（plot.ts）
   orders?: Record<string, { role: import('./myhyojo').Yaku; castle: number }>; myHyojo?: number; // 自分の評定（myhyojo.ts）
   pupil?: { gid: string; k: import('./skill').SkillKey; turn: number }; // 弟子入りを願う者（その月だけ）
+  gunyaku?: { clan: string; troops: number; until: number; done?: boolean }; // 領主の軍役（ryoshu.ts）
   mode?: 'ryoshu'; out?: boolean; // out: 領主が城下に出ている（武将の画面で私事・主家との縁） // 城持ちより上: 大名の画面で自分の領を動かす（ryoshu.ts）
   hyojo?: { turn: number; cands: Quest[] }; // 評定で示された主命の候補（その月だけ）
   declined?: number; declines?: number; // 主命を断った月・続けて断った数（果たせば0に戻る）
@@ -646,8 +647,9 @@ function heroEnd0(s: GameState): string | null {
   if (!me.clan || !s.clans[me.clan]?.alive) return `${clanName(s, s.player)}家は滅んだ。`;
   if (me.status === 'captive') return `${me.name}は敵に捕らえられた。`;
   const H = s.hero!;
+  if (H.mode === 'ryoshu' && !H.out) return null; // 領主: 部隊・城主は大名の画面のまま（主人公が率いる部隊を外さない）
   H.hex ??= s.castles[H.town].hex;
-  for (const c of s.castles) if (c.governor === me.id) c.governor = null;
+  for (const c of s.castles) if (c.governor === me.id && (c.i !== H.fuchu || !freeHero(s))) c.governor = null; // 預かった居城の城主の欄は残す
   if (H.army !== null && H.army !== undefined) {
     const a = s.armies[H.army];
     if (a && me.army === a.id && me.status === 'army') { followArmy(s, a); checkShutsujin(s); return null; }
