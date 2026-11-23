@@ -146,7 +146,7 @@ function render() {
       <div class="hr-id">${myFace(st, 56)}<div><b>${esc(me.name)}</b><span>${me.clan ? `${clanName(st, me.clan)}家・${R.RANK_NAME[me.rank]}` : '浪人'}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
       <div class="hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div>
       <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd>${Hh.story !== 'toshiie' ? `<dt>名声</dt><dd>${Hh.fame ?? 0}</dd>` : ''}<dt>進物</dt><dd>${Hh.goods}</dd>${Hh.story !== 'toshiie' ? `<dt>体力</dt><dd>${SK.isSick(st) ? '<b style="color:#d26a5c">病</b> ' : ''}${SK.hpOf(st)}／${SK.hpMax(st)}</dd>` : ''}<dt>主君の覚え</dt><dd>${Hh.favor}</dd>${Hh.story !== 'toshiie' && H.heroOf(st)!.clan ? `<dt>率いる兵</dt><dd>${H.heiCap(st).toLocaleString('ja-JP')}まで</dd>` : ''}<dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
-      <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>${Hh.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}</dt><dd title="荒子衆・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}${Hh.story !== 'toshiie' && KS.capOf(st) ? `・家臣${KS.retainersOf(st).length}/${KS.capOf(st)}` : ''}</dd>` : ''}</dl>
+      <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>${Hh.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}</dt><dd title="${Hh.story === 'toshiie' ? '荒子衆' : '手勢'}・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}${Hh.story !== 'toshiie' && KS.capOf(st) ? `・家臣${KS.retainersOf(st).length}/${KS.capOf(st)}` : ''}</dd>` : ''}</dl>
       <button class="hr-btn ghost" data-h="quit" title="保存してタイトルへ">中断</button>
     </header>
     ${Hh.fuchu !== undefined ? `<div class="hr-quest"><b>${Hh.story !== 'toshiie' ? '領地' : (Hh.storyDone ?? []).includes('ryo') ? '領国' : '府中'}</b> ${esc(M.fuchuText(st))}</div>` : ''}
@@ -353,7 +353,7 @@ function castleHtml(st: GameState) {
   const tiles = `<div class="hr-ctiles">${v.tiles.map(([l, val, sub]) => `<div><span>${l}</span><b>${esc(val)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`).join('')}</div>`;
   const pills = v.pills.length ? `<p class="hr-note">${v.pills.map(esc).join('・')}</p>` : '';
   const acts = v.acts.map((a) => `<button class="hr-spot" data-h="cact" data-id="${a.k}" ${a.block ? 'disabled' : ''}><b>${esc(a.label)}</b><span>${esc(a.block ?? a.sub)}</span></button>`).join('');
-  const govs = (Object.keys(M.GOV_NAME) as M.GovAct[]).filter((k) => k !== 'kaikon' && k !== 'fushin' && (k !== 'meshi' || st.hero!.ie)).map((k) => { const g = M.govCost(st, k); return `<button class="hr-spot${k === 'mimawari' ? ' main' : ''}" data-h="gov" data-id="${k}" ${g.block ? 'disabled' : ''}><b>${M.GOV_NAME[k][0]}${g.cost ? `（${g.cost.toLocaleString('ja-JP')}貫）` : ''}</b><span>${g.block ? esc(g.block) : esc(st.hero!.story === 'toshiie' ? M.GOV_NAME[k][1] : M.genText(M.GOV_NAME[k][1]))}</span></button>`; }).join('');
+  const govs = (Object.keys(M.GOV_NAME) as M.GovAct[]).filter((k) => k !== 'kaikon' && k !== 'fushin' && (k !== 'meshi' || st.hero!.ie)).map((k) => { const g = M.govCost(st, k); return `<button class="hr-spot${k === 'mimawari' ? ' main' : ''}" data-h="gov" data-id="${k}" ${g.block ? 'disabled' : ''}><b>${M.GOV_NAME[k][0]}${g.cost ? `（${g.cost.toLocaleString('ja-JP')}貫）` : ''}</b><span>${g.block ? esc(g.block) : esc(st.hero!.story === 'toshiie' ? M.GOV_NAME[k][1] : M.genText(M.GOV_NAME[k][1], st))}</span></button>`; }).join('');
   const dom = CR.freeHero(st) && KS.retainersOf(st).length ? [...(st.hero!.fuchu !== undefined ? [st.hero!.fuchu] : []), ...(st.hero!.ryo ?? [])] : [];
   const daikan = dom.map((ci) => { const gid = st.hero!.daikan?.[ci]; return `<button class="hr-spot" data-h="daikan" data-id="${ci}"><b>${esc(st.castles[ci].name)}の城代: ${gid ? esc(st.generals[gid].name) : 'なし'}</b><span>押すと家臣を順に替える。城を空けている月も、城代が見回る</span></button>`; }).join('');
   const my = myHyojoHtml(st);
@@ -495,7 +495,7 @@ let theater: Theater | null = null;
 export function setTheater(f: Theater) { theater = f; }
 const chooser = (st: GameState) => (key: string, id: string) => M.storyChoose(st, key, id).beats; // 結果の数値は物語の画面に出さず、場面のあとで城下に
 const opt0 = (st: GameState) => { const d = st.hero!.storyDone ?? []; return { part2: d.includes('katoku'), label: d.includes('ryo4') ? '残り火　第五部' : d.includes('ryo3') ? '残り火　第四部' : d.includes('ryo') ? '残り火　第三部' : d.includes('katoku') ? '残り火　第二部' : '残り火　第二幕' }; };
-const opt = (st: GameState) => CR.freeHero(st) ? { part2: false, label: CR.houseName(st), cast: Object.fromEntries(Object.values(st.generals).map((g) => [g.id, g.name])), tx: M.genText } : opt0(st);
+const opt = (st: GameState) => CR.freeHero(st) ? { part2: false, label: CR.houseName(st), cast: Object.fromEntries(Object.values(st.generals).map((g) => [g.id, g.name])), tx: (x: string) => M.genText(x, st) } : opt0(st);
 function runStory() {
   if (!s || !theater || busy) return;
   const ev = storyDue(s);

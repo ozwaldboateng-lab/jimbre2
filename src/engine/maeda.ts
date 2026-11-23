@@ -3,7 +3,7 @@ import { NODES, ADVICE, KANEGASAKI_END, ANEGAWA_END } from '../data/story_toshii
 import type { Eff } from '../data/story_toshiie2';
 import type { Beat } from '../data/story_toshiie';
 import { addMerit } from './ranks';
-import { castleKoku, garrisonMax, rand } from './state';
+import { castleKoku, garrisonMax, rand, surnameOf } from './state';
 import { FORT_NAME, fortCost, fortOf, shindenCost, shindenDone } from './invest';
 import * as R from './rules';
 import type { Castle, GameState } from './types';
@@ -16,6 +16,8 @@ export const IE = { SHU0: 300, KURA0: 600, KACHU0: 55, MURA0: 20, AGARI: 60, SHU
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 export const newIe = (): Ie => ({ shu: IE.SHU0, kura: IE.KURA0, kachu: IE.KACHU0, mura: IE.MURA0 });
 
+// 家の呼び名: 物語では前田家・荒子衆、物語の外では主人公の名字の家・手勢
+const ieNames = (s: GameState) => { const H = s.hero!; return H.story === 'toshiie' ? { ie: '前田家', kura: '前田の蔵', shu: '荒子衆' } : { ie: `${surnameOf(s.generals[H.id].name)}家`, kura: '家の蔵', shu: '手勢' }; };
 export function ieMonth(s: GameState): string[] {
   const H = s.hero;
   if (!H?.ie) return [];
@@ -24,12 +26,13 @@ export function ieMonth(s: GameState): string[] {
   ie.kura = Math.min(IE.KURA_CAP, ie.kura + agari);
   ie.mura = clamp(ie.mura - 2);
   const cap = IE.SHU_CAP + ie.kachu * 2 + shuCapBonus(s);
-  if (ie.kura <= 0) { ie.kachu = clamp(ie.kachu - 3); ie.shu = Math.max(50, ie.shu - 20); out.push('前田の蔵が尽きた。家中が細る。'); }
+  const nm = ieNames(s);
+  if (ie.kura <= 0) { ie.kachu = clamp(ie.kachu - 3); ie.shu = Math.max(50, ie.shu - 20); out.push(`${nm.kura}が尽きた。家中が細る。`); }
   else if (ie.shu < cap) ie.shu = Math.min(cap, ie.shu + Math.round(5 + ie.kachu / 10));
   else if (ie.shu > cap) ie.shu = Math.max(cap, ie.shu - 15); // 養える数を超えた分は少しずつ村へ戻る
   ie.kachu = clamp(ie.kachu + (ie.kachu > 70 ? -1 : ie.kachu < 50 ? 1 : 0)); // 家中は放っておけば並に戻る（高いほど保つのが難しい）
   ie.kura = Math.max(0, ie.kura);
-  out.push(`前田家: 村の上がり${agari}石（蔵 ${ie.kura}石）。荒子衆${ie.shu}・家中${ie.kachu}・村の疲れ${ie.mura}。`);
+  out.push(`${nm.ie}: 村の上がり${agari}石（蔵 ${ie.kura}石）。${nm.shu}${ie.shu}・家中${ie.kachu}・村の疲れ${ie.mura}。`);
   return out;
 }
 
@@ -63,7 +66,7 @@ export function applyEff(s: GameState, e: Eff | undefined, tag?: string): string
   if (e.shu) parts.push(`${H.story === 'toshiie' ? '荒子衆' : '手勢'}${e.shu > 0 ? '+' : ''}${e.shu}`);
   if (e.kachu) parts.push(`家中${e.kachu > 0 ? '+' : ''}${e.kachu}`);
   if (e.mura) parts.push(`村の疲れ${e.mura > 0 ? '+' : ''}${e.mura}`);
-  if (e.chian && c) parts.push(`府中の治安${e.chian > 0 ? '+' : ''}${e.chian}`);
+  if (e.chian && c) parts.push(`${H.story === 'toshiie' ? '府中' : c.name}の治安${e.chian > 0 ? '+' : ''}${e.chian}`);
   if (e.ember && c) parts.push(`残り火${e.ember > 0 ? '+' : ''}${e.ember}`);
   if (e.favor) parts.push(`主君の覚え${e.favor > 0 ? '+' : ''}${e.favor}`);
   if (e.gold) parts.push(`金${e.gold > 0 ? '+' : ''}${e.gold}`);
@@ -108,12 +111,24 @@ export const canAdvice = (s: GameState) => !!s.hero?.ie && (s.hero.story !== 'to
 // 物語の外（前田利家でない主人公）では、前田家の人と土地の名を、その武将の家のものに置き換える
 const WHO_GEN: Record<string, string> = { okumura: 'ie_karo', murai: 'ie_kerai', arako_wakamono: 'mura_wakamono', kurayaku: 'kurayaku' };
 const BG_GEN: Record<string, string> = { arako: 'mura', zashiki_arako: 'zashiki_day' };
-export const genText = (x: string) => x.replace(/前田の蔵/g, '家の蔵').replace(/（成政の道）/g, '').replace(/荒子衆/g, '手勢').replace(/前田様/g, '殿').replace(/利家様/g, '殿').replace(/前田の蔵/g, '家の蔵').replace(/荒子/g, '村');
+// 物語の文を物語の外の主人公に合わせる: 前田家→主人公の家、利家→主人公の名、奥村・村井→家臣（いなければ家老・家臣）、まつ→妻、荒子→村
+export function genText(x: string, s?: GameState): string {
+  let t = genText0(x);
+  const H = s?.hero;
+  if (s && H && H.story !== 'toshiie') {
+    const me = s.generals[H.id], fam = surnameOf(me.name), given = me.name.slice(fam.length) || me.name;
+    const rs = (H.retainers ?? []).map((id) => s.generals[id]).filter((g) => g && g.status !== 'dead');
+    const karo = rs[0]?.name ?? '家老', kerai = rs[1]?.name ?? rs[0]?.name ?? '家臣';
+    t = t.replace(/前田家/g, `${fam}家`).replace(/奥村永福|奥村助右衛門|奥村/g, karo).replace(/村井長頼|村井/g, kerai).replace(/まつ(?=[がはのにをもとへや、。」）]|$)/g, '妻').replace(/利家殿/g, `${given}殿`).replace(/利家/g, given).replace(/前田/g, fam);
+  }
+  return t;
+}
+const genText0 = (x: string) => x.replace(/前田の蔵/g, '家の蔵').replace(/（成政の道）/g, '').replace(/荒子衆/g, '手勢').replace(/前田様/g, '殿').replace(/利家様/g, '殿').replace(/前田の蔵/g, '家の蔵').replace(/荒子/g, '村');
 export function localize(s: GameState, beats: Beat[]): Beat[] {
   const H = s.hero;
   if (!H || H.story === 'toshiie') return beats;
   const rs = H.retainers ?? [], alias: Record<string, string | undefined> = { ie_karo: rs[0], ie_kerai: rs[1] ?? rs[0] }; // 家臣がいれば、家老・家臣の役はその者が
-  return beats.map((b) => ({ ...b, who: b.who === 'maeda_toshiie' ? H.id : b.who ? alias[WHO_GEN[b.who] ?? ''] ?? WHO_GEN[b.who] ?? b.who : b.who, bg: b.bg ? BG_GEN[b.bg] ?? b.bg : b.bg, text: genText(b.text) }));
+  return beats.map((b) => ({ ...b, who: b.who === 'maeda_toshiie' ? H.id : b.who ? alias[WHO_GEN[b.who] ?? ''] ?? WHO_GEN[b.who] ?? b.who : b.who, bg: b.bg ? BG_GEN[b.bg] ?? b.bg : b.bg, text: genText(b.text, s) }));
 }
 export function nextAdvice(s: GameState): { beats: Beat[]; head: string } | null {
   const H = s.hero!, ie = H.ie!;
@@ -157,7 +172,7 @@ export function govern(s: GameState, k: GovAct): Act {
   const sv = (H.sv ??= {});
   if (k === 'mimawari') { c.chian = clamp(c.chian + 3); c.ember = clamp((c.ember ?? 0) - 2); }
   else if (k === 'hidane') { const d = Math.round(3 + me.int / 15 + rand(s) * 3); c.ember = clamp((c.ember ?? 0) - d); }
-  else if (k === 'hodokosu') { if (!H.ie || H.ie.kura < 60) return { ok: false, text: '前田の蔵が足りない（60石）' }; H.ie.kura -= 60; c.ember = clamp((c.ember ?? 0) - 4); c.chian = clamp(c.chian + 1); c.dev = Math.min(1, c.dev * 1.03); sv.road_son = (sv.road_son ?? 0) + 0.25; }
+  else if (k === 'hodokosu') { if (!H.ie || H.ie.kura < 60) return { ok: false, text: `${ieNames(s).kura}が足りない（60石）` }; H.ie.kura -= 60; c.ember = clamp((c.ember ?? 0) - 4); c.chian = clamp(c.chian + 1); c.dev = Math.min(1, c.dev * 1.03); sv.road_son = (sv.road_son ?? 0) + 0.25; }
   else if (k === 'shimeru') { c.chian = clamp(c.chian + 8); c.ember = clamp((c.ember ?? 0) - 5); c.dev = Math.max(0.2, c.dev * 0.96); sv.road_hard = (sv.road_hard ?? 0) + 0.25; }
   else if (k === 'kaikon' || k === 'fushin' || k === 'meshi') {
     const { cost, block } = govCost(s, k);
