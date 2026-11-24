@@ -39,8 +39,13 @@ function cellCls(x: number, y: number, reach: Set<string>, tg: Set<number>) {
   const p = B.at(b!, x, y), t = B.terrAt(b!, x, y);
   return ['bc', `t-${t === '.' ? 'no' : t}`, reach.has(`${x},${y}`) ? 'reach' : '', p && tg.has(p.id) ? (aim ? 'kyo' : 'tgt') : '', p && p.id === sel ? 'sel' : '', p && (p.id === sel || tg.has(p.id)) ? 'front' : ''].filter(Boolean).join(' '); // front: 選んだ駒と狙える敵は、重なっても手前に
 }
-// 地形の名だけ（絵は盤の下のキャンバスに描く）
-function terrHtml(_x: number, _y: number) { return ''; }
+// 矢盾・柵の絵はマスの中に立てる（行ごとの重なり順で、奥の駒の上にかぶさる）。ほかの地形は盤の下のキャンバスに描く
+function terrHtml(x: number, y: number) {
+  const t = B.terrAt(b!, x, y);
+  if (t !== 'tate' && t !== 'saku') return '';
+  const src = BAN_ART[`${t}_f`]?.[0];
+  return src ? `<img class="ob ob-${t}" src="${src}" alt="" draggable="false">` : '';
+}
 // 駒の絵（assets/ban。なければ文字の駒）。味方は背面、敵は正面の絵。足もとに家の色の輪（主人公は金、名のある将は朱）
 // 人の大きさをそろえる: 騎馬は少し大きく、膝をついた鉄砲は少し小さく
 const ART_SCALE: Record<string, number> = { kiba: 1.65, sho: 1.65, hero: 1.65, ashi: 1, yumi: 1, teppo: 0.82 };
@@ -69,7 +74,7 @@ function render() {
   const tg = new Set<number>(mine ? (aim ? B.kyohoTargets(b, s!) : B.targets(b, s!)).map((p) => p.id) : []);
   const kyoList = aim && s ? `<div class="ban-kyo"><b>虚報の的を選ぶ</b>${B.kyohoTargets(b, s).map((d) => `<span>${esc(d.name)}（知略${d.int}・見込み${Math.round(B.kyohoChance(s, d) * 100)}%）</span>`).join('')}</div>` : '';
   let cells = '';
-  for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) { const p = B.at(b, x, y); cells += `<button class="${cellCls(x, y, reach, tg)}" data-x="${x}" data-y="${y}" aria-label="${x + 1}列${y + 1}行・${B.TERR_NAME[B.terrAt(b, x, y)]}${p ? ' ' + esc(p.name) : ''}">${terrHtml(x, y)}${p ? pieceHtml(p) : ''}</button>`; }
+  for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) { const p = B.at(b, x, y), cl = cellCls(x, y, reach, tg); cells += `<button class="${cl}" style="z-index:${(/\bfront\b/.test(cl) ? 100 : 10) + y}" data-x="${x}" data-y="${y}" aria-label="${x + 1}列${y + 1}行・${B.TERR_NAME[B.terrAt(b, x, y)]}${p ? ' ' + esc(p.name) : ''}">${terrHtml(x, y)}${p ? pieceHtml(p) : ''}</button>`; }
   const foes = b.pieces.filter((p) => p.side === 'foe' && p.alive).length, ours = b.pieces.filter((p) => p.side === 'me' && p.alive).length;
   const phase = `${b.mochi ? `持ち場 ${B.MOCHI_NAME[b.mochi]}・` : ''}${B.stageName(b)}・${b.over ? '終わり' : b.phase === 'me' ? 'あなたの手番' : '敵の手番'}`;
   const over = b.over ? `<div class="ban-over"><b>${duelOnly ? (b.over === 'win' ? '師範を打ち負かした' : '師範に敗れた') : b.breached ? '砦を破られた' : b.goal === 'reach' && b.over === 'win' ? '敵陣の端まで見届けた' : b.goal === 'hold' && b.over === 'time' ? '砦を持ちこたえた' : b.goal && b.over === 'time' ? '時が尽きた' : { win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}${b.pieces.some((q) => q.rival) ? `（同輩${b.rivalTegara}）` : ''}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
@@ -190,12 +195,9 @@ function drawGround(force = false) {
       c.restore();
     }
   }
-  // 矢盾（野の障害物）: 矢盾の絵（assets/ban の 08_矢盾）をマスの下寄りに立てる。なければ柵と同じ帯
+  // 矢盾・柵: 絵（assets/ban の 08_矢盾・07_柵）はマスの中に立てる（terrHtml）。絵がなければ城の柵の帯をマスの中ほどに横に渡す
   const ta = BAN_ART.tate_f?.[0];
-  if (ta) { let im = IMG['ban-tate']; if (!im) { im = new Image(); im.onload = () => drawGround(true); im.src = ta; IMG['ban-tate'] = im; } if (ok(im)) for (const [x, y] of cells('tate')) { const [cx, cy] = ctr(x, y), w = C * 1.1, h = C * 1.15; c.drawImage(im, cx - w / 2, cy + C * 0.42 - h, w, h); } }
-  // 柵: 柵の絵（assets/ban の 07_柵）があればマスに立て、なければ城の柵の帯をマスの中ほどに横に渡す
   const sa = BAN_ART.saku_f?.[0];
-  if (sa) { let im = IMG['ban-saku']; if (!im) { im = new Image(); im.onload = () => drawGround(true); im.src = sa; IMG['ban-saku'] = im; } if (ok(im)) for (const [x, y] of cells('saku')) { const [cx, cy] = ctr(x, y); c.drawImage(im, cx - C * 0.6, cy - C * 0.7, C * 1.2, C * 1.2); } }
   const sk = img('w_saku');
   if (ok(sk)) for (const [x, y] of [...(sa ? [] : cells('saku')), ...(ta ? [] : cells('tate'))]) { const [cx, cy] = ctr(x, y), sw = sk.naturalHeight * 2; c.drawImage(sk, (x * sw) % (sk.naturalWidth - sw), 0, sw, sk.naturalHeight, cx - C / 2, cy - C * 0.28, C, C * 0.56); }
   // 林（大きめ。上の行から順に重ねる）
@@ -207,10 +209,11 @@ const CSS = `
 .ban-wrap{box-sizing:border-box;width:min(980px,100%);padding:16px;margin:auto}
 .ban-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin-bottom:10px}.ban-head b{font-size:20px;color:#cfa95e}.ban-head span{font-size:13px;opacity:.85}
 .ban-body{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-.ban-grid{position:relative;display:grid;gap:0;flex:0 1 auto;width:min(480px,100%);aspect-ratio:8/10;background-color:#7d8a52;border:1px solid rgba(207,169,94,.55);border-radius:4px;box-sizing:border-box;overflow:visible}
+.ban-grid{position:relative;display:grid;gap:0;flex:0 1 auto;width:min(480px,100%);aspect-ratio:8/10;isolation:isolate;background-color:#7d8a52;border:1px solid rgba(207,169,94,.55);border-radius:4px;box-sizing:border-box;overflow:visible}
 .bc{position:relative;border:0;padding:0;margin:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;font:inherit;color:inherit;box-shadow:inset 0 0 0 .5px rgba(30,22,12,.35);z-index:1}
 .ban-bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}.night .ban-bg{filter:brightness(.5) saturate(.6) hue-rotate(15deg)}.night .pa img{filter:brightness(.75) drop-shadow(0 3px 2px rgba(0,0,0,.55))}
 .bc.front{z-index:2}
+.ob{position:absolute;left:-5%;bottom:8%;width:110%;pointer-events:none;user-select:none}.ob-tate{height:115%}.ob-saku{left:-2%;width:104%;height:95%}.night .ob{filter:brightness(.6) saturate(.7)}
 .bc.reach{box-shadow:inset 0 0 0 3px rgba(80,170,230,.95)}.bc.tgt{box-shadow:inset 0 0 0 3px rgba(225,70,60,.95)}.bc.sel{box-shadow:inset 0 0 0 3px #f2d27a}
 .pc{position:relative;width:78%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:clamp(14px,4.2vw,22px);font-weight:700;box-shadow:0 2px 4px rgba(0,0,0,.5);overflow:hidden}
 .pc{z-index:1}.pc.me{background:#f1e6c8;color:#1d2b4a;border:3px solid var(--me)}.pc.foe{background:#2a1a16;color:#f3d9c8;border:3px solid var(--foe)}
