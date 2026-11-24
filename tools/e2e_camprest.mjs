@@ -1,4 +1,5 @@
 // 陣中の体力と離脱: 陣中で過ごすと体力が戻る（+15）。疲れ果てていれば（体力30以下）敵が近くても陣を離れて近くの城へ下がれる。元気なのに敵を前に離れると、覚え−8・名声−1
+// 主命（出陣）を果たした後なら、敵が近くても咎められずに陣を辞して登城へ
 // 使い方: node tools/e2e_camprest.mjs <保存JSON（陣中の主人公。e2e_sickcamp と同じ）> <画像の出力先>
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -7,9 +8,10 @@ const { chromium } = require('playwright');
 const [save, out] = process.argv.slice(2);
 const base = JSON.parse(readFileSync(save, 'utf8'));
 const b = await chromium.launch(); const errors = [];
-for (const [tag, hp] of [['tired', 20], ['fresh', 80]]) {
+for (const [tag, hp] of [['tired', 20], ['fresh', 80], ['done', 80]]) {
   const st = JSON.parse(JSON.stringify(base));
   st.generals[st.hero.id].sick = 0; st.hero.hp = hp; st.hero.jun = 0;
+  if (tag === 'done') st.hero.quest = { kind: 'shutsujin', castle: st.hero.town, need: 1, done: 1, until: st.turn + 2, army: st.hero.army, ok: true }; // 主命を果たした（登城して報告せよ）
   // 敵の軍勢を、陣のすぐ隣に置く
   const army = st.armies[st.hero.army];
   const foe = Object.values(st.armies).find((a) => a.clan !== army.clan);

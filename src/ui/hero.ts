@@ -223,7 +223,7 @@ function spotsHtml(st: GameState) {
     <button class="hr-spot" data-h="campwait"><b>陣中で過ごす</b><span>1旬。体を休めつつ戦を待つ（体力+${SK.HP.CAMP_REST}。いま${SK.hpOf(st)}／${SK.hpMax(st)}）</span></button>
     <button class="hr-spot" data-h="visit" data-id="${a.main}"><b>軍議に出る</b><span>主将${esc(st.generals[a.main]?.name ?? '')}を訪ねる（1旬）</span></button>
     <button class="hr-spot" data-h="pane" data-id="yashiki"><b>陣中の武将を訪ねる</b><span>同じ軍勢の顔ぶれ</span></button>
-    ${SK.isSick(st) ? `<p class="hr-note" style="color:#d26a5c">病に伏している。陣中で過ごすか、陣を離れて近くの城へ下がり養生する。</p>` : ""}<button class="hr-spot${SK.isSick(st) || SK.hpOf(st) <= SK.HP.TIRED ? " main" : " dim"}" data-h="leavecamp"><b>陣を離れる</b><span>${esc(H.leaveCampNote(st))}</span></button>`;
+    ${SK.isSick(st) ? `<p class="hr-note" style="color:#d26a5c">病に伏している。陣中で過ごすか、陣を離れて近くの城へ下がり養生する。</p>` : ""}<button class="hr-spot${SK.isSick(st) || SK.hpOf(st) <= SK.HP.TIRED || (st.hero!.quest && st.hero!.quest.done >= st.hero!.quest.need) ? " main" : " dim"}" data-h="leavecamp"><b>陣を離れる</b><span>${esc(H.leaveCampNote(st))}</span></button>`;
   const join = H.armiesHere(st).map((x) => `<button class="hr-spot main" data-h="join" data-id="${x.id}"><b>陣に加わる</b><span>${esc(st.generals[x.main]?.name ?? '')}の軍勢（兵${x.troops.toLocaleString('ja-JP')}）${st.hero!.quest?.kind === 'shutsujin' && st.hero!.quest.army === x.id ? '・主命の軍勢' : ''}</span></button>`).join('');
   if (st.hero!.field) return join +  `<p class="hr-note">城下ではない野にいる。旅を続けるか、休むことしかできない。</p><button class="hr-spot" data-h="pane" data-id="tabi"><b>旅を続ける</b><span>地図で行き先を選ぶ</span></button><button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>`;
   const c = st.castles[st.hero!.town];
