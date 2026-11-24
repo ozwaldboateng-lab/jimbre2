@@ -6,6 +6,7 @@ import * as RH from '../engine/ryohyojo';
 import * as NE from '../engine/ryoplot';
 import * as SH from '../engine/ryoshin';
 import * as HS from '../engine/homenshin';
+import * as TS from '../engine/tosyu';
 import * as WK from '../engine/watakushi';
 import * as MBU from '../engine/meibutsu';
 import * as PLT from '../engine/plot';
@@ -351,6 +352,18 @@ function ryoRebel(st: GameState): boolean {
   openModal(`<h2 id="modal-title">謀反</h2><p>${esc(r.text)}</p><p>${esc(st.clans[r.clan].name)}家の当主として、大名プレイを始める。</p>`); return true;
 }
 function ryoLeave(st: GameState, pre = '') { RY.toHero(st); const t2 = CR.leaveLord(st); closeModal(); store(AUTO_KEY, null); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: pre + t2 }); }
+// 家中の揉め事（大名。月のはじめ）: 家臣二人の不和・手柄争いを裁く
+let tosyuNext: (() => void) | null = null;
+function openTosyu(st: GameState, next: () => void) {
+  const m = !st.hero ? TS.momegotoOf(st) : null;
+  if (!m) { next(); return; }
+  tosyuNext = next;
+  const a = st.generals[m.a], b = st.generals[m.b], C = st.clans[st.player];
+  const card = (g: General, line: string) => `<div style="display:flex;gap:10px;align-items:center;margin:6px 0">${face(g.id, 64)}<div><b>${esc(g.name)}</b>（${rankName(st, g)}・恩${Math.round(onOf(g))}）<p style="margin:4px 0 0">「${esc(line)}」</p></div></div>`;
+  const la = m.kind === 'fuwa' ? `${b.name}の振る舞い、目に余りまする。お裁きを。` : `あの城を落としたのは、それがしの組にござる。`;
+  const lb = m.kind === 'fuwa' ? `${a.name}こそ、殿のお名を笠に着ておる。` : `いや、先に乗り込んだのはこちらの手の者。`;
+  openModal(`<h2 id="modal-title">${m.kind === 'fuwa' ? '家中の不和' : '手柄争い'} ― ${esc(C.name)}家</h2>${card(a, la)}${card(b, lb)}<p class="hint">片方に付けば、その者は恩+${TS.TOSYU.SIDE_UP}、もう一方は恩−${TS.TOSYU.SIDE_DOWN}。両成敗は二人とも恩−${TS.TOSYU.BOTH}（ほかの家臣は+${TS.TOSYU.BOTH_OTHERS}）。仲裁（金${TS.TOSYU.CHUSAI_GOLD}貫）は二人とも恩+${TS.TOSYU.CHUSAI}。</p><div class="actions" style="flex-wrap:wrap"><button class="act" data-act="tm-a">${esc(a.name)}に付く</button><button class="act" data-act="tm-b">${esc(b.name)}に付く</button><button class="act" data-act="tm-both">喧嘩両成敗</button><button class="act primary" data-act="tm-chusai" ${C.gold < TS.TOSYU.CHUSAI_GOLD ? 'disabled' : ''}>仲裁する（${TS.TOSYU.CHUSAI_GOLD}貫）</button></div>`, false);
+}
 // 主君との出来事（月のはじめ）: 詰問・討手・国替え。閉じたら next
 let shinNext: (() => void) | null = null;
 function openRyoShin(st: GameState, next: () => void) {
@@ -1058,6 +1071,7 @@ function doEndTurn() {
       for (const x of r.lines) st.log.push({ turn: st.turn - 1, text: x, kind: 'info', mine: true } as GameState['log'][number]);
       if (r.back) { busy = false; $('btn-end').removeAttribute('disabled'); $('toast').hidden = true; store(AUTO_KEY, null); openHeroWith((id, w) => face(id, w), () => openTitle(), st, { text: r.lines.join('') || '城下を歩く身に戻った。' }); return; }
     }
+    if (!ryo && !st.hero && !st.over) for (const x of TS.tosyuMonth(st)) st.log.push({ turn: st.turn - 1, text: x, kind: 'info', mine: true } as GameState['log'][number]); // 大名: 旧主との因縁・旧友・家中の揉め事
     busy = false;
     $('btn-end').removeAttribute('disabled');
     $('toast').hidden = true;
@@ -1067,7 +1081,7 @@ function doEndTurn() {
     if (st.over) { showGameOver(); return; }
     mapMood(st);
     if (st.log.some((l) => l.turn === st.turn - 1 && l.kind === 'castle' && l.text.includes(`${st.clans[st.player].name}家が`) && l.text.includes('を攻略'))) sfx('castle');
-    playEvents(st, () => openRyoHyojo(st, () => openRyoShin(st, () => afterTurnReports(st))));
+    playEvents(st, () => openRyoHyojo(st, () => openRyoShin(st, () => openTosyu(st, () => afterTurnReports(st)))));
   }, 30);
 }
 function afterTurnReports(st: GameState) {
@@ -1703,6 +1717,7 @@ function genActions(st: GameState, g: General) {
   }
   const myFief = fiefOf(st, g);
   rows.push(`<dt>恩賞</dt><dd><button class="mini" data-act="rw-kanjo" data-id="${g.id}" ${kb ? `disabled title="${esc(kb)}"` : ''}>感状</button> <button class="mini" data-act="rw-kazo" data-id="${g.id}" ${due <= 0 || C.gold < cost ? 'disabled' : ''}>加増（${fmt(cost)}貫）</button> <button class="mini" data-act="rw-promote" data-id="${g.id}" ${pb ? `disabled title="${esc(pb)}"` : ''}>${pb ? '取り立て' : `${R.RANK_NAME[g.rank - 1]}に取り立て`}</button></dd>`);
+  { const kb = TS.kitsumonBlock(st, g); rows.push(`<dt>詰問</dt><dd><button class="mini" data-act="rw-kitsu" data-id="${g.id}" ${kb ? `disabled title="${esc(kb)}"` : ''}>詰問する</button><span class="hint" style="margin:0">　${kb ? esc(kb) : '恩の薄い家臣を問いただす。改心するか、白を切るか、出奔するか'}</span></dd>`); }
   rows.push(`<dt>金を与える</dt><dd>${GOLD_GIFT.AMOUNTS.map((a) => goldBtn(st, g, a)).join(' ')}<span class="hint" style="margin:0">　手柄に関わらない褒美（月に一度。身分が高いほど効きが薄い）</span></dd>`);
   const role: string[] = [];
   if (g.status === 'free') {
@@ -3040,6 +3055,9 @@ function onModalClick(e: Event) {
   if (act === 'rh-decline') { hyojoResult(st, RH.declineOrder(st)); return; }
   if (act === 'rh-ken') { hyojoResult(st, RH.kensaku(st, id)); return; }
   if (act === 'rh-close') { closeModal(); store(AUTO_KEY, JSON.stringify(st)); const n = hyojoNext; hyojoNext = null; n?.(); return; }
+  if (act === 'tm-a' || act === 'tm-b' || act === 'tm-both' || act === 'tm-chusai') { const t2 = TS.judgeMomegoto(st, act.slice(3) as 'a' | 'b' | 'both' | 'chusai'); st.log.push({ turn: st.turn, text: t2, kind: 'info', mine: true } as GameState['log'][number]); openModal(`<h2 id="modal-title">裁き</h2><p>${esc(t2)}</p><div class="actions"><button class="act primary" data-act="tm-close">閉じる</button></div>`, false); store(AUTO_KEY, JSON.stringify(st)); refresh(); return; }
+  if (act === 'tm-close') { closeModal(); const n = tosyuNext; tosyuNext = null; n?.(); return; }
+  if (act === 'rw-kitsu') { const r = TS.kitsumonVassal(st, id); toast(r.text); st.log.push({ turn: st.turn, text: r.text, kind: 'info', mine: true } as GameState['log'][number]); refresh(); reopen(); return; }
   if (act.startsWith('rv-')) {
     if (act === 'rv-close') { closeModal(); const n = shinNext; shinNext = null; if (SH.shinEvOf(st)) openRyoShin(st, n ?? (() => {})); else n?.(); return; }
     if (act === 'rv-go') { const r = SH.kitsumonGo(st); shinResult(st, r.line, r.text); return; }

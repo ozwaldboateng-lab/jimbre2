@@ -13,6 +13,7 @@ import { lordHeirEvent } from './family';
 import { lv } from './skill';
 import { delegateOf } from './delegate';
 import { dissolveCamp } from './jinbure';
+import { recordRebel } from './tosyu';
 import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
 import { followersToRetainers, retainersToFollowers, yoriki } from './kashin';
 import type { Castle, FrontPolicy, Front, GameState } from './types';
@@ -378,6 +379,7 @@ export function rebel(s: GameState): { ok: boolean; text: string; clan?: string;
   me.status = 'free';
   const id = splitClan(s, me, from, castles, armies, '謀反');
   if (!id) { me.status = 'hero'; return { ok: false, text: '謀反は成らなかった' }; }
+  recordRebel(s, id, from, H.rel); // 旧主との因縁（大名になってから）
   for (const g of Object.values(s.generals)) if (g.liege === me.id && g.status !== 'dead') { g.clan = id; if (g.status === 'kashin') g.status = 'free'; g.liege = undefined; }
   (H.career ??= { steps: [] }).served = [...(H.career.served ?? []), clanName(s, from)];
   addFame(s, 10);

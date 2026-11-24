@@ -150,16 +150,17 @@ export function applySkirmish(s: GameState, b: Ban): { ok: boolean; text: string
 
 // ───────── 本陣の盤（侍大将から: 総大将として率いる合戦で、本陣に敵が迫った時） ─────────
 // 主人公と手の者（配下・モブ）で、迫った敵の将（名のある将）と雑兵三つを5手のうちに討ち払う
-export function honjinBan(s: GameState, foe: { name: string; bra: number; int: number; lea: number; gid?: string }): Ban {
+export function honjinBan(s: GameState, foe: { name: string; bra: number; int: number; lea: number; gid?: string }, lord?: General): Ban {
   const mob = (k: BKind) => ({ kind: k, who: null });
-  return newBan({ me: myPieces(s), foe: [{ kind: 'kiba', who: { ...foe, sho: true } }, mob('ashi'), mob('ashi'), mob('yumi')], seed: Math.floor(rand(s) * 1e9), maxTurn: 5, goal: 'rout', goalLabel: '本陣の守り（迫った敵を討ち払う）' });
+  const me: BanSetup['me'] = lord ? [{ kind: 'kiba', who: whoOf(lord, { hero: true }) }, mob('ashi'), mob('yumi'), mob('teppo')] : myPieces(s); // 大名: 当主と旗本
+  return newBan({ me, foe: [{ kind: 'kiba', who: { ...foe, sho: true } }, mob('ashi'), mob('ashi'), mob('yumi')], seed: Math.floor(rand(s) * 1e9), maxTurn: 5, goal: 'rout', goalLabel: '本陣の守り（迫った敵を討ち払う）' });
 }
 // 首尾: 討ち払うか迫った将を討てば（勝ち）その部隊は兵−25%・士気−0.3・この手番は動けない。二つ以上討てば兵−10%・士気−0.1。主人公が倒れれば本陣の士気−0.4・体力が減る（盤の傷）。退いた・時切れはそのまま
 export const HONJIN = { WIN_TROOPS: 0.25, WIN_MORALE: 0.3, PART_TROOPS: 0.1, PART_MORALE: 0.1, LOSE_MORALE: 0.4, HP_K: 40 };
 export function honjinResult(s: GameState, b: Ban): 'win' | 'lose' | 'part' | 'none' {
   const h = heroPiece(b);
-  if (h) { const lost = Math.round((1 - Math.max(0, h.hp) / h.maxhp) * HONJIN.HP_K); if (lost > 0) spendHp(s, lost); }
-  if (b.over === 'lose') return 'lose';
+  if (h && s.hero) { const lost = Math.round((1 - Math.max(0, h.hp) / h.maxhp) * HONJIN.HP_K); if (lost > 0) spendHp(s, lost); }
+  if (b.over === 'lose') { if (!s.hero && h?.gid && s.generals[h.gid]) s.generals[h.gid].sick = Math.max(s.generals[h.gid].sick ?? 0, 1); return 'lose'; } // 当主は手傷で一か月
   if (b.over === 'win' || b.pieces.some((p) => p.sho && p.side === 'foe' && !p.alive)) return 'win'; // 迫った将を討てば勝ち
   return b.kills >= 2 ? 'part' : 'none'; // 二つ以上討てば、少し押し返す
 }

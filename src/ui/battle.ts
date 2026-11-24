@@ -1097,19 +1097,21 @@ async function runAI(alliesOnly = false) {
 let honjinDone: Tactical | null = null;
 async function honjinCheck(u: TUnit): Promise<boolean> {
   const t = tac!, s = gs!, H = s.hero;
-  if (!H || H.story === 'toshiie' || honjinDone === t || u.side === t.playerSide || u.routed || u.out) return false;
+  if ((H && H.story === 'toshiie') || honjinDone === t || u.side === t.playerSide || u.routed || u.out) return false;
   if (!t.playerSide) return false;
-  const hq = hqOf(t, t.playerSide);
-  if (!hq || hq.general !== H.id || tDist(t, u.tile, hq.tile) > 1) return false;
+  const hq = hqOf(t, t.playerSide), lordId = s.clans[s.player]?.leader; // 主人公（総大将）か、大名なら当主が本陣にいる時
+  const meId = H ? H.id : lordId;
+  if (!meId || !hq || hq.general !== meId || tDist(t, u.tile, hq.tile) > 1) return false;
   honjinDone = t;
   const g = u.general ? s.generals[u.general] : null;
   const foe = g ? { name: g.name, bra: g.bra, int: g.int, lea: g.lea, gid: g.id } : { name: `${u.name}の将`, bra: 60, int: 50, lea: 55 };
-  addLog(s, `${u.name}が${s.generals[H.id].name}の本陣に迫った。`, 'battle', true);
-  const b = await openBan(BP.honjinBan(s, foe), `本陣に${foe.name}が迫った`);
+  const myName = s.generals[meId].name;
+  addLog(s, `${u.name}が${myName}の本陣に迫った。`, 'battle', true);
+  const b = await openBan(BP.honjinBan(s, foe, H ? undefined : s.generals[meId]), `本陣に${foe.name}が迫った`, { me: s.clans[s.player]?.color, foe: u.clan ? s.clans[u.clan]?.color : undefined });
   const r = BP.honjinResult(s, b);
-  if (r === 'win') { u.troops = Math.round(u.troops * (1 - BP.HONJIN.WIN_TROOPS)); u.morale = Math.max(0, u.morale - BP.HONJIN.WIN_MORALE); u.acted = true; u.moved = true; addLog(s, `${s.generals[H.id].name}が自ら槍を取って${u.name}を押し返した。`, 'battle', true); }
-  else if (r === 'part') { u.troops = Math.round(u.troops * (1 - BP.HONJIN.PART_TROOPS)); u.morale = Math.max(0, u.morale - BP.HONJIN.PART_MORALE); addLog(s, `${s.generals[H.id].name}の本陣が${u.name}を少し押し返した。`, 'battle', true); }
-  else if (r === 'lose') { hq.morale = Math.max(0, hq.morale - BP.HONJIN.LOSE_MORALE); addLog(s, `${s.generals[H.id].name}が本陣で手傷を負った。本陣が揺らいでいる。`, 'battle', true); }
+  if (r === 'win') { u.troops = Math.round(u.troops * (1 - BP.HONJIN.WIN_TROOPS)); u.morale = Math.max(0, u.morale - BP.HONJIN.WIN_MORALE); u.acted = true; u.moved = true; addLog(s, `${myName}が自ら槍を取って${u.name}を押し返した。`, 'battle', true); }
+  else if (r === 'part') { u.troops = Math.round(u.troops * (1 - BP.HONJIN.PART_TROOPS)); u.morale = Math.max(0, u.morale - BP.HONJIN.PART_MORALE); addLog(s, `${myName}の本陣が${u.name}を少し押し返した。`, 'battle', true); }
+  else if (r === 'lose') { hq.morale = Math.max(0, hq.morale - BP.HONJIN.LOSE_MORALE); addLog(s, `${myName}が本陣で手傷を負った。本陣が揺らいでいる。`, 'battle', true); }
   return r === 'win';
 }
 let delegateQueued = false;
