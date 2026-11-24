@@ -5,6 +5,7 @@ import * as KS from '../engine/kashin';
 import * as RH from '../engine/ryohyojo';
 import * as NE from '../engine/ryoplot';
 import * as SH from '../engine/ryoshin';
+import * as HS from '../engine/homenshin';
 import * as WK from '../engine/watakushi';
 import * as MBU from '../engine/meibutsu';
 import * as PLT from '../engine/plot';
@@ -362,8 +363,9 @@ function openRyoShin(st: GameState, next: () => void) {
   let body = '';
   if (ev.kind === 'kitsumon') body = `${who(`${me.name}、そなたの近ごろの振る舞い、聞き捨てならぬ噂がある。申し開きがあるなら、参って述べよ。`)}<p class="hint">疑い${u}（${SH.utagaiName(u)}）。出向けば申し開き（見込み${Math.round(SH.benmeiChance(st) * 100)}%。魅力・弁舌・主君との親しさが効き、疑いが深いほど通りにくい）。通れば疑い−30、通らなければ覚え−10・疑い+10。拒めば疑いが極まり、討手が来る。</p><div class="actions"><button class="act primary" data-act="rv-go">出向いて申し開く</button><button class="act" data-act="rv-refuse">呼び出しを拒む</button></div>`;
   else if (ev.kind === 'uchite') body = `${who('謀反の企て、もはや明らか。討手を差し向ける。')}<p class="hint">主君の討手が迫っている。謀反を起こすか、出奔するか、命がけで申し開くか（見込み${Math.round(SH.benmeiChance(st, true) * 100)}%。通らなければ領をすべて召し上げられ、足軽大将に落とされる）。</p><div class="actions"><button class="act primary" data-act="rv-rebel" ${rb ? `disabled title="${esc(rb)}"` : ''}>謀反を起こす${rb ? `（${esc(rb)}）` : ''}</button><button class="act" data-act="rv-leave">出奔する</button><button class="act" data-act="rv-benmei">申し開きに出向く</button></div>`;
+  else if (ev.kind === 'hei') body = `${who(`${me.name}。ほかの方面が危うい。そなたの方面から兵${ev.need}を回せ。`)}<p class="hint">従えば方面の城の城兵から兵${ev.need}を主君の城へ回す（主君の覚え+${HS.HOMEN.HEI_OK}。方面は手薄になる）。渋れば覚え−${HS.HOMEN.HEI_NG}・疑い+${HS.HOMEN.HEI_NG_UTA}。</p><div class="actions"><button class="act primary" data-act="rv-hei-ok">兵を回す</button><button class="act" data-act="rv-hei-no">渋る</button></div>`;
   else body = `${who(`${me.name}。家の都合じゃ。${(ev.to ?? []).map((i) => st.castles[i].name).join('・')}へ移れ。`)}<p class="hint">国替え: 育てた領（${RY.fiefCastles(st).map((c) => esc(c.name)).join('・')}）を手放し、${(ev.to ?? []).map((i) => esc(st.castles[i].name)).join('・')}へ移る。従えば覚え+10・疑い−20。背けば討手が来る。</p><div class="actions"><button class="act primary" data-act="rv-obey">従う</button><button class="act" data-act="rv-defy">背く</button></div>`;
-  openModal(`<h2 id="modal-title">${ev.kind === 'kitsumon' ? '詰問' : ev.kind === 'uchite' ? '討手' : '国替え'} ― ${esc(C.name)}家</h2>${body}`, false);
+  openModal(`<h2 id="modal-title">${ev.kind === 'kitsumon' ? '詰問' : ev.kind === 'uchite' ? '討手' : ev.kind === 'hei' ? '兵の取り合い' : '国替え'} ― ${esc(C.name)}家</h2>${body}`, false);
 }
 function shinResult(st: GameState, line: string, text: string) {
   const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null;
@@ -388,6 +390,7 @@ function openShuke(st: GameState) {
     <dl class="kv"><dt>主君</dt><dd>${L ? `${face(L.id, 48)} ${esc(L.name)}` : '―'}</dd><dt>主君の覚え</dt><dd>${H0.favor}</dd>
     <dt>主君の疑い</dt><dd>${SH.utagaiOf(st)}（${SH.utagaiName(SH.utagaiOf(st))}）<span class="hint" style="margin:0">　50で詰問、80で減封、100で討手。覚えがよければ薄れる</span></dd>
     <dt>評定の席次</dt><dd>${(() => { const k = SH.sekiOf(st); const r = SH.rivalJoOf(st); return `家中の城持ち${k.of}人のうち${k.seki}番目${r ? `・張り合う城主は${esc(r.name)}（親しさ${st.hero!.rel[r.id] ?? 0}。親しくないと主君に讒言することがある。主君と懇意なら退けられる）` : ''}`; })()}</dd>
+    ${HS.isHomen(st) ? `<dt>方面の目標</dt><dd>${HS.goalText(st) ? esc(HS.goalText(st)!) : '来月、主君から言い渡される'}</dd><dt>与力</dt><dd>${HS.yorikiOf(st).map((g) => `${esc(g.name)}（親しさ${st.hero!.rel[g.id] ?? 0}${HS.follows(st, g) ? '・謀反や寝返りでついて来る' : ''}）`).join('・') || 'いない'}<span class="hint" style="margin:0">　親しさ60からの与力は、謀反・寝返りの時に城と部隊ごとついて来る。城を落とせば親しくなり、部隊を失えば恨む</span></dd>` : ''}
     <dt>主家の構え</dt><dd>${esc(C.stance ?? '均衡')}${C.target ? `・狙う家 <b>${esc(clanName(st, C.target))}家</b>` : '・狙う家なし'}</dd>
     <dt>攻めてよい家</dt><dd>${[C.target ? `${esc(clanName(st, C.target))}家` : '', g && !g.done ? `軍役の${esc(clanName(st, g.clan))}家` : ''].filter(Boolean).join('・') || 'いまはない'}（領に寄せてきた敵の軍勢はどの家でも討てる）</dd>
     <dt>承っている命</dt><dd>${RH.currentOrder(st) ? esc(RH.orderText(st, RH.currentOrder(st)!)) : 'なし（月のはじめの評定で受ける）'}</dd>
@@ -3043,6 +3046,8 @@ function onModalClick(e: Event) {
     if (act === 'rv-refuse') { shinResult(st, '', SH.kitsumonRefuse(st)); return; }
     if (act === 'rv-obey') { startWith(st); shinResult(st, '', SH.kunigaeObey(st)); return; }
     if (act === 'rv-defy') { shinResult(st, '', SH.kunigaeDefy(st)); return; }
+    if (act === 'rv-hei-ok') { shinResult(st, '', HS.heiObey(st)); return; }
+    if (act === 'rv-hei-no') { shinResult(st, '', HS.heiRefuse(st)); return; }
     if (act === 'rv-rebel') { (st.hero as { shinEv?: unknown }).shinEv = undefined; ryoRebel(st); return; }
     if (act === 'rv-leave') { (st.hero as { shinEv?: unknown }).shinEv = undefined; ryoLeave(st, '討手を逃れ、'); return; }
     if (act === 'rv-benmei') { const r = SH.uchiteBenmei(st); if (r.lost) { closeModal(); store(AUTO_KEY, null); RY.toHero(st); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: r.text }); return; } shinResult(st, r.line, r.text); return; }

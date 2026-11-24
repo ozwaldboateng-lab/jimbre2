@@ -9,6 +9,7 @@ import { ryoshuOf, toRyoshu } from './ryoshu';
 import * as R from './rules';
 import { lv } from './skill';
 import { addUtagai } from './ryoshin';
+import { dissolveCamp } from './jinbure';
 import { addLog, castleKoku, clanCastles, clanName, hostile, rand } from './state';
 import type { GameState } from './types';
 
@@ -33,15 +34,19 @@ export function defectChance(s: GameState, clan: string): number {
 // 領ごと寝返る: 領の城と部隊、家臣は新しい家へ。主人公は新しい家の領主に
 export function defect(s: GameState, clan: string, bonus = 0): string {
   const H = X(s), me = s.generals[H.id], from = me.clan!, f = ryoshuOf(s)!;
-  const castles = fiefCastles(s), armies = [...Object.values(s.armies), ...Object.values(s.camps ?? {})].filter((a) => a.clan === from && a.front === f.id);
+  const warm = (gid: string | null | undefined) => { const g = gid ? s.generals[gid] : null; return !!g && g.yoriki === me.id && (H.rel[g.id] ?? 0) >= 60; };
+  const cold = (gid: string | null | undefined) => { const g = gid ? s.generals[gid] : null; return !!g && g.yoriki === me.id && !warm(gid); };
+  const castles = fiefCastles(s).filter((c) => !cold(c.governor)), armies = [...Object.values(s.armies), ...Object.values(s.camps ?? {})].filter((a) => a.clan === from && a.front === f.id);
   const fromLord = s.clans[from].leader;
   const retainers = new Set(H.retainers ?? []);
   const fromHome = clanCastles(s, from).filter((c) => !castles.includes(c)).sort((a, b) => castleKoku(b) - castleKoku(a))[0];
   for (const g of Object.values(s.generals)) {
+    if (g.yoriki === me.id && warm(g.id)) { g.yoriki = undefined; g.clan = clan; continue; } // 親しい与力はついて来る
+    if (g.yoriki === me.id) for (const cp of Object.values(s.camps ?? {})) if (cp.main === g.id && cp.camp !== undefined && castles.some((c) => c.i === cp.camp)) dissolveCamp(s, cp); // 残る与力の、離れる城の軍団の名簿は解く
     if (g.yoriki === me.id) { g.yoriki = undefined; if (g.clan === from && fromHome && g.status !== 'army' && g.status !== 'camp') { for (const c of castles) if (c.governor === g.id) c.governor = null; g.status = 'free'; g.loc = fromHome.i; } } // 与力は元の主家に残る
   }
   for (const c of castles) { c.owner = clan; c.prevOwner = from; c.prevTurn = s.turn; if (c.governor && !retainers.has(c.governor) && c.governor !== me.id) { const g = s.generals[c.governor]; g.status = 'free'; if (fromHome) g.loc = fromHome.i; c.governor = null; } }
-  for (const a of armies) { a.clan = clan; a.front = undefined; for (const gid of [a.main, ...(a.staff ?? [])]) if (s.generals[gid]) s.generals[gid].clan = clan; }
+  for (const a of armies.filter((x) => !cold(x.main))) { a.clan = clan; a.front = undefined; for (const gid of [a.main, ...(a.staff ?? [])]) if (s.generals[gid]) s.generals[gid].clan = clan; }
   for (const id of retainers) { const g = s.generals[id]; if (g && g.status !== 'dead' && g.status !== 'captive') g.clan = clan; }
   me.clan = clan;
   if (fromLord) H.rel[fromLord] = Math.max(0, (H.rel[fromLord] ?? 0) - 40);

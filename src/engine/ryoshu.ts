@@ -9,6 +9,7 @@ import { hpMonth } from './skill';
 import { orderMonth } from './ryohyojo';
 import { defectOfferMonth } from './ryoplot';
 import { ryoshinMonth } from './ryoshin';
+import { homenMonth } from './homenshin';
 import { KASHIN, capOf, retainersOf, take } from './kashin';
 import { addLog, clanCastles, clanName, hostile, rand } from './state';
 import { NEIGHBORS, hexDist } from './map';
@@ -88,6 +89,7 @@ export function ryoshuAfter(s: GameState): { lines: string[]; back: boolean; bea
   out.push(...orderMonth(s));
   out.push(...defectOfferMonth(s));
   out.push(...ryoshinMonth(s)); // 主君の疑い・加増と国替え・席次と讒言
+  out.push(...homenMonth(s)); // 方面の目標・与力の親しさ・兵の取り合い
   const cev = careerMonth(s);
   if (cev) out.push(...cev.lines);
   const f = ryoshuOf(s);

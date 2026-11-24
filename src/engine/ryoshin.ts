@@ -10,7 +10,7 @@ import { addLog, castleKoku, clanCastles, clanName, hostile, rand } from './stat
 import type { Castle, GameState, General } from './types';
 
 export const SHIN = { KITSUMON: 50, GENPO: 80, UCHITE: 100, KITSU_EVERY: 4, GENPO_EVERY: 6, LOW: 30, MID: 45, HIGH: 60, UP_LOW: 4, UP_MID: 2, DOWN_HIGH: 3, DECAY: 1, BIG: 0.3, BIG_UP: 2, PLOT_UP: 1, LEAK_UP: 20, ZAN_P: 0.08, ZAN_UP: 10, ZAN_FAVOR: 5, ZAN_GUARD: 60, ZAN_REL: 30, KAZO_FAVOR: 75, KAZO_UTA: 30, KAZO_EVERY: 12, KAZO_P: 0.25, KUNI_EVERY: 36, KUNI_P: 0.03 };
-type Ev = { kind: 'kitsumon' | 'uchite' | 'kunigae'; turn: number; to?: number[] };
+type Ev = { kind: 'kitsumon' | 'uchite' | 'kunigae' | 'hei'; turn: number; to?: number[]; need?: number }; // hei: 兵を回せ（方面軍団長。homenshin.ts）
 type SX = { utagai?: number; shinEv?: Ev; kitsuTurn?: number; genpoTurn?: number; kazoTurn?: number; kunigaeTurn?: number; seki?: number; rivalJo?: string; fuchu?: number; ryo?: number[]; secret?: unknown; pact?: string[]; mode?: string; favor: number; rel: Record<string, number>; id: string; retainers?: string[] };
 const X = (s: GameState) => s.hero as unknown as SX;
 const clamp = (v: number) => Math.max(0, Math.min(100, v));

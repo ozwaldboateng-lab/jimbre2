@@ -12,6 +12,7 @@ import { afterRebel, pactArmies, pactCastles } from './plot';
 import { lordHeirEvent } from './family';
 import { lv } from './skill';
 import { delegateOf } from './delegate';
+import { dissolveCamp } from './jinbure';
 import { addFame, fameOf, followersOf, serviceChance, serviceRank } from './roninplay';
 import { followersToRetainers, retainersToFollowers, yoriki } from './kashin';
 import type { Castle, FrontPolicy, Front, GameState } from './types';
@@ -362,8 +363,16 @@ export function rebel(s: GameState): { ok: boolean; text: string; clan?: string;
   if (why) return { ok: false, text: why };
   const H = s.hero!, me = s.generals[H.id], from = me.clan!;
   const f = homenOf(s);
-  const castles = [...new Set([...(f?.castles ?? []), ...domain(s).filter((c) => c.owner === from).map((c) => c.i), ...pactCastles(s)])]; // 約束した味方の城も
-  const armies = [...new Set([...Object.values(s.armies).filter((a) => a.clan === from && (a.heroLed || (f && a.front === f.id))), ...pactArmies(s)])];
+  const cold = (gid: string | null | undefined) => { const g = gid ? s.generals[gid] : null; return !!g && g.yoriki === H.id && (H.rel[g.id] ?? 0) < 60; }; // 親しくない与力（ついて来ない）
+  const castles = [...new Set([...(f?.castles ?? []).filter((i) => !cold(s.castles[i].governor)), ...domain(s).filter((c) => c.owner === from).map((c) => c.i), ...pactCastles(s)])]; // 約束した味方の城も。親しい与力（親しさ60から）の城もついて来る
+  const armies = [...new Set([...Object.values(s.armies).filter((a) => a.clan === from && (a.heroLed || (f && a.front === f.id)) && !cold(a.main)), ...pactArmies(s)])];
+  { const L0 = s.clans[from].leader, lordLoc = L0 ? s.generals[L0].loc : null; // 残る与力は主家の武将に（ついて行く城にいれば、主君の城へ）
+    for (const g of Object.values(s.generals)) if (g.yoriki === H.id && cold(g.id)) {
+      g.yoriki = undefined;
+      for (const i of castles) if (s.castles[i].governor === g.id) s.castles[i].governor = null;
+      for (const cp of Object.values(s.camps ?? {})) if (cp.main === g.id && cp.camp !== undefined && castles.includes(cp.camp)) dissolveCamp(s, cp); // 離れる城で率いていた軍団の名簿は解く
+      if (castles.includes(g.loc) && lordLoc !== null && g.status !== 'army' && g.status !== 'camp') { g.status = 'free'; g.loc = lordLoc; }
+    } }
   const lordName = s.clans[from].leader ? s.generals[s.clans[from].leader!].name : '';
   for (const id of H.retainers ?? []) { const g = s.generals[id]; if (g && g.clan === from && g.status !== 'dead' && g.status !== 'captive') g.liege = me.id; } // 家臣（一門の子も）は名簿から改めて主人公の陪臣にして、皆ついて来させる
   me.status = 'free';
