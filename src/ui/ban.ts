@@ -192,7 +192,7 @@ function drawGround(force = false) {
   }
   // 矢盾（野の障害物）: 矢盾の絵（assets/ban の 08_矢盾）をマスの下寄りに立てる。なければ柵と同じ帯
   const ta = BAN_ART.tate_f?.[0];
-  if (ta) { let im = IMG['ban-tate']; if (!im) { im = new Image(); im.onload = () => drawGround(true); im.src = ta; IMG['ban-tate'] = im; } if (ok(im)) for (const [x, y] of cells('tate')) { const [cx, cy] = ctr(x, y), w = C * 1.04, h = w * im.naturalHeight / im.naturalWidth; c.drawImage(im, cx - w / 2, cy + C * 0.42 - h, w, h); } }
+  if (ta) { let im = IMG['ban-tate']; if (!im) { im = new Image(); im.onload = () => drawGround(true); im.src = ta; IMG['ban-tate'] = im; } if (ok(im)) for (const [x, y] of cells('tate')) { const [cx, cy] = ctr(x, y), w = C * 1.1, h = C * 1.15; c.drawImage(im, cx - w / 2, cy + C * 0.42 - h, w, h); } }
   // 柵: 柵の絵（assets/ban の 07_柵）があればマスに立て、なければ城の柵の帯をマスの中ほどに横に渡す
   const sa = BAN_ART.saku_f?.[0];
   if (sa) { let im = IMG['ban-saku']; if (!im) { im = new Image(); im.onload = () => drawGround(true); im.src = sa; IMG['ban-saku'] = im; } if (ok(im)) for (const [x, y] of cells('saku')) { const [cx, cy] = ctr(x, y); c.drawImage(im, cx - C * 0.6, cy - C * 0.7, C * 1.2, C * 1.2); } }
