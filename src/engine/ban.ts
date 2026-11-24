@@ -66,7 +66,8 @@ export function newBan(o: BanSetup): Ban {
   // 地形: 中ほど（上下3行は陣地として空ける）に林・丘・柵、川を一筋
   const mid = (y: number) => y >= 3 && y <= b.h - 4;
   const put = (t: Terr, n: number) => { for (let k = 0, tries = 0; k < n && tries < 60; tries++) { const x = Math.floor(rnd(b) * b.w), y = 3 + Math.floor(rnd(b) * (b.h - 6)); if (mid(y) && b.terr[y * b.w + x] === '.') { b.terr[y * b.w + x] = t; k++; } } };
-  const ry = 4 + Math.floor(rnd(b) * 2), rx = Math.floor(rnd(b) * 3); for (let x = rx; x < rx + 3 + Math.floor(rnd(b) * 3) && x < b.w; x++) b.terr[ry * b.w + x] = 'kawa';
+  // 川: 盤の左の端から右の端まで一筋（一列に一マス）。途中で一度、上か下へ一行ずれる（4〜5行目のあたり）。四度に一度は川のない盤
+  if (rnd(b) < 0.75) { let ry = 4 + Math.floor(rnd(b) * 2); const jog = 2 + Math.floor(rnd(b) * 4), dy = ry === 4 ? 1 : -1; for (let x = 0; x < b.w; x++) { if (x === jog) { b.terr[ry * b.w + x] = 'kawa'; ry += dy; } b.terr[ry * b.w + x] = 'kawa'; } } // ずれる列は二マス（川筋を途切れさせない）
   put('mori', 2 + Math.floor(rnd(b) * 2)); put('oka', 2); put('saku', 1 + Math.floor(rnd(b) * 2));
   // 並べる: 味方は下の2行、敵は上の2行。主人公（騎馬）は真ん中
   const place = (side: BSide, list: BanSetup['me']) => {

@@ -1,7 +1,6 @@
 // 槍働きの盤の画面: 8×10マス。駒を選び、動く先か攻める敵を押す。敵の手番は一駒ずつ見せる
 import * as B from '../engine/ban';
 import type { Ban, Piece } from '../engine/ban';
-import { TILE_ART } from '../data/tiles';
 import { BAN_ART } from '../data/banArt';
 
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -14,12 +13,13 @@ let aim = false; // 虚報の的を選んでいる
 export type BanColors = { me?: string; foe?: string }; // 駒の色（家の色）
 
 export function openBan(ban: Ban, heading: string, colors: BanColors = {}): Promise<Ban> {
-  b = ban; sel = null; busy = false; title = heading; last = ''; aim = false;
+  b = ban; sel = null; busy = false; title = heading; last = ''; aim = false; groundKey = '';
   if (!root) {
     root = document.createElement('div'); root.id = 'ban'; root.className = 'ban';
     document.body.appendChild(root);
     root.addEventListener('click', onClick);
-    const st = document.createElement('style'); st.textContent = CSS + artCss(); document.head.appendChild(st);
+    const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+    window.addEventListener('resize', () => { if (root && !root.hidden) drawGround(); });
   }
   root.hidden = false;
   const mc = colors.me ?? '#2d4a86'; let fc = colors.foe ?? '#c0483b';
@@ -37,16 +37,8 @@ function cellCls(x: number, y: number, reach: Set<string>, tg: Set<number>) {
   const p = B.at(b!, x, y), t = B.terrAt(b!, x, y);
   return ['bc', `t-${t === '.' ? 'no' : t}`, reach.has(`${x},${y}`) ? 'reach' : '', p && tg.has(p.id) ? (aim ? 'kyo' : 'tgt') : '', p && p.id === sel ? 'sel' : ''].filter(Boolean).join(' ');
 }
-// 地形の層: 野戦と同じ地面の絵（林・丘・川）。柵は馬防柵。同じ地形でも絵を散らす
-const vary = (x: number, y: number, n: number) => (n ? (x * 7 + y * 3 + x * y) % n : 0);
-function terrHtml(x: number, y: number) {
-  const t = B.terrAt(b!, x, y);
-  if (t === '.') return '';
-  if (t === 'saku') return '<i class="tx tx-saku"></i>';
-  const key = t === 'mori' ? 'F' : t === 'oka' ? 'H' : 'R', n = TILE_ART[key]?.length ?? 0;
-  const trees = t === 'mori' && TILE_ART.tree?.length ? `<i class="tree tr${vary(x, y, TILE_ART.tree.length)} a"></i><i class="tree tr${vary(y, x, TILE_ART.tree.length)} b"></i>` : '';
-  return `<i class="tx tx-${t} ${n ? `g${key}${vary(x, y, n)}` : ''}"></i>${trees}`;
-}
+// 地形の名だけ（絵は盤の下のキャンバスに描く）
+function terrHtml(_x: number, _y: number) { return ''; }
 // 駒の絵（assets/ban。なければ文字の駒）。指物は家の色で描く。敵は左右を反転
 const artOf = (p: Piece) => (BAN_ART[p.sho ? 'sho' : p.hero ? 'hero' : p.kind] ?? BAN_ART[p.kind] ?? [])[0];
 function pieceHtml(p: Piece) {
@@ -85,6 +77,7 @@ function render() {
   root.innerHTML = `${duel}<div class="ban-wrap"><div class="ban-head"><b>${esc(title)}</b><span>第${Math.min(b.turn, b.maxTurn)}手／${b.maxTurn}・${phase}・味方${ours}・敵${foes}・手柄${b.tegara}</span></div>
     <div class="ban-body"><div class="ban-grid" style="grid-template-columns:repeat(${b.w},1fr);grid-template-rows:repeat(${b.h},1fr)">${cells}</div>
     <div class="ban-side">${over}${b.over ? '' : infoHtml(s)}${kyoList}${last && !b.over ? `<p class="ban-last">${esc(last)}</p>` : ''}${btns}<div class="ban-log">${b.log.slice(-6).reverse().map((t) => `<p>${esc(t)}</p>`).join('')}</div></div></div></div>`;
+  drawGround();
 }
 async function onClick(e: Event) {
   const el = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null;
@@ -139,14 +132,62 @@ async function foeTurn() {
   busy = false; sel = b.over ? null : nextIdle(); render();
 }
 
-// 地面の絵の CSS（一度だけ作る）: 盤一面に平地、地形のマスに林・丘・川、林に木立、柵は馬防柵
-const PALISADE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><g stroke="#2a1c10" stroke-width="1"><path d="M0 26h40M0 31h40" stroke="#4a3520" stroke-width="2.4"/><g fill="#7a5a36"><path d="M4 38V12l2-4 2 4v26z"/><path d="M14 38V10l2-4 2 4v28z"/><path d="M24 38V12l2-4 2 4v26z"/><path d="M34 38V10l2-4 2 4v28z"/></g></g><path d="M0 38h40" stroke="rgba(0,0,0,.35)" stroke-width="3"/></svg>');
-function artCss() {
-  const u = (k: string, i: number) => TILE_ART[k]?.[i];
-  let css = `.ban-grid{background-image:url(${u('P', 0) ?? ''})}.tx-saku{background-image:url("${PALISADE}")}`;
-  for (const k of ['F', 'H', 'R']) (TILE_ART[k] ?? []).forEach((v, i) => { css += `.g${k}${i}{background-image:url(${v})}`; });
-  (TILE_ART.tree ?? []).forEach((v, i) => { css += `.tr${i}{background-image:url(${v})}`; });
-  return css;
+// ───────── 地面（野戦と同じ絵・同じ描き方。盤ごとに一度だけ描き、駒のマスの下に敷く） ─────────
+// 草地を全面に、二枚目の草地を薄く重ねる。丘・林は野戦の地形の絵（林は大きめに）。川は左から右への川筋（なめらかな曲線）に、河原・岸・水面・深みを塗る。柵は城の柵の帯
+const IMG: Record<string, HTMLImageElement> = {};
+const img = (n: string) => { let im = IMG[n]; if (!im) { im = new Image(); im.onload = () => drawGround(true); im.src = `tiles/battle/${n}.webp`; IMG[n] = im; } return im; };
+const ok = (im?: HTMLImageElement): im is HTMLImageElement => !!im && im.complete && im.naturalWidth > 0;
+let ground: HTMLCanvasElement | null = null, groundKey = '';
+const pick = (x: number, y: number, n: number) => (x * 7 + y * 3 + x * y) % n;
+function drawGround(force = false) {
+  if (!b || !root) return;
+  const grid = root.querySelector('.ban-grid') as HTMLElement | null; if (!grid) return;
+  if (!ground) { ground = document.createElement('canvas'); ground.className = 'ban-bg'; }
+  if (ground.parentElement !== grid) grid.prepend(ground);
+  const W = grid.clientWidth, H = grid.clientHeight; if (!W || !H) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1), key = `${b.terr.join('')}:${W}x${H}:${dpr}`;
+  if (!force && key === groundKey) return;
+  groundKey = key;
+  ground.width = Math.round(W * dpr); ground.height = Math.round(H * dpr);
+  const c = ground.getContext('2d')!; c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const C = W / b.w, ctr = (x: number, y: number): [number, number] => [(x + 0.5) * C, (y + 0.5) * C];
+  const pat = (im: HTMLImageElement, size: number, dx = 0, dy = 0) => { const p = c.createPattern(im, 'repeat'); p?.setTransform(new DOMMatrix().translate(dx, dy).scale(size / im.naturalWidth)); return p; };
+  // 草地
+  const g1 = img('grass1'), g2 = img('grass2'), wt = img('water');
+  c.fillStyle = '#7d8a52'; c.fillRect(0, 0, W, H);
+  if (ok(g1)) { c.fillStyle = pat(g1, C * 4.2)!; c.fillRect(0, 0, W, H); }
+  if (ok(g2)) { c.globalAlpha = 0.35; c.fillStyle = pat(g2, C * 5.5, C * 1.7, C * 2.3)!; c.fillRect(0, 0, W, H); c.globalAlpha = 1; }
+  const cells = (t: B.Terr) => { const out: [number, number][] = []; for (let y = 0; y < b!.h; y++) for (let x = 0; x < b!.w; x++) if (B.terrAt(b!, x, y) === t) out.push([x, y]); return out; };
+  const sprite = (name: string, x: number, y: number, size: number, up = 0) => { const im = img(`${name}${pick(x, y, 3) + 1}`); if (!ok(im)) return; const [cx, cy] = ctr(x, y); c.drawImage(im, cx - size / 2, cy - size / 2 - up, size, size); };
+  // 丘
+  for (const [x, y] of cells('oka')) sprite('oka', x, y, C * 1.5);
+  // 川: 一列に一マス（ずれる列は二マス）を左から順に結ぶ。盤の左右の端は外へ流れ出る
+  const rs = cells('kawa');
+  if (rs.length) {
+    const cols = new Map<number, number[]>(); for (const [x, y] of rs) cols.set(x, [...(cols.get(x) ?? []), y]);
+    const pts: [number, number][] = []; let py = -1;
+    for (const x of [...cols.keys()].sort((p, q) => p - q)) { const ys = cols.get(x)!.sort((p, q) => Math.abs(p - py) - Math.abs(q - py)); for (const y of ys) { pts.push(ctr(x, y)); py = y; } }
+    if (pts.length) {
+      if (cols.has(0)) pts.unshift([pts[0][0] - C * 2, pts[0][1]]);
+      if (cols.has(b.w - 1)) pts.push([pts[pts.length - 1][0] + C * 2, pts[pts.length - 1][1]]);
+      const path = new Path2D(); path.moveTo(pts[0][0], pts[0][1]);
+      for (let k = 1; k < pts.length - 1; k++) path.quadraticCurveTo(pts[k][0], pts[k][1], (pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2);
+      path.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+      c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+      c.filter = `blur(${Math.max(2, C * 0.12)}px)`; c.strokeStyle = 'rgba(88,74,44,0.6)'; c.lineWidth = C * 1.25; c.stroke(path); // 河原
+      c.filter = `blur(${Math.max(1, C * 0.03)}px)`; c.strokeStyle = 'rgba(70,62,40,0.55)'; c.lineWidth = C * 0.92; c.stroke(path); c.filter = 'none'; // 岸
+      c.strokeStyle = (ok(wt) ? pat(wt, C * 3) : null) ?? '#5f8c96'; c.lineWidth = C * 0.82; c.stroke(path); // 水面
+      c.filter = `blur(${Math.max(2, C * 0.1)}px)`; c.strokeStyle = 'rgba(18,36,42,0.16)'; c.lineWidth = C * 0.4; c.stroke(path); c.filter = 'none'; // 流れの深み
+      c.restore();
+    }
+  }
+  // 柵: 柵の絵（assets/ban の 07_柵）があればマスに立て、なければ城の柵の帯をマスの中ほどに横に渡す
+  const sa = BAN_ART.saku?.[0];
+  if (sa) { let im = IMG['ban-saku']; if (!im) { im = new Image(); im.onload = () => drawGround(true); im.src = sa; IMG['ban-saku'] = im; } if (ok(im)) for (const [x, y] of cells('saku')) { const [cx, cy] = ctr(x, y); c.drawImage(im, cx - C * 0.6, cy - C * 0.7, C * 1.2, C * 1.2); } }
+  const sk = img('w_saku');
+  if (!sa && ok(sk)) for (const [x, y] of cells('saku')) { const [cx, cy] = ctr(x, y), sw = sk.naturalHeight * 2; c.drawImage(sk, (x * sw) % (sk.naturalWidth - sw), 0, sw, sk.naturalHeight, cx - C / 2, cy - C * 0.28, C, C * 0.56); }
+  // 林（大きめ。上の行から順に重ねる）
+  for (const [x, y] of cells('mori')) sprite('mori', x, y, C * 1.8, C * 0.12);
 }
 const CSS = `
 .ban{position:fixed;inset:0;z-index:95;background:rgba(8,6,4,.92);display:flex;align-items:center;justify-content:center;overflow:auto;color:#eadfc8;font-family:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif}
@@ -154,13 +195,9 @@ const CSS = `
 .ban-wrap{box-sizing:border-box;width:min(980px,100%);padding:16px;margin:auto}
 .ban-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin-bottom:10px}.ban-head b{font-size:20px;color:#cfa95e}.ban-head span{font-size:13px;opacity:.85}
 .ban-body{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-.ban-grid{display:grid;gap:0;flex:0 1 auto;width:min(480px,100%);aspect-ratio:8/10;background-color:#7d8a52;background-size:180px 180px;border:1px solid rgba(207,169,94,.55);border-radius:4px;box-sizing:border-box;overflow:hidden}
-.bc{position:relative;border:0;padding:0;margin:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;font:inherit;color:inherit;box-shadow:inset 0 0 0 .5px rgba(30,22,12,.35)}
-.tx{position:absolute;inset:0;background-size:cover;background-position:center;pointer-events:none}
-.tx-mori,.tx-oka{-webkit-mask-image:radial-gradient(circle,#000 58%,transparent 78%);mask-image:radial-gradient(circle,#000 58%,transparent 78%);inset:-12%}
-.tx-kawa{background-color:#5f87a6;background-size:120px 120px;background-repeat:repeat}
-.tree{position:absolute;width:62%;aspect-ratio:1;background-size:contain;background-repeat:no-repeat;pointer-events:none}.tree.a{left:2%;top:4%}.tree.b{right:0;bottom:6%}
-.tx-saku{background-repeat:repeat-x;background-size:auto 100%}
+.ban-grid{position:relative;display:grid;gap:0;flex:0 1 auto;width:min(480px,100%);aspect-ratio:8/10;background-color:#7d8a52;border:1px solid rgba(207,169,94,.55);border-radius:4px;box-sizing:border-box;overflow:hidden}
+.bc{position:relative;border:0;padding:0;margin:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;font:inherit;color:inherit;box-shadow:inset 0 0 0 .5px rgba(30,22,12,.35);z-index:1}
+.ban-bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 .bc.reach{box-shadow:inset 0 0 0 3px rgba(80,170,230,.95)}.bc.tgt{box-shadow:inset 0 0 0 3px rgba(225,70,60,.95)}.bc.sel{box-shadow:inset 0 0 0 3px #f2d27a}
 .pc{position:relative;width:78%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:clamp(14px,4.2vw,22px);font-weight:700;box-shadow:0 2px 4px rgba(0,0,0,.5);overflow:hidden}
 .pc{z-index:1}.pc.me{background:#f1e6c8;color:#1d2b4a;border:3px solid var(--me)}.pc.foe{background:#2a1a16;color:#f3d9c8;border:3px solid var(--foe)}
