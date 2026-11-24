@@ -25,6 +25,7 @@ import * as YR from '../engine/yari';
 import * as RY from '../engine/ryoshu';
 import * as YO from '../engine/yorioya';
 import * as BP from '../engine/banplay';
+import * as BN from '../engine/ban';
 import { openBan } from './ban';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
@@ -439,7 +440,7 @@ const dateOf = (st: GameState, turn: number) => { const m0 = (st.startMonth ?? 6
 function hyojoHtml(st: GameState) {
   if (SK.pupilOf(st)) return '<div class="hr-offer"><button class="hr-btn primary" data-h="pupil-teach">教える</button><button class="hr-btn" data-h="pupil-no">断る</button></div>';
   if (YR.duelOf(st)) return '<div class="hr-offer"><button class="hr-btn primary" data-h="duel-yes">受けて立つ</button><button class="hr-btn" data-h="duel-no">退く</button></div>';
-  if (YR.banPendOf(st)) return '<div class="hr-offer"><button class="hr-btn primary" data-h="ban-go">槍を取る（盤で戦う）</button><button class="hr-btn" data-h="ban-auto">任せる（オート）</button></div>';
+  if (YR.banPendOf(st)) { const P = YR.banPendOf(st)!; const mo = P.mochi ? `<div class="hr-offer hr-mochi"><span class="hr-rel">持ち場: ${BN.MOCHI_NAME[P.mochi]}（寄親の言い渡し）</span>${(['senjin', 'waki', 'teppo', 'gozume'] as const).map((m) => m === P.mochi ? '' : `<button class="hr-btn sm" data-h="ban-mochi" data-id="${m}" ${P.asked ? 'disabled' : ''} title="${esc(BN.MOCHI_DESC[m])}">${BN.MOCHI_NAME[m]}を願う</button>`).join('')}</div>` : ''; return `${mo}<div class="hr-offer"><button class="hr-btn primary" data-h="ban-go">槍を取る（盤で戦う）</button><button class="hr-btn" data-h="ban-auto">任せる（オート）</button></div>`; }
   const hy = st.hero!.hyojo;
   if (!hy || hy.turn !== st.turn) return '<div class="hr-offer"><button class="hr-btn primary" data-h="q-accept">承る</button><button class="hr-btn" data-h="q-decline">断る</button></div>';
   return `<div class="hr-cands">${hy.cands.map((q, i) => `<button class="hr-cand" data-h="q-pick" data-id="${i}"><b>${esc(H.QUEST_NAME[q.kind])}</b><span>${esc(H.questText(st, q))}</span></button>`).join('')}</div><div class="hr-offer"><button class="hr-btn" data-h="q-decline">どれも断る</button></div>`;
@@ -502,7 +503,7 @@ async function advance() {
   if (monthPassed && CR.freeHero(st)) { // 槍働き（主人公の軍勢が戦った月）。一騎討ちを挑まれたら、受けるか退くかを先に
     if (YR.banPendOf(st) || (st.hero as { banPend?: unknown }).banPend) { const ob = BP.autoBan(st); if (ob) { const t2 = BP.applyBan(st, ob); lines.push(...t2); for (const x of t2) H.note(st, x); } else YR.clearBanPend(st); } // 前の月の槍働きを放っておいた: 任せたことにする
     const am = YR.aftermath(st); lines.push(...am.lines); for (const x of am.lines) H.note(st, x);
-    if (am.ban) { const P = YR.banPendOf(st)!; say = { text: `${P.foeName}との合戦（${P.won ? '味方の勝ち戦' : '味方の負け戦'}）。隊を率いない身として、自分の槍働きをどうする。盤で戦えば一番槍・敵将との一騎討ち・${P.won ? '追い討ち' : '殿'}で手柄を立てられる。`, hold: true, offer: true }; }
+    if (am.ban) { const P = YR.banPendOf(st)!; say = { text: `${P.foeName}との合戦（${P.won ? '味方の勝ち戦' : '味方の負け戦'}）。隊を率いない身として、自分の槍働きをどうする。盤で戦えば一番槍・敵将との一騎討ち・${P.won ? '追い討ち' : '殿'}で手柄を立てられる。${P.mochi ? `持ち場は${BN.MOCHI_NAME[P.mochi]}（${BN.MOCHI_DESC[P.mochi]}）。ほかの持ち場を一度だけ願い出られる。` : ''}`, hold: true, offer: true }; }
     if (!am.duel && !say?.offer) { const pg = SK.pupilEvent(st, H.townsfolk(st, st.hero!.town), () => Math.random()); if (pg) { const pk = SK.pupilOf(st)!.k; say = { who: pg.id, line: `${H.heroOf(st)!.name}殿の${SK.SKILL_NAME[pk]}、聞き及んでおります。……どうか、教えを乞いたい`, text: `${pg.name}が${SK.SKILL_NAME[pk]}の弟子入りを願ってきた。教えれば親しくなり、謝礼も入る（1旬）。`, hold: true, offer: true }; } }
     if (am.duel) { const f = st.generals[am.duel]; say = { who: f.id, line: `そこな武者、名のある者と見た。${f.name}、一騎討ちを所望する！`, text: `敵将${f.name}（武勇${f.bra}）が一騎討ちを挑んできた。勝つ見込み${Math.round(YR.duelChance(st, f.id) * 100)}%。`, hold: true, offer: true }; }
   }
@@ -728,6 +729,7 @@ function onClick(e: Event) {
   if (h === 'pupil-teach') { const r = SK.teachPupil(s, () => Math.random()); H.note(s, r.text); say = { who: r.who, line: r.line, text: r.text, hold: true }; save(); render(); return; } // 月の報告は、この窓を閉じてから
   if (h === 'pupil-no') { const r = SK.declinePupil(s); say = { text: r.text, hold: true }; save(); render(); return; }
   if (h === 'duel-no') { const r = YR.declineDuel(s); say = { text: r.text, hold: true }; save(); render(); return; }
+  if (h === 'ban-mochi') { const r = BP.askMochi(s, id as import('../engine/ban').Mochi); H.note(s, r.text); if (say) say = { ...say, text: `${say.text.replace(/（持ち場の願い: .*?）$/, '')}（持ち場の願い: ${r.text}）` }; save(); render(); return; }
   if (h === 'ban-go' || h === 'ban-auto') {
     const st = s, P = YR.banPendOf(st); if (!P) { say = null; render(); return; }
     const fin = (bn: import('../engine/ban').Ban) => { const t2 = BP.applyBan(st, bn); for (const x of t2) H.note(st, x); say = { text: t2.join(''), hold: true }; save(); render(); };
@@ -809,7 +811,7 @@ export const CSS = `
 .hr-scene.map .hr-town{position:relative;z-index:1;pointer-events:none}
 .hr-dlg{box-sizing:border-box;margin:auto;align-self:center;width:min(720px,calc(100% - 32px));max-height:calc(100% - 24px);overflow:auto;background:rgba(10,10,10,.9);border:1px solid rgba(207,169,94,.6);padding:18px 22px;border-radius:4px;position:relative;z-index:2}.hr-dlg .hr-dsub{margin:2px 0;font-size:12.5px;opacity:.85}.hr-dacts{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px}.hr-dacts .hr-btn{flex:1 1 180px}.hr-dacts .hr-btn small{display:block;font-size:10.5px;opacity:.85;margin-top:2px}.hr-dacts .hr-rel{align-self:center;color:#cfa95e}.hr-dclose{float:right}.hr-meet{width:100%;text-align:left;cursor:pointer;color:inherit;font:inherit;background:transparent}.hr-meet:hover{background:rgba(207,169,94,.08)}.hr-go{margin-left:auto;font-style:normal;color:#cfa95e;font-size:12px;white-space:nowrap;align-self:center}
 .hr-say.hold{cursor:pointer}.hr-close{display:block;text-align:right;font-size:12px;color:#cfa95e;opacity:.8;margin-top:6px}.hr-cands{display:flex;flex-direction:column;gap:6px;margin-top:10px}.hr-cand{text-align:left;background:rgba(207,169,94,.08);border:1px solid rgba(207,169,94,.45);color:inherit;padding:8px 12px;border-radius:3px;cursor:pointer;font:inherit}.hr-cand:hover{background:rgba(207,169,94,.2)}.hr-cand b{display:block;color:#cfa95e;font-size:14px}.hr-cand span{font-size:12.5px;opacity:.9}
-.hr-offer{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}.hr-offer .hr-btn{min-width:96px}
+.hr-offer{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}.hr-mochi{flex-wrap:wrap;justify-content:flex-start;gap:6px}.hr-mochi .hr-rel{flex-basis:100%;color:#cfa95e}.hr-mochi .hr-btn{flex:1 1 auto;padding:6px 8px;font-size:12.5px}.hr-offer .hr-btn{min-width:96px}
 .hr-say.mini{position:relative;z-index:1;margin:auto 12px 12px;width:auto;align-self:stretch;padding:10px 14px;pointer-events:none}
 .hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}

@@ -15,7 +15,7 @@ export const YARI = {
 };
 type Battle = { turn: number; won: boolean; foe?: string; castle?: string; foeName: string; lead?: boolean; yori?: boolean }; // lead: 主人公が軍勢を率いていた。yori: 寄親が同じ側の軍勢にいた
 type Deeds = { kubi: number; duel: number; castles: number; wins: number; battles: number };
-export type BanPend = { turn: number; won: boolean; foe?: string; foeName: string; yori?: boolean };
+export type BanPend = { turn: number; won: boolean; foe?: string; foeName: string; yori?: boolean; mochi?: 'senjin' | 'waki' | 'teppo' | 'gozume'; asked?: boolean }; // mochi: 持ち場（足軽大将から。寄親の言い渡し）・asked: 願い出たか
 type YX = { battle?: Battle; duel?: { foe: string; turn: number }; deeds?: Deeds; banPend?: BanPend };
 const X = (s: GameState) => s.hero! as typeof s.hero & YX;
 export const deedsOf = (s: GameState): Deeds => (X(s).deeds ??= { kubi: 0, duel: 0, castles: 0, wins: 0, battles: 0 });
@@ -48,7 +48,7 @@ export function aftermath(s: GameState): { lines: string[]; duel: string | null;
   const d = deedsOf(s), out: string[] = [];
   d.battles++; if (b.won) d.wins++;
   if (b.castle) { d.castles++; out.push(`${b.castle}の攻めに加わり、城は落ちた。`); }
-  if (!b.lead) { H.banPend = { turn: s.turn, won: b.won, foe: b.foe, foeName: b.foeName, yori: b.yori }; out.push(`${b.foeName}との合戦に加わった（${b.won ? '勝ち戦' : '負け戦'}）。`); return { lines: out, duel: null, ban: true }; }
+  if (!b.lead) { const ms = ['senjin', 'waki', 'teppo', 'gozume'] as const; H.banPend = { turn: s.turn, won: b.won, foe: b.foe, foeName: b.foeName, yori: b.yori, mochi: me.rank <= 2 ? ms[Math.floor(rand(s) * 4)] : undefined }; out.push(`${b.foeName}との合戦に加わった（${b.won ? '勝ち戦' : '負け戦'}）。`); return { lines: out, duel: null, ban: true }; }
   const p = (YARI.KUBI_P + lv(s, 'yari') * YARI.KUBI_YARI + me.bra / 400) * (b.won ? 1 : 0.5);
   if (rand(s) < p) { d.kubi++; H.kubi = (H.kubi ?? 0) + 1; me.merit += YARI.KUBI_MERIT; out.push(`${b.foeName}との合戦で、${me.name}は自ら槍を振るい、首級を挙げた（功績+${YARI.KUBI_MERIT}）。`); }
   else out.push(`${b.foeName}との合戦に加わった（${b.won ? '勝ち戦' : '負け戦'}）。`);

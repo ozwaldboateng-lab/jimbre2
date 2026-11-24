@@ -1,5 +1,5 @@
 // 槍働きの盤を、遊びの状態から組み立てる（主人公の駒・配下の駒・敵の駒）
-import { autoAll, BAN, BKind, hero as heroPiece, kindOf, newBan, type Ban, type BanSetup, type Who } from './ban';
+import { autoAll, BAN, BKind, hero as heroPiece, kindOf, MOCHI_NAME, newBan, type Ban, type BanSetup, type Mochi, type Who } from './ban';
 import { banPendOf, clearBanPend, deedsOf, YARI } from './yari';
 import { retainersOf } from './kashin';
 import { hpMax, hpOf, lv, spendHp } from './skill';
@@ -52,9 +52,12 @@ export function battleBan(s: GameState): Ban | null {
   const f = P.foe ? s.generals[P.foe] : null, ok = f && f.status !== 'dead' && f.status !== 'captive';
   const sho: Who = ok ? { name: f!.name, bra: f!.bra, int: f!.int, lea: f!.lea, gid: f!.id, sho: true } : { name: '敵の侍大将', bra: 66, int: 56, lea: 62, sho: true };
   const mob = (k: BKind) => ({ kind: k, who: null });
-  const rv = rivalPiece(s), friends: BanSetup['me'] = [...myPieces(s), ...rv, ...allyPieces(s, BANP_ALLY.MAX - rv.length)];
+  const mochi = P.mochi as Mochi | undefined;
+  const mine = myPieces(s).map((u, i) => (mochi === 'teppo' && i > 0 && !u.who ? { ...u, kind: 'teppo' as BKind } : u)); // 鉄砲備え: モブは鉄砲
+  const rv = rivalPiece(s), friends: BanSetup['me'] = [...mine, ...rv, ...allyPieces(s, BANP_ALLY.MAX - rv.length)];
   return newBan({
-    me: friends, foe: ([...(['ashi', 'ashi', 'yumi', 'teppo'] as BKind[]), ...friends.filter((u) => u.who?.npc || u.who?.rival).map(() => 'ashi' as BKind)]).map(mob), seed: Math.floor(rand(s) * 1e9), // 同輩・同僚一人につき敵の足軽を一駒増やす
+    mochi, rescue: mochi === 'gozume' ? [mob('ashi'), mob('yumi')] : undefined,
+    me: friends, foe: ([...(['ashi', 'ashi', 'yumi', 'teppo'] as BKind[]), ...friends.filter((u) => u.who?.npc || u.who?.rival).map(() => 'ashi' as BKind), ...(mochi === 'senjin' ? ['ashi' as BKind] : [])]).map(mob), seed: Math.floor(rand(s) * 1e9), // 同輩・同僚一人につき敵の足軽を一駒増やす
     mid: [{ kind: 'kiba', who: sho }, mob('ashi')], end: P.won ? 'oiuchi' : 'shingari', late: [mob('kiba'), mob('ashi'), mob('ashi')],
   });
 }
@@ -105,3 +108,14 @@ export function applyBan(s: GameState, b: Ban): string[] {
   return out;
 }
 export { BAN };
+
+// 持ち場を願い出る（一合戦に一度）: 寄親との親しさ30からは聞き入れられる。それより下は半々
+export function askMochi(s: GameState, m: Mochi): { ok: boolean; text: string } {
+  const P = banPendOf(s); if (!P || !P.mochi) return { ok: false, text: '持ち場はない' };
+  if (P.asked) return { ok: false, text: 'もう願い出た' };
+  if (P.mochi === m) return { ok: false, text: 'すでにその持ち場' };
+  P.asked = true;
+  const Y = (s.hero as typeof s.hero & { yorioya?: string })?.yorioya, v = Y ? s.hero!.rel[Y] ?? 0 : 0, y = Y ? s.generals[Y] : null;
+  if (v >= 30 || rand(s) < 0.5) { P.mochi = m; return { ok: true, text: `${y ? `寄親の${y.name}は` : ''}願いを聞き入れた。持ち場は${MOCHI_NAME[m]}。` }; }
+  return { ok: false, text: `${y ? `寄親の${y.name}は` : ''}願いを退けた。持ち場は${MOCHI_NAME[P.mochi]}のまま。` };
+}
