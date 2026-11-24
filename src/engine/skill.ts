@@ -32,7 +32,7 @@ export function addExp(s: GameState, k: SkillKey, n: number): boolean {
 }
 
 // ───────── 体力 ─────────
-export const HP = { ACT: 5, WORK: 8, TRAVEL: 7, TRAIN: 12, CAMP: 10, REST: 30, MONTH: 10, LOW: 15, SICK_P: 0.25, SICK_MAX: 2 };
+export const HP = { ACT: 5, WORK: 8, TRAVEL: 7, TRAIN: 12, CAMP: 10, CAMP_REST: 15, TIRED: 30, REST: 30, MONTH: 10, LOW: 15, SICK_P: 0.25, SICK_MAX: 2 };
 export const hpMax = (s: GameState) => { const me = s.generals[s.hero!.id], age = s.year - (me.born ?? s.year - 30); return Math.max(50, 100 - Math.max(0, age - 40) * 2); };
 export const hpOf = (s: GameState) => Math.min(hpMax(s), X(s).hp ?? hpMax(s));
 export function spendHp(s: GameState, n: number) { const H = X(s); if (H.story === 'toshiie') return; H.hp = Math.max(0, Math.min(hpMax(s), hpOf(s) - n)); }

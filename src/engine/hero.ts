@@ -290,16 +290,20 @@ export function joinArmy(s: GameState, id: number): Act {
 export function leaveCamp(s: GameState): Act {
   const H = s.hero!, me = heroOf(s)!, a = inArmy(s);
   if (!a) return { ok: false, text: '陣にいない' };
-  const sick = (me.sick ?? 0) > 0; // 病なら、敵が近くても後送される
-  if (!sick && Object.values(s.armies).some((x) => hostile(s, me.clan!, x.clan) && hexDist(x.hex, a.hex) <= 2)) return { ok: false, text: '敵が近く、陣を離れれば逃げたと見なされる' };
+  const sick = (me.sick ?? 0) > 0 || hpOf(s) <= HP.TIRED; // 病か疲れ果てていれば、敵が近くても後送される
+  const flee = !sick && Object.values(s.armies).some((x) => hostile(s, me.clan!, x.clan) && hexDist(x.hex, a.hex) <= 2); // 敵が近いのに離れる: 逃げたと見なされる（覚え−8・名声−1）
+  if (flee) { H.favor = Math.max(0, H.favor - LEAVE.FAVOR); H.fame = Math.max(0, (H.fame ?? 0) - LEAVE.FAME); }
   if (!leaveArmy(s, me)) removeArmy(s, a);
   H.army = null; me.army = null; me.boss = undefined; me.status = 'hero';
   const back = returnLent(s);
   used(s);
   note(s, `${placeOf(s, H.hex)}で陣を離れた。`);
-  if (sick) { const c = sickBack(s); return { ok: true, text: `病の身で陣を離れ、${c ? `${c.name}の城下へ下がった` : '野で養生する'}。${back.join('')}休んで治す。` }; }
-  return { ok: true, text: `陣を離れた。${back.join('')}${H.field ? '野にいる。旅を続けよ。' : `${s.castles[H.town].name}の城下にいる。`}` };
+  if (sick) { const c = sickBack(s); return { ok: true, text: `${(me.sick ?? 0) > 0 ? '病の身' : '疲れ果てた身'}で陣を離れ、${c ? `${c.name}の城下へ下がった` : '野で養生する'}。${back.join('')}休んで${(me.sick ?? 0) > 0 ? '治す' : '体力を戻す'}。` }; }
+  if (flee) note(s, '敵を前に陣を離れ、逃げたと陰で言われた。');
+  return { ok: true, text: `陣を離れた。${flee ? `敵を前にしての離脱で、逃げたと見なされた（主君の覚え−${LEAVE.FAVOR}・名声−${LEAVE.FAME}）。` : ''}${back.join('')}${H.field ? '野にいる。旅を続けよ。' : `${s.castles[H.town].name}の城下にいる。`}` };
 }
+export const LEAVE = { FAVOR: 8, FAME: 1 }; // 敵を前に陣を離れた時
+export const leaveCampNote = (s: GameState) => { const me = heroOf(s)!, a = inArmy(s); if (!a) return ''; if ((me.sick ?? 0) > 0) return '病の身なら、敵が近くても離れて近くの城へ下がる'; if (hpOf(s) <= HP.TIRED) return '疲れ果てている。敵が近くても、離れて近くの城へ下がれる'; return Object.values(s.armies).some((x) => hostile(s, me.clan!, x.clan) && hexDist(x.hex, a.hex) <= 2) ? `敵が近い。いま離れれば逃げたと見なされる（主君の覚え−${LEAVE.FAVOR}・名声−${LEAVE.FAME}）` : '軍勢を離れて城下へ'; };
 // 病で陣を離れた時: 近くの自家の城下へ下がる（野に出たまま動けなくならないように）
 export function sickBack(s: GameState): Castle | null {
   const H = s.hero!, me = heroOf(s)!;
@@ -321,8 +325,8 @@ function returnLent(s: GameState): string[] {
 }
 export function campWait(s: GameState): Act {
   const a = inArmy(s);
-  used(s, HP.CAMP);
-  return { ok: true, text: a ? `陣中で過ごした。兵${a.troops.toLocaleString()}、士気${a.morale.toFixed(2)}。${a.fought === s.turn ? 'この月、合戦があった。' : ''}` : '陣中で過ごした。' };
+  used(s, -HP.CAMP_REST); // 陣中でも体を休められる（城下で休むほどは戻らない）
+  return { ok: true, text: a ? `陣中で体を休めつつ戦を待った（体力${hpOf(s)}／${hpMax(s)}）。兵${a.troops.toLocaleString()}、士気${a.morale.toFixed(2)}。${a.fought === s.turn ? 'この月、合戦があった。' : ''}` : `陣中で体を休めた（体力${hpOf(s)}／${hpMax(s)}）。` };
 }
 // 陣中の顔ぶれ（訪ねられる）
 export function comrades(s: GameState): General[] {
