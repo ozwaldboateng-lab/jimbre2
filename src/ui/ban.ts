@@ -1,6 +1,8 @@
 // 槍働きの盤の画面: 8×10マス。駒を選び、動く先か攻める敵を押す。敵の手番は一駒ずつ見せる
 import * as B from '../engine/ban';
 import type { Ban, Piece } from '../engine/ban';
+import { TILE_ART } from '../data/tiles';
+import { BAN_ART } from '../data/banArt';
 
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -9,29 +11,49 @@ const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matc
 let b: Ban | null = null, root: HTMLElement | null = null, sel: number | null = null, busy = false, title = '', done: ((b: Ban) => void) | null = null;
 let last = ''; // いちばん新しい出来事（目立たせる）
 let aim = false; // 虚報の的を選んでいる
+export type BanColors = { me?: string; foe?: string }; // 駒の色（家の色）
 
-export function openBan(ban: Ban, heading: string): Promise<Ban> {
+export function openBan(ban: Ban, heading: string, colors: BanColors = {}): Promise<Ban> {
   b = ban; sel = null; busy = false; title = heading; last = ''; aim = false;
   if (!root) {
     root = document.createElement('div'); root.id = 'ban'; root.className = 'ban';
     document.body.appendChild(root);
     root.addEventListener('click', onClick);
-    const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+    const st = document.createElement('style'); st.textContent = CSS + artCss(); document.head.appendChild(st);
   }
   root.hidden = false;
+  const mc = colors.me ?? '#2d4a86'; let fc = colors.foe ?? '#c0483b';
+  if (near(mc, fc)) fc = near(mc, '#c0483b') ? '#2b3f6e' : '#c0483b'; // 味方と敵の色が近ければ、敵を見分けやすい色に
+  root.style.setProperty('--me', mc); root.style.setProperty('--foe', fc);
   (window as unknown as { __ban: unknown }).__ban = { get b() { return b; }, render }; // 試験用
   render();
   return new Promise((r) => { done = r; });
 }
 
+const rgb = (h: string) => { const m = /^#?([0-9a-f]{6})$/i.exec(h.trim()); const n = m ? parseInt(m[1], 16) : 0; return [n >> 16, (n >> 8) & 255, n & 255]; };
+const near = (a: string, c: string) => { const x = rgb(a), y = rgb(c); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 110; };
 const me = (p: Piece | null) => !!p && p.side === 'me';
 function cellCls(x: number, y: number, reach: Set<string>, tg: Set<number>) {
   const p = B.at(b!, x, y), t = B.terrAt(b!, x, y);
   return ['bc', `t-${t === '.' ? 'no' : t}`, reach.has(`${x},${y}`) ? 'reach' : '', p && tg.has(p.id) ? (aim ? 'kyo' : 'tgt') : '', p && p.id === sel ? 'sel' : ''].filter(Boolean).join(' ');
 }
+// 地形の層: 野戦と同じ地面の絵（林・丘・川）。柵は馬防柵。同じ地形でも絵を散らす
+const vary = (x: number, y: number, n: number) => (n ? (x * 7 + y * 3 + x * y) % n : 0);
+function terrHtml(x: number, y: number) {
+  const t = B.terrAt(b!, x, y);
+  if (t === '.') return '';
+  if (t === 'saku') return '<i class="tx tx-saku"></i>';
+  const key = t === 'mori' ? 'F' : t === 'oka' ? 'H' : 'R', n = TILE_ART[key]?.length ?? 0;
+  const trees = t === 'mori' && TILE_ART.tree?.length ? `<i class="tree tr${vary(x, y, TILE_ART.tree.length)} a"></i><i class="tree tr${vary(y, x, TILE_ART.tree.length)} b"></i>` : '';
+  return `<i class="tx tx-${t} ${n ? `g${key}${vary(x, y, n)}` : ''}"></i>${trees}`;
+}
+// 駒の絵（assets/ban。なければ文字の駒）。指物は家の色で描く。敵は左右を反転
+const artOf = (p: Piece) => (BAN_ART[p.sho ? 'sho' : p.hero ? 'hero' : p.kind] ?? BAN_ART[p.kind] ?? [])[0];
 function pieceHtml(p: Piece) {
-  const K = B.KIND[p.kind];
-  return `<span class="pc ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}">${p.sho ? '将' : K.ch}${p.confused ? '<u>乱</u>' : p.flee ? '<u class="fl">逃</u>' : ''}<i style="width:${Math.round((p.hp / p.maxhp) * 100)}%"></i></span>`;
+  const K = B.KIND[p.kind], art = artOf(p);
+  const marks = `${p.confused ? '<u>乱</u>' : p.flee ? '<u class="fl">逃</u>' : ''}<i class="hpb" style="width:${Math.round((p.hp / p.maxhp) * 100)}%"></i>`;
+  if (art) return `<span class="pa ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}"><s class="flag"></s><img src="${art}" alt=""><em>${esc(p.hero || p.sho || p.gid ? p.name.slice(-3) : K.name)}</em>${marks}</span>`;
+  return `<span class="pc ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}">${p.sho ? '将' : K.ch}${marks}</span>`;
 }
 function infoHtml(p: Piece | null) {
   if (!p) return '<p class="ban-hint">自分の駒を押して選ぶ。青いマスへ動き、赤い敵を押して攻める。攻めずに終える駒は「待機」。武将の駒は「虚報」で、3マス以内の敵を惑わせられる（知略で見込みが決まる）。</p>';
@@ -48,7 +70,7 @@ function render() {
   const tg = new Set<number>(mine ? (aim ? B.kyohoTargets(b, s!) : B.targets(b, s!)).map((p) => p.id) : []);
   const kyoList = aim && s ? `<div class="ban-kyo"><b>虚報の的を選ぶ</b>${B.kyohoTargets(b, s).map((d) => `<span>${esc(d.name)}（知略${d.int}・見込み${Math.round(B.kyohoChance(s, d) * 100)}%）</span>`).join('')}</div>` : '';
   let cells = '';
-  for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) { const p = B.at(b, x, y); cells += `<button class="${cellCls(x, y, reach, tg)}" data-x="${x}" data-y="${y}" aria-label="${x + 1}列${y + 1}行${p ? ' ' + esc(p.name) : ''}">${p ? pieceHtml(p) : ''}</button>`; }
+  for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) { const p = B.at(b, x, y); cells += `<button class="${cellCls(x, y, reach, tg)}" data-x="${x}" data-y="${y}" aria-label="${x + 1}列${y + 1}行・${B.TERR_NAME[B.terrAt(b, x, y)]}${p ? ' ' + esc(p.name) : ''}">${terrHtml(x, y)}${p ? pieceHtml(p) : ''}</button>`; }
   const foes = b.pieces.filter((p) => p.side === 'foe' && p.alive).length, ours = b.pieces.filter((p) => p.side === 'me' && p.alive).length;
   const phase = `${B.stageName(b)}・${b.over ? '終わり' : b.phase === 'me' ? 'あなたの手番' : '敵の手番'}`;
   const over = b.over ? `<div class="ban-over"><b>${{ win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
@@ -117,18 +139,36 @@ async function foeTurn() {
   busy = false; sel = b.over ? null : nextIdle(); render();
 }
 
+// 地面の絵の CSS（一度だけ作る）: 盤一面に平地、地形のマスに林・丘・川、林に木立、柵は馬防柵
+const PALISADE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><g stroke="#2a1c10" stroke-width="1"><path d="M0 26h40M0 31h40" stroke="#4a3520" stroke-width="2.4"/><g fill="#7a5a36"><path d="M4 38V12l2-4 2 4v26z"/><path d="M14 38V10l2-4 2 4v28z"/><path d="M24 38V12l2-4 2 4v26z"/><path d="M34 38V10l2-4 2 4v28z"/></g></g><path d="M0 38h40" stroke="rgba(0,0,0,.35)" stroke-width="3"/></svg>');
+function artCss() {
+  const u = (k: string, i: number) => TILE_ART[k]?.[i];
+  let css = `.ban-grid{background-image:url(${u('P', 0) ?? ''})}.tx-saku{background-image:url("${PALISADE}")}`;
+  for (const k of ['F', 'H', 'R']) (TILE_ART[k] ?? []).forEach((v, i) => { css += `.g${k}${i}{background-image:url(${v})}`; });
+  (TILE_ART.tree ?? []).forEach((v, i) => { css += `.tr${i}{background-image:url(${v})}`; });
+  return css;
+}
 const CSS = `
 .ban{position:fixed;inset:0;z-index:95;background:rgba(8,6,4,.92);display:flex;align-items:center;justify-content:center;overflow:auto;color:#eadfc8;font-family:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif}
 .ban[hidden]{display:none}
 .ban-wrap{box-sizing:border-box;width:min(980px,100%);padding:16px;margin:auto}
 .ban-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin-bottom:10px}.ban-head b{font-size:20px;color:#cfa95e}.ban-head span{font-size:13px;opacity:.85}
 .ban-body{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-.ban-grid{display:grid;gap:2px;flex:0 1 auto;width:min(480px,100%);aspect-ratio:8/10;background:#2a2218;padding:3px;border:1px solid rgba(207,169,94,.55);border-radius:4px;box-sizing:border-box}
-.bc{position:relative;border:0;padding:0;margin:0;background:#a8a07c;cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;font:inherit;color:inherit}
-.bc.t-no{background:#b5ab84}.bc.t-kawa{background:#5f87a6}.bc.t-oka{background:#9a7f52}.bc.t-take{background:repeating-linear-gradient(90deg,#6f8a4e 0 4px,#86a35f 4px 8px)}.bc.t-saku{background:repeating-linear-gradient(90deg,#3c2f22 0 3px,#8a7656 3px 9px)}
+.ban-grid{display:grid;gap:0;flex:0 1 auto;width:min(480px,100%);aspect-ratio:8/10;background-color:#7d8a52;background-size:180px 180px;border:1px solid rgba(207,169,94,.55);border-radius:4px;box-sizing:border-box;overflow:hidden}
+.bc{position:relative;border:0;padding:0;margin:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;font:inherit;color:inherit;box-shadow:inset 0 0 0 .5px rgba(30,22,12,.35)}
+.tx{position:absolute;inset:0;background-size:cover;background-position:center;pointer-events:none}
+.tx-mori,.tx-oka{-webkit-mask-image:radial-gradient(circle,#000 58%,transparent 78%);mask-image:radial-gradient(circle,#000 58%,transparent 78%);inset:-12%}
+.tx-kawa{background-color:#5f87a6;background-size:120px 120px;background-repeat:repeat}
+.tree{position:absolute;width:62%;aspect-ratio:1;background-size:contain;background-repeat:no-repeat;pointer-events:none}.tree.a{left:2%;top:4%}.tree.b{right:0;bottom:6%}
+.tx-saku{background-repeat:repeat-x;background-size:auto 100%}
 .bc.reach{box-shadow:inset 0 0 0 3px rgba(80,170,230,.95)}.bc.tgt{box-shadow:inset 0 0 0 3px rgba(225,70,60,.95)}.bc.sel{box-shadow:inset 0 0 0 3px #f2d27a}
 .pc{position:relative;width:78%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:clamp(14px,4.2vw,22px);font-weight:700;box-shadow:0 2px 4px rgba(0,0,0,.5);overflow:hidden}
-.pc.me{background:#f1e6c8;color:#1d2b4a;border:2px solid #2d4a86}.pc.foe{background:#3a1d1a;color:#f3d9c8;border:2px solid #c0483b}
+.pc{z-index:1}.pc.me{background:#f1e6c8;color:#1d2b4a;border:3px solid var(--me)}.pc.foe{background:#2a1a16;color:#f3d9c8;border:3px solid var(--foe)}
+.pa{position:relative;z-index:1;width:100%;height:100%;display:block}.pa img{position:absolute;left:4%;bottom:6%;width:92%;height:104%;object-fit:contain;object-position:bottom;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))}.pa.foe img{transform:scaleX(-1)}.pa.done{opacity:.55}
+.pa .flag{position:absolute;left:58%;bottom:52%;width:14%;height:48%;background:var(--me);border:1px solid rgba(0,0,0,.6);border-left:2px solid #3a2a1a}.pa.foe .flag{background:var(--foe);left:28%}
+.pa em{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:9.5px;font-style:normal;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000;white-space:nowrap;overflow:hidden}
+.pa.hero em{color:#f2d27a}.pa.sho em{color:#ffb08a}
+.pa .hpb{position:absolute;left:8%;bottom:1px;height:4px;max-width:84%;background:#5bc06a}.pa.foe .hpb{background:#e0604f}
 .pc.hero{border-color:#e0b04a;box-shadow:0 0 0 2px #e0b04a,0 2px 4px rgba(0,0,0,.5)}.pc.sho{border-color:#ff8a5a;box-shadow:0 0 0 2px #ff8a5a}
 .pc.done{opacity:.55}
 .pc u{position:absolute;top:0;right:0;font-size:10px;line-height:1;padding:2px 3px;background:#8a3fb0;color:#fff;text-decoration:none;border-radius:0 0 0 4px}.pc u.fl{background:#8a6a2a}
@@ -139,7 +179,7 @@ const CSS = `
 .ban-dsub{font-size:13px;margin:4px 0;opacity:.9}.ban-dscore{font-size:20px;letter-spacing:2px;text-align:center;margin:10px 0;color:#f2d27a}.ban-dlog{margin:2px 0;font-size:13.5px}.ban-dres{font-size:17px;color:#f2d27a;margin:10px 0}
 .ban-dacts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 .ban-kyo{display:flex;flex-direction:column;gap:2px;border:1px solid #a070c8;padding:6px 10px;border-radius:4px;font-size:13px}.ban-kyo b{color:#d0a8f0}
-.pc i{position:absolute;left:0;bottom:0;height:4px;background:#5bc06a}.pc.foe i{background:#e0604f}
+.pc .hpb{position:absolute;left:0;bottom:0;height:4px;background:#5bc06a}.pc.foe .hpb{background:#e0604f}
 .ban-side{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:8px}
 .ban-info{display:flex;flex-direction:column;gap:2px;border:1px solid rgba(207,169,94,.4);padding:8px 10px;border-radius:4px}.ban-info b{color:#cfa95e}.ban-info span{font-size:13px}.ban-info em{color:#e0a060;font-style:normal}
 .ban-hint{font-size:13px;opacity:.85;margin:0}

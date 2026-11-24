@@ -21,7 +21,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   const head = () => p.$eval('#ban .ban-head', (e) => e.textContent.replace(/\s+/g, ' '));
   console.log(vp.tag, '盤:', await head());
   // 主人公（騎）を選んで、いちばん前の青いマスへ
-  await p.click('#ban .pc.hero'); await p.waitForTimeout(100);
+  await p.click('#ban .hero'); await p.waitForTimeout(100);
   const reach = await p.$$eval('#ban .bc.reach', (es) => es.map((e) => [+e.dataset.x, +e.dataset.y]));
   console.log(vp.tag, '騎の動ける先', reach.length);
   const front = reach.sort((a, c) => a[1] - c[1])[0];
@@ -32,7 +32,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   let shotKyo = false;
   for (let k = 0; k < 8; k++) {
     if (await p.$('#ban .ban-over')) break;
-    await p.click('#ban .pc.hero').catch(() => {}); await p.waitForTimeout(80);
+    await p.click('#ban .hero').catch(() => {}); await p.waitForTimeout(80);
     const kb = await p.$('#ban [data-b="kyoho"]:not([disabled])');
     if (kb) {
       await kb.click(); await p.waitForTimeout(80);

@@ -1,11 +1,11 @@
 // 槍働きの盤（武将で遊ぶ）: ヘックスの合戦とは別の、8×10マスの手番制の小さな戦い。
 // 駒は一人ずつ。騎馬（主人公・足が速い）・足軽（普通）・弓（中距離・足が遅い）・鉄砲（長距離・最も遅い・撃った次の手番は撃てない）。相性はない。
 // 攻撃に使う能力: 騎馬・足軽は武勇、弓は知略、鉄砲は武勇と知略の平均。守りと体は統率。反撃できるのは隣接攻撃の駒だけ。
-// 地形: 柵（通れない。弓・鉄砲は越えて撃てる）・竹束（その上の駒は弓・鉄砲の傷が半分）・川（足が2つ要る）・丘（その上から攻めると+2）
+// 地形: 柵（通れない。弓・鉄砲は越えて撃てる）・林（その中の駒は弓・鉄砲の傷が半分）・川（足が2つ要る）・丘（その上から攻めると+2）
 // 全体の勝ち負けは本体の合戦が決める。盤では自分の働き（手柄）を競う。乱数は盤ごとの種から（同じ種なら同じ流れ）
 export type BKind = 'kiba' | 'ashi' | 'yumi' | 'teppo';
 export type BSide = 'me' | 'foe';
-export type Terr = '.' | 'saku' | 'take' | 'kawa' | 'oka';
+export type Terr = '.' | 'saku' | 'mori' | 'kawa' | 'oka';
 export interface Piece {
   id: number; side: BSide; kind: BKind; name: string; gid?: string; hero?: boolean; sho?: boolean; // sho: 名のある将
   hp: number; maxhp: number; atk: number; def: number; int: number; mov: number; rmin: number; rmax: number; crit: number;
@@ -30,7 +30,7 @@ export const KIND: Record<BKind, { name: string; ch: string; mov: number; rmin: 
   yumi: { name: '弓', ch: '弓', mov: 3, rmin: 2, rmax: 3, hp: 16, atk: 8, def: 2 },
   teppo: { name: '鉄砲', ch: '鉄', mov: 2, rmin: 2, rmax: 4, hp: 16, atk: 12, def: 2 },
 };
-export const TERR_NAME: Record<Terr, string> = { '.': '野', saku: '柵', take: '竹束', kawa: '川', oka: '丘' };
+export const TERR_NAME: Record<Terr, string> = { '.': '野', saku: '柵', mori: '林', kawa: '川', oka: '丘' };
 export const DUEL = { YARI_SEEN: 2, HABIT: 0.5, READ: 0.25, BRA_K: 60, TEGARA: 3, LOSE_HP: 0.5 };
 export const BAN = { W: 8, H: 10, TURNS: 8, OKA: 2, CRIT_BASE: 0.05, CRIT_YARI: 0.03, CRIT_MULT: 1.5, TEGARA_MOB: 1, TEGARA_SHO: 5, ICHIBAN: 3, OIUCHI: 1, SHINGARI: 6, NAKA: 4, SHU: 7, KYOHO_PER: 30, KYOHO_RANGE: 3, LOSE_KEEP: 0.5 };
 export const stageOf = (b: Ban) => (b.turn >= BAN.SHU ? 'shu' : b.turn >= BAN.NAKA ? 'naka' : 'jo');
@@ -63,11 +63,11 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
 export interface BanSetup { me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number; end?: 'oiuchi' | 'shingari'; mid?: { kind: BKind; who: Who | null }[]; late?: { kind: BKind; who: Who | null }[] }
 export function newBan(o: BanSetup): Ban {
   const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, seed: o.seed | 0 || 1, end: o.end ?? 'oiuchi', mid: o.mid ?? [], late: o.late ?? [] };
-  // 地形: 中ほど（上下3行は陣地として空ける）に竹束・丘・柵、川を一筋
+  // 地形: 中ほど（上下3行は陣地として空ける）に林・丘・柵、川を一筋
   const mid = (y: number) => y >= 3 && y <= b.h - 4;
   const put = (t: Terr, n: number) => { for (let k = 0, tries = 0; k < n && tries < 60; tries++) { const x = Math.floor(rnd(b) * b.w), y = 3 + Math.floor(rnd(b) * (b.h - 6)); if (mid(y) && b.terr[y * b.w + x] === '.') { b.terr[y * b.w + x] = t; k++; } } };
   const ry = 4 + Math.floor(rnd(b) * 2), rx = Math.floor(rnd(b) * 3); for (let x = rx; x < rx + 3 + Math.floor(rnd(b) * 3) && x < b.w; x++) b.terr[ry * b.w + x] = 'kawa';
-  put('take', 2 + Math.floor(rnd(b) * 2)); put('oka', 2); put('saku', 1 + Math.floor(rnd(b) * 2));
+  put('mori', 2 + Math.floor(rnd(b) * 2)); put('oka', 2); put('saku', 1 + Math.floor(rnd(b) * 2));
   // 並べる: 味方は下の2行、敵は上の2行。主人公（騎馬）は真ん中
   const place = (side: BSide, list: BanSetup['me']) => {
     const rows = side === 'me' ? [b.h - 1, b.h - 2] : [0, 1]; // [後ろ, 前]。弓・鉄砲は後ろ
@@ -110,7 +110,7 @@ export function targets(b: Ban, p: Piece, from: { x: number; y: number } = p): P
 // 傷の見積もり（乱れと会心を除く）
 export function baseDmg(b: Ban, a: Piece, d: Piece) {
   let v = a.atk - d.def + (terrAt(b, a.x, a.y) === 'oka' ? BAN.OKA : 0);
-  if (a.rmax > 1 && terrAt(b, d.x, d.y) === 'take') v /= 2;
+  if (a.rmax > 1 && terrAt(b, d.x, d.y) === 'mori') v /= 2; // 林の中の駒は、弓・鉄砲の傷が半分
   return Math.max(1, Math.round(v));
 }
 function hit(b: Ban, a: Piece, d: Piece, counter: boolean): string {

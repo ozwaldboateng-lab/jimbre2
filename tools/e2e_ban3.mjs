@@ -32,7 +32,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc', mode: 'go' }, { width: 
     await p.click('[data-h="ban-go"]'); await p.waitForTimeout(400);
     // 試しに、敵の一駒を名のある将にして主人公の隣へ置く
     await p.evaluate(() => { const bn = window.__ban.b; const h = bn.pieces.find((x) => x.hero); const f = bn.pieces.find((x) => x.side === 'foe' && x.alive); f.sho = true; f.name = '試しの将'; f.bra = 70; h.x = 3; h.y = 5; f.x = 3; f.y = 4; window.__ban.render(); });
-    await p.click('#ban .pc.hero'); await p.waitForTimeout(100);
+    await p.click('#ban .hero'); await p.waitForTimeout(100);
     const nb = await p.$('#ban [data-b="nanori"]'); console.log(vp.tag, '名乗るボタン', !!nb, nb ? await nb.textContent() : '');
     await nb.click(); await p.waitForTimeout(150);
     console.log(vp.tag, '一騎討ち:', (await p.$eval('#ban .ban-dbox', (e) => e.textContent.replace(/\s+/g, ' '))).slice(0, 200));

@@ -308,6 +308,8 @@ function personActs(st: GameState, g: General) {
   const me = H.heroOf(st)!, v = st.hero!.rel[g.id] ?? 0;
   return `${KS.canRecruit(st, g) ? `<button class="hr-btn sm" data-h="kakae" data-id="${g.id}" ${v < KS.KASHIN.REL || KS.retainersOf(st).length >= KS.capOf(st) ? 'disabled' : ''}>家臣に召し抱える</button>` : ''}${RP.isRonin(st) && g.status === 'ronin' && !RP.isFollower(st, g) ? `<button class="hr-btn sm" data-h="invite" data-id="${g.id}" ${v < RP.RONIN.FOLLOW_REL ? 'disabled' : ''}>配下に誘う</button>` : ''}${(() => { if (!CR.freeHero(st) || g.clan !== me.clan || v < PL.EN.PACT_REL || (st.hero!.retainers ?? []).includes(g.id) || g.id === H.lordOf(st)?.id) return ''; const why = PL.pactBlock(st, g); return why === '約束を取りつけてある' ? '<span class="hr-rel">謀反の味方</span>' : `<button class="hr-btn sm" data-h="pact" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>内々に誘う</button>`; })()}${(() => { if (!CR.freeHero(st) || st.hero!.wife || !st.hero!.ie || g.clan !== me.clan || g.rank > FA.FAM.WED_RANK || (st.year - (g.born ?? st.year - 30)) < FA.FAM.WED_AGE || v < 30) return ''; const why = FA.wedBlock(st, g); return `<button class="hr-btn sm" data-h="wed" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>縁組を申し込む</button>`; })()}${(() => { const k = CR.freeHero(st) ? SK.masterSkill(g) : null; if (!k || g.status === 'young') return ''; const why = SK.skillBlock(st, k, g); return `<button class="hr-btn sm" data-h="mstudy" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : `title="${esc(SK.SKILL_DESC[k])}"`}>師事を願う（${SK.SKILL_NAME[k]}・${SK.masterCap(g)}段まで）</button>`; })()}<button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button>`;
 }
+// 槍働きの盤の駒の色: 味方は自家の色、敵はその合戦の敵将の家の色
+const banColors = (st: GameState, foe?: string) => { const me = H.heroOf(st)!, fc = foe ? st.generals[foe]?.clan : null; return { me: me.clan ? st.clans[me.clan]?.color : undefined, foe: fc ? st.clans[fc]?.color : undefined }; };
 // 預けている者（家臣の枠を超えて主家に預けた配下）: 枠が空けば呼び戻せる
 function azukeHtml(st: GameState) {
   const az = KS.azukeOf(st);
@@ -670,7 +672,7 @@ function onClick(e: Event) {
   if (h === 'pane') { if (id === 'tabi') recenter = true; pane = id as typeof pane; render(); return; }
   if (h === 'meet') { dlg = { kind: 'person', id }; say = null; render(); showDlg(); return; }
   if (h === 'dlg-close') { dlg = null; render(); return; }
-  if (h === 'ban-keiko') { const bn = BP.keikoBan(s); void openBan(bn, `${s.castles[s.hero!.town].name}の道場 ― 盤の稽古`).then((r) => { dlg = null; say = { text: `盤の稽古を終えた（${{ win: '勝ち', lose: '負け', retreat: '退いた', time: '時切れ' }[r.over ?? 'time']}・討ち取り${r.kills}）。` }; render(); }); return; }
+  if (h === 'ban-keiko') { const bn = BP.keikoBan(s); void openBan(bn, `${s.castles[s.hero!.town].name}の道場 ― 盤の稽古`, banColors(s)).then((r) => { dlg = null; say = { text: `盤の稽古を終えた（${{ win: '勝ち', lose: '負け', retreat: '退いた', time: '時切れ' }[r.over ?? 'time']}・討ち取り${r.kills}）。` }; render(); }); return; }
   if (h === 'train') { void act(() => H.train(s!, id as 'dojo' | 'tera'), id); return; }
   if (h === 'report-ok') { report = null; render(); playHeld(); return; }
   if (h === 'say-close') { closeSay(); return; }
@@ -724,7 +726,7 @@ function onClick(e: Event) {
     const fin = (bn: import('../engine/ban').Ban) => { const t2 = BP.applyBan(st, bn); for (const x of t2) H.note(st, x); say = { text: t2.join(''), hold: true }; save(); render(); };
     if (h === 'ban-auto') { const bn = BP.autoBan(st); if (bn) fin(bn); return; }
     const bn = BP.battleBan(st); if (!bn) return;
-    void openBan(bn, `${P.foeName}との合戦 ― 槍働き`).then(fin); return;
+    void openBan(bn, `${P.foeName}との合戦 ― 槍働き`, banColors(st, P.foe)).then(fin); return;
   }
   if (h === 'rise') { riseUp(id as 'youchi' | 'naio'); return; }
   if (h === 'retire') { if (!retireArm) { retireArm = true; say = { text: '家督を譲れば、一生はそこで締めになる。もう一度押すと隠居する。' }; render(); return; } retireArm = false; const ls = CR.retire(s); for (const x of ls) H.note(s, x); report = [...ls, '一生を終えた。']; save(); render(); return; }
