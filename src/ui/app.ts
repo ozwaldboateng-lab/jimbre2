@@ -4,6 +4,11 @@ import * as RY from '../engine/ryoshu';
 import * as KS from '../engine/kashin';
 import * as RH from '../engine/ryohyojo';
 import * as NE from '../engine/ryoplot';
+import * as WK from '../engine/watakushi';
+import * as MBU from '../engine/meibutsu';
+import * as PLT from '../engine/plot';
+import { RELNAME } from '../engine/hero';
+import * as SKL from '../engine/skill';
 import * as CR from '../engine/career';
 import { runClanAI } from '../engine/ai';
 import { openStory } from './story';
@@ -307,6 +312,35 @@ function hyojoResult(st: GameState, r: { text: string; line: string }) {
   openModal(`<h2 id="modal-title">評定 ― ${esc(C.name)}家</h2>${r.line ? `<div style="display:flex;gap:12px;align-items:center">${L ? face(L.id, 72) : ''}<div><b>${esc(L?.name ?? '')}</b><p style="margin:4px 0 0">「${esc(r.line)}」</p></div></div>` : ''}<p>${esc(r.text)}</p><div class="actions"><button class="act primary" data-act="rh-close">退出する</button></div>`, false);
   refresh();
 }
+// 私事: 月に2度まで。領主は武将の画面の屋敷と同じことを、大名は当主として家臣・他家の当主と
+let wkSay: { who?: string; line?: string; text: string } | null = null;
+function wkBtn(act: string, id: string, label: string, why: string | null, dis = false) {
+  return `<button class="mini" data-act="${act}" data-id="${esc(id)}" ${why || dis ? `disabled title="${esc(why ?? '')}"` : ''}>${label}</button>${why ? `<small class="hint" style="margin:0 6px 0 2px">${esc(why)}</small>` : ''}`;
+}
+function openWatakushi(st: GameState) {
+  const left = WK.leftOf(st), none = left <= 0, ryo = !!RY.ryoshuOf(st) && !st.hero?.out;
+  const say = wkSay ? `<div class="wk-say">${wkSay.who && wkSay.line ? `${face(wkSay.who, 48)}<p><b>${esc(st.generals[wkSay.who]?.name ?? '')}</b>「${esc(wkSay.line)}」</p>` : ''}<p>${esc(wkSay.text)}</p></div>` : '';
+  const head = `<h2 id="modal-title">私事 ― 今月あと${left}度</h2><p class="hint">政のほかに、人と交わる（月に${WK.WK.PER_MONTH}度まで。月が変われば戻る）。</p>${say}`;
+  const row = (id: string, sub: string, btns: string) => `<div class="wk-row">${face(id, 40)}<div class="wk-pi"><b>${esc(st.generals[id].name)}</b><span>${sub}</span></div><div class="wk-pa">${btns}</div></div>`;
+  if (ryo) {
+    const H0 = st.hero!, cb = WK.ryoChakaiBlock(st), sc = WK.secretCands(st);
+    const tea = `<h3>茶会</h3><p>${wkBtn('wk-chakai', '', `茶会を開く（${MBU.CHAKAI.COST}貫）`, cb, none)} 領の城にいる家中の者を招き、みなと親しくなる・名声+${MBU.CHAKAI.FAME}</p>`;
+    const sec = sc.length ? `<h3>密約（使いを送る・礼物${PLT.EN.SECRET_GOLD}貫）</h3><p>${sc.map((c) => { return wkBtn('wk-secret', c, `${esc(clanName(st, c))}家の当主と`, PLT.secretBlock(st, c), none); }).join(' ')}<br><span class="hint" style="margin:0">謀反して家を立てた時、盟を結んで共に主家を攻める。しくじると主君の耳に入ることがある</span></p>` : '';
+    const ps = WK.ryoPeople(st).map((g) => row(g.id, `${g.status === 'ronin' ? '浪人' : `${esc(clanName(st, g.clan!))}家`}・${esc(st.castles[g.loc]?.name ?? '')}・${RELNAME(H0.rel[g.id] ?? 0)}（親しさ${H0.rel[g.id] ?? 0}）${SKL.masterSkill(g) ? `・${SKL.SKILL_NAME[SKL.masterSkill(g)!]}の名人` : ''}`,
+      WK.ryoActs(st, g).map((a) => wkBtn('wk-ryo', `${a.kind}:${g.id}`, a.label, a.why, none)).join(' '))).join('');
+    openModal(`${head}${tea}${sec}<h3>人（領の城と主君の居城にいる者・懇意の者）</h3>${ps || '<p>会える者がいない</p>'}`);
+    return;
+  }
+  const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null;
+  const cb = WK.dChakaiBlock(st);
+  const tea = `<h3>茶会</h3><p>${wkBtn('wk-dchakai', '', `${esc(L ? st.castles[L.loc].name : '')}で茶会を開く（${WK.WK.TEA_GOLD}貫）`, cb, none)} 居城にいる家臣みなの恩+${WK.WK.TEA_ON}（${WK.WK.TEA_EVERY}か月に一度）</p>`;
+  const nb = neighbors(st, st.player);
+  const lt = WK.letterCands(st).filter((c) => nb.has(c) || st.clans[c].target === st.player).slice(0, 10);
+  const let0 = lt.length ? `<h3>書状（他家の当主へ）</h3><p>${lt.map((c) => wkBtn('wk-letter', c, `${esc(clanName(st, c))}家（親密度${amityOf(st, st.player, c)}）`, WK.dLetterBlock(st, c), none)).join(' ')}</p>` : '';
+  const ps = WK.dPeople(st).map((g) => row(g.id, `${esc(st.castles[g.loc]?.name ?? '')}・恩${onOf(g)}（${onLabel(onOf(g))}）${(g as { en?: string }).en === st.player ? '・縁者' : ''}`,
+    [wkBtn('wk-dvisit', g.id, '訪ねる', null, none), wkBtn('wk-dgift', g.id, `進物（${WK.WK.GIFT_GOLD}貫）`, C.gold < WK.WK.GIFT_GOLD ? '金が足りない' : null, none), g.rank <= WK.WK.WED_RANK && !g.kin ? wkBtn('wk-dwed', g.id, '縁組（一門の娘を嫁がせる）', WK.dWedBlock(st, g), none) : ''].join(' '))).join('');
+  openModal(`${head}${tea}${let0}<h3>家臣（恩の薄い順）</h3>${ps || '<p>家臣がいない</p>'}`);
+}
 // 主家との縁: 寝返りの誘いへの返事・寝返りを持ちかける・謀反・出奔（謀反と出奔は二度押して決める）
 let ryoArm: string | null = null;
 function shukeEn(st: GameState) {
@@ -396,6 +430,7 @@ function refresh() {
       stat('主君の覚え', `${H0.favor}`),
       stat('治安', `${Math.round(fc.reduce((t2, c) => t2 + c.chian, 0) / Math.max(1, fc.length))}`),
       '<button type="button" class="plaque" id="btn-shuke" title="主君・主家の方針・上納・軍役">主家</button>',
+      `<button type="button" class="plaque" id="btn-wk" title="人と交わる（月に${WK.WK.PER_MONTH}度まで）">私事 ${WK.leftOf(st)}</button>`,
       '<button type="button" class="plaque" id="btn-jokaku" title="武将として城下を歩く（屋敷・茶屋・主家との縁など）">城下へ出る</button>',
     ].join('');
     { const sb = document.getElementById('btn-shuke'); if (sb) sb.onclick = () => { if (s) openShuke(s); }; if (sb && RY.gunyakuOf(st) && !RY.gunyakuOf(st)!.done) sb.classList.add('warn'); }
@@ -411,7 +446,9 @@ function refresh() {
     stat('兵', `${fmt(troops)}/${fmt(cap)}`),
     stat('治安', `${Math.round(clanCastles(st, st.player).reduce((t, c) => t + c.chian, 0) / Math.max(1, clanCastles(st, st.player).length))}`),
     stat('威信', `${me.prestige}`),
+    `<button type="button" class="plaque" id="btn-wk" title="当主として人と交わる（月に${WK.WK.PER_MONTH}度まで）">私事 ${WK.leftOf(st)}</button>`,
   ].join('');
+  { const wb = document.getElementById('btn-wk'); if (wb) { wb.onclick = () => { if (s && !busy) { wkSay = null; openWatakushi(s); } }; if (!st.clans[st.player].leader || (st.hero && !fief)) wb.hidden = true; } }
   const captives = Object.values(st.generals).filter((g) => g.status === 'captive' && g.captor === st.player).length;
   const badge = $('badge-captive');
   badge.hidden = !captives; badge.textContent = String(captives);
@@ -2978,6 +3015,19 @@ function onModalClick(e: Event) {
     if (act === 'ryo-leave') { RY.toHero(st); const t2 = CR.leaveLord(st); closeModal(); store(AUTO_KEY, null); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: t2 }); return; }
     const r = act === 'ryo-offer' ? NE.answerOffer(st, id === 'yes') : NE.offerDefect(st, id);
     toast(r.text); closeModal(); startWith(st); store(AUTO_KEY, JSON.stringify(st)); openShuke(st); return;
+  }
+  if (act.startsWith('wk-')) {
+    let r: { ok: boolean; who?: string; line?: string; text: string };
+    if (act === 'wk-ryo') { const [k, gid] = id.split(':'); r = WK.ryoAct(st, k as WK.RyoAct, gid); }
+    else if (act === 'wk-chakai') r = WK.ryoChakai(st);
+    else if (act === 'wk-secret') r = WK.ryoSecret(st, id);
+    else if (act === 'wk-dvisit') r = WK.dVisit(st, id);
+    else if (act === 'wk-dgift') r = WK.dGift(st, id);
+    else if (act === 'wk-dwed') r = WK.dWed(st, id);
+    else if (act === 'wk-dchakai') r = WK.dChakai(st);
+    else r = WK.dLetter(st, id);
+    wkSay = { who: r.who, line: r.line, text: r.text };
+    refresh(); store(AUTO_KEY, JSON.stringify(st)); openWatakushi(st); return;
   }
   if (act === 'ryo-recall') { toast(KS.recall(st, id).text); refresh(); openShuke(st); return; }
   if (act === 'ryo-send') { toast(RY.sendTroops(st).text); refresh(); openShuke(st); return; }

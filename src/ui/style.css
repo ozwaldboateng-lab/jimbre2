@@ -739,3 +739,11 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
   #ending h1 { font-size: clamp(34px, 11vw, 48px); }
   #ending .end-chron { max-height: none; }
 }
+
+/* 私事の窓 */
+.wk-say{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;border:1px solid var(--line, rgba(207,169,94,.45));border-radius:4px;padding:8px 10px;margin:6px 0 10px;background:rgba(207,169,94,.06)}
+.wk-say p{margin:0;flex:1 1 220px}
+.wk-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(127,127,127,.2)}
+.wk-pi{display:flex;flex-direction:column;flex:1 1 160px;min-width:0}
+.wk-pi span{font-size:12px;opacity:.8}
+.wk-pa{display:flex;flex-wrap:wrap;gap:4px;align-items:center;flex:2 1 260px}
