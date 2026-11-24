@@ -5,7 +5,7 @@ import base64, glob, io, os, re
 from PIL import Image
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KEYS = [('名のある将', 'sho'), ('主人公', 'hero'), ('騎馬', 'kiba'), ('足軽', 'ashi'), ('弓', 'yumi'), ('鉄砲', 'teppo'), ('柵', 'saku')]
+KEYS = [('名のある将', 'sho'), ('主人公', 'hero'), ('騎馬', 'kiba'), ('足軽', 'ashi'), ('弓', 'yumi'), ('鉄砲', 'teppo'), ('柵', 'saku'), ('矢盾', 'tate')]
 H = 320
 out = {}
 for f in sorted(glob.glob(os.path.join(root, 'assets/ban/*.png'))):

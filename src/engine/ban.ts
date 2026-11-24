@@ -1,11 +1,12 @@
 // 槍働きの盤（武将で遊ぶ）: ヘックスの合戦とは別の、8×10マスの手番制の小さな戦い。
 // 駒は一人ずつ。騎馬（主人公・足が速い）・足軽（普通）・弓（中距離・足が遅い）・鉄砲（長距離・最も遅い・撃った次の手番は撃てない）。相性はない。
 // 攻撃に使う能力: 騎馬・足軽は武勇、弓は知略、鉄砲は武勇と知略の平均。守りと体は統率。反撃できるのは隣接攻撃の駒だけ。
-// 地形: 柵（通れない。弓・鉄砲は越えて撃てる）・林（その中の駒は弓・鉄砲の傷が半分）・川（足が2つ要る）・丘（その上から攻めると+2）
+// 地形: 柵・矢盾（通れない。弓・鉄砲は越えて撃てる。野の障害物は矢盾、砦と鉄砲備えは柵）・林（その中の駒は弓・鉄砲の傷が半分）・川（足が2つ要る）・丘（その上から攻めると+2）
 // 全体の勝ち負けは本体の合戦が決める。盤では自分の働き（手柄）を競う。乱数は盤ごとの種から（同じ種なら同じ流れ）
 export type BKind = 'kiba' | 'ashi' | 'yumi' | 'teppo';
 export type BSide = 'me' | 'foe';
-export type Terr = '.' | 'saku' | 'mori' | 'kawa' | 'oka';
+export type Terr = '.' | 'saku' | 'tate' | 'mori' | 'kawa' | 'oka'; // saku: 柵（砦・鉄砲備え）、tate: 矢盾（野の障害物）。どちらも通れず、越えて撃てる
+export const isWall = (t: Terr) => t === 'saku' || t === 'tate';
 export interface Piece {
   id: number; side: BSide; kind: BKind; name: string; gid?: string; hero?: boolean; sho?: boolean; // sho: 名のある将
   hp: number; maxhp: number; atk: number; def: number; int: number; mov: number; rmin: number; rmax: number; crit: number;
@@ -42,7 +43,7 @@ export const KIND: Record<BKind, { name: string; ch: string; mov: number; rmin: 
   yumi: { name: '弓', ch: '弓', mov: 3, rmin: 2, rmax: 3, hp: 16, atk: 8, def: 2 },
   teppo: { name: '鉄砲', ch: '鉄', mov: 2, rmin: 2, rmax: 4, hp: 16, atk: 12, def: 2 },
 };
-export const TERR_NAME: Record<Terr, string> = { '.': '野', saku: '柵', mori: '林', kawa: '川', oka: '丘' };
+export const TERR_NAME: Record<Terr, string> = { '.': '野', saku: '柵', mori: '林', tate: '矢盾', kawa: '川', oka: '丘' };
 export const DUEL = { YARI_SEEN: 2, HABIT: 0.5, READ: 0.25, BRA_K: 60, TEGARA: 3, LOSE_HP: 0.5 };
 export const BAN = { W: 8, H: 10, TURNS: 8, OKA: 2, CRIT_BASE: 0.05, CRIT_YARI: 0.03, CRIT_MULT: 1.5, TEGARA_MOB: 1, TEGARA_SHO: 5, ICHIBAN: 3, OIUCHI: 1, SHINGARI: 6, NAKA: 4, SHU: 7, KYOHO_PER: 30, KYOHO_RANGE: 3, LOSE_KEEP: 0.5 };
 export const stageOf = (b: Ban) => (b.turn >= BAN.SHU ? 'shu' : b.turn >= BAN.NAKA ? 'naka' : 'jo');
@@ -80,7 +81,7 @@ export function newBan(o: BanSetup): Ban {
   const put = (t: Terr, n: number) => { for (let k = 0, tries = 0; k < n && tries < 60; tries++) { const x = Math.floor(rnd(b) * b.w), y = 3 + Math.floor(rnd(b) * (b.h - 6)); if (mid(y) && b.terr[y * b.w + x] === '.') { b.terr[y * b.w + x] = t; k++; } } };
   // 川: 盤の左の端から右の端まで一筋（一列に一マス）。途中で一度、上か下へ一行ずれる（4〜5行目のあたり）。四度に一度は川のない盤
   if (rnd(b) < 0.75) { let ry = 4 + Math.floor(rnd(b) * 2); const jog = 2 + Math.floor(rnd(b) * 4), dy = ry === 4 ? 1 : -1; for (let x = 0; x < b.w; x++) { if (x === jog) { b.terr[ry * b.w + x] = 'kawa'; ry += dy; } b.terr[ry * b.w + x] = 'kawa'; } } // ずれる列は二マス（川筋を途切れさせない）
-  put('mori', 2 + Math.floor(rnd(b) * 2)); put('oka', 2); put('saku', 1 + Math.floor(rnd(b) * 2));
+  put('mori', 2 + Math.floor(rnd(b) * 2)); put('oka', 2); put('tate', 1 + Math.floor(rnd(b) * 2)); // 野の障害物は矢盾
   // 並べる: 味方は下の2行、敵は上の2行。主人公（騎馬）は真ん中
   const place = (side: BSide, list: BanSetup['me']) => {
     const rows = side === 'me' ? [b.h - 1, b.h - 2] : o.mochi === 'senjin' ? [2, 3] : [0, 1]; // [後ろ, 前]。弓・鉄砲は後ろ。先陣は敵が二行近い
@@ -91,7 +92,7 @@ export function newBan(o: BanSetup): Ban {
   if (o.mochi === 'senjin') for (let y = 2; y <= 3; y++) for (let x = 0; x < b.w; x++) b.terr[y * b.w + x] = '.'; // 先陣: 敵の陣を空ける
   if (o.fort) { const y = o.fort === 'foe' ? 2 : b.h - 3; for (let x = 0; x < b.w; x++) b.terr[y * b.w + x] = x === 3 || x === 4 ? '.' : 'saku'; for (let x = 0; x < b.w; x++) if (b.terr[(y + (o.fort === 'foe' ? 1 : -1)) * b.w + x] === 'saku') b.terr[(y + (o.fort === 'foe' ? 1 : -1)) * b.w + x] = '.'; } // 砦: 一行の柵（真ん中の二マスが木戸）
   place('me', o.me); place('foe', o.foe);
-  if (o.spread) for (const p of b.pieces) if (p.side === 'foe') { for (let k = 0; k < 30; k++) { const x = Math.floor(rnd(b) * b.w), y = 1 + Math.floor(rnd(b) * 4); if (!at(b, x, y) && terrAt(b, x, y) !== 'saku') { p.x = x; p.y = y; break; } } } // 物見: 敵は2〜5行目に散らばって見張る
+  if (o.spread) for (const p of b.pieces) if (p.side === 'foe') { for (let k = 0; k < 30; k++) { const x = Math.floor(rnd(b) * b.w), y = 1 + Math.floor(rnd(b) * 4); if (!at(b, x, y) && !isWall(terrAt(b, x, y))) { p.x = x; p.y = y; break; } } } // 物見: 敵は2〜5行目に散らばって見張る
   if (o.sleep) b.night = true;
   if (o.sleep) for (const p of b.pieces) if (p.side === 'foe') p.confused = 1; // 夜討ち: 敵ははじめの一手、寝込んでいて乱れる
   // 後詰め: 盤の中ほど（5行目）に、崩れかけた味方の組（体は半ば。自分では動かせない）
@@ -113,7 +114,7 @@ export function reach(b: Ban, p: Piece): { x: number; y: number }[] {
     q.sort((a, c) => a[2] - c[2]); const [x, y, c] = q.shift()!;
     for (const [dx, dy] of DIRS) {
       const nx = x + dx, ny = y + dy; if (!inside(b, nx, ny)) continue;
-      const t = terrAt(b, nx, ny); if (t === 'saku') continue;
+      const t = terrAt(b, nx, ny); if (isWall(t)) continue;
       const o = at(b, nx, ny); if (o && o.side !== p.side) continue;
       const nc = c + (t === 'kawa' ? 2 : 1); if (nc > p.mov) continue;
       const k = ny * b.w + nx; if ((best.get(k) ?? Infinity) <= nc) continue;
@@ -207,7 +208,7 @@ export function endPhase(b: Ban) {
 function spawn(b: Ban, list: BanSetup['foe']): string[] {
   const out: string[] = [];
   for (const u of list) {
-    const free: [number, number][] = []; for (const y of [0, 1, 2]) for (let x = 0; x < b.w; x++) if (!at(b, x, y) && terrAt(b, x, y) !== 'saku') free.push([x, y]);
+    const free: [number, number][] = []; for (const y of [0, 1, 2]) for (let x = 0; x < b.w; x++) if (!at(b, x, y) && !isWall(terrAt(b, x, y))) free.push([x, y]);
     if (!free.length) break;
     const [x, y] = free[Math.floor(rnd(b) * free.length)];
     const p = makePiece(b.pieces.length, 'foe', u.kind, u.who, x, y); p.moved = true; p.acted = true; b.pieces.push(p); out.push(p.sho ? p.name : KIND[u.kind].name);
