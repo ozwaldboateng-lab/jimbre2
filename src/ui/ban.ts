@@ -35,7 +35,7 @@ const near = (a: string, c: string) => { const x = rgb(a), y = rgb(c); return Ma
 const me = (p: Piece | null) => !!p && p.side === 'me';
 function cellCls(x: number, y: number, reach: Set<string>, tg: Set<number>) {
   const p = B.at(b!, x, y), t = B.terrAt(b!, x, y);
-  return ['bc', `t-${t === '.' ? 'no' : t}`, reach.has(`${x},${y}`) ? 'reach' : '', p && tg.has(p.id) ? (aim ? 'kyo' : 'tgt') : '', p && p.id === sel ? 'sel' : ''].filter(Boolean).join(' ');
+  return ['bc', `t-${t === '.' ? 'no' : t}`, reach.has(`${x},${y}`) ? 'reach' : '', p && tg.has(p.id) ? (aim ? 'kyo' : 'tgt') : '', p && p.id === sel ? 'sel' : '', p && (p.id === sel || tg.has(p.id)) ? 'front' : ''].filter(Boolean).join(' '); // front: 選んだ駒と狙える敵は、重なっても手前に
 }
 // 地形の名だけ（絵は盤の下のキャンバスに描く）
 function terrHtml(_x: number, _y: number) { return ''; }
@@ -44,7 +44,7 @@ function terrHtml(_x: number, _y: number) { return ''; }
 const ART_SCALE: Record<string, number> = { kiba: 1.65, sho: 1.65, hero: 1.65, ashi: 1, yumi: 1, teppo: 0.82 };
 const artKey = (p: Piece) => { const d = p.side === 'me' ? 'b' : 'f'; for (const k of [p.sho ? 'sho' : p.hero ? 'hero' : '', p.kind]) if (k && BAN_ART[`${k}_${d}`]?.length) return k; return null; };
 // 騎馬は足もとを下げ、下のマス（馬の尻の側）にもはみ出す（マスの高さに対する割合）
-const ART_DROP: Record<string, number> = { kiba: 16, sho: 16, hero: 16 };
+const ART_DROP: Record<string, number> = { kiba: 30, sho: 30, hero: 30 };
 const artOf = (p: Piece) => { const k = artKey(p); return k ? { src: BAN_ART[`${k}_${p.side === 'me' ? 'b' : 'f'}`][0], sc: ART_SCALE[k] ?? 1, dy: ART_DROP[k] ?? 0 } : null; };
 function pieceHtml(p: Piece) {
   const K = B.KIND[p.kind], art = artOf(p);
@@ -203,6 +203,7 @@ const CSS = `
 .ban-grid{position:relative;display:grid;gap:0;flex:0 1 auto;width:min(480px,100%);aspect-ratio:8/10;background-color:#7d8a52;border:1px solid rgba(207,169,94,.55);border-radius:4px;box-sizing:border-box;overflow:visible}
 .bc{position:relative;border:0;padding:0;margin:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;font:inherit;color:inherit;box-shadow:inset 0 0 0 .5px rgba(30,22,12,.35);z-index:1}
 .ban-bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.bc.front{z-index:2}
 .bc.reach{box-shadow:inset 0 0 0 3px rgba(80,170,230,.95)}.bc.tgt{box-shadow:inset 0 0 0 3px rgba(225,70,60,.95)}.bc.sel{box-shadow:inset 0 0 0 3px #f2d27a}
 .pc{position:relative;width:78%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:clamp(14px,4.2vw,22px);font-weight:700;box-shadow:0 2px 4px rgba(0,0,0,.5);overflow:hidden}
 .pc{z-index:1}.pc.me{background:#f1e6c8;color:#1d2b4a;border:3px solid var(--me)}.pc.foe{background:#2a1a16;color:#f3d9c8;border:3px solid var(--foe)}
