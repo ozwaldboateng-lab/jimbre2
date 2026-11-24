@@ -28,6 +28,7 @@ import * as BP from '../engine/banplay';
 import * as BN from '../engine/ban';
 import * as MS from '../engine/meisei';
 import * as SA from '../engine/sasoi';
+import * as GG from '../engine/gungi';
 import { openBan } from './ban';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
@@ -55,7 +56,7 @@ let pane: 'spots' | 'yashiki' | 'tabi' | 'diary' | 'akinai' | 'shiro' | 'homen' 
 let bg = 'town';
 let say: { who?: string; line?: string; text: string; hold?: boolean; offer?: boolean } | null = null; // hold: セリフの窓（押すと閉じる）。offer: 主命を承るか断るか
 let offerMsg = ''; // 誘いの窓に出す、さっきの返事の首尾
-let dlg: { kind: 'person'; id: string } | { kind: 'dojo' | 'tera' | 'offers' | 'ronko' } | null = null;
+let dlg: { kind: 'person'; id: string } | { kind: 'dojo' | 'tera' | 'offers' | 'ronko' | 'gungi' } | null = null;
 let ronkoAlloc: Record<string, number> = {}; // 論功行賞で配る手柄 // 画面に立ち上げる窓（会う相手・道場・寺）
 let heldReport: string[] | null = null, heldBeats: Beat[] | null = null; // セリフの窓を閉じるまで待たせる、月の報告と出世の場面
 let busy = false;
@@ -213,6 +214,7 @@ function spotsHtml(st: GameState) {
   const cmdBtn = H.heroOf(st)!.rank > 2 && !HA.leading(st) ? '<p class="hr-note">足軽組頭は一兵として戦う（自分の部隊を率いる立場ではないので、合戦は任せる）。</p>' : `<button class="hr-spot" data-h="selfcmd"><b>合戦の采配: ${st.hero!.selfCommand ? '自ら' : '任せる'}</b><span>${st.hero!.selfCommand ? '合戦の画面で自分の隊（総大将なら軍勢の全部隊）を動かす。押すと任せる' : '合戦はAIに任せる。押すと自ら采配する'}</span></button>`;
   if (ld) return `<p class="hr-note">総大将として軍勢（兵${ld.troops.toLocaleString('ja-JP')}・士気${ld.morale.toFixed(2)}・残りの足${ld.mp}）を率いている。地図で行き先を押せば進み、敵の城か軍勢を押せば出陣を命じる（月の終わりに合戦）。${st.hero!.order !== undefined ? `出陣先: ${esc(castleAt(st, st.hero!.order)?.name ?? '敵の軍勢')}` : ''}</p>
     ${st.hero!.order !== undefined ? `<p class="hr-note"><b>出陣を命じてある</b>（${esc(castleAt(st, st.hero!.order)?.name ?? '敵の軍勢')}）。陣中で過ごせば、月の終わりに合戦となる。</p>` : st.hero!.quest?.kind === 'kouryaku' ? (() => { const qc = st.castles[st.hero!.quest!.castle], adj = attackTargets(st, ld).some((x) => x.hex === qc.hex); return `<button class="hr-spot main" data-h="advance" data-id="${qc.i}"><b>${adj ? `${esc(qc.name)}を攻める` : `${esc(qc.name)}へ進む`}</b><span>${adj ? '隣まで来た。出陣を命じる（月の終わりに合戦）' : '攻略の城へ、今月の足の分だけ近づく'}</span></button>`; })() : ''}
+    ${GG.targetCastle(st) ? (() => { const w = GG.gungiBlock(st); return `<button class="hr-spot main" data-h="gungi-open" ${w ? 'disabled' : ''}><b>軍議を開く</b><span>${w ? esc(w) : `${esc(GG.targetCastle(st)!.name)}の攻め方を決める（力攻め・兵糧攻め・調略・夜討ち。1旬・月に一度）${st.hero!.hyoro ? '。いま兵糧攻めで囲んでいる' : ''}`}</span></button>`; })() : ''}
     <button class="hr-spot" data-h="pane" data-id="tabi"><b>地図で軍勢を動かす</b><span>行き先・出陣先を選ぶ</span></button>${cmdBtn}
     <button class="hr-spot" data-h="rest"><b>陣中で過ごす</b><span>1旬。月の終わりに軍勢が動き、合戦が起きる</span></button>
     <button class="hr-spot dim" data-h="disband"><b>軍勢を解く</b><span>兵は近くの城へ、手勢は家へ戻す</span></button>`;
@@ -308,6 +310,12 @@ function dlgHtml(st: GameState) {
 }
 function dlgHtml0(st: GameState) {
   const d = dlg!;
+  if (d.kind === 'gungi') { // 攻略の軍議: 家臣・寄子の進言を聞き、攻め方を決める
+    const c = GG.targetCastle(st), why = GG.gungiBlock(st);
+    const adv = GG.advisers(st).map((a) => `<div class="hr-who">${face(a.g.id, 48) || ''}<div><b>${esc(a.g.name)}</b>（${GG.SAKU_NAME[a.saku]}）<p class="hr-dsub">「${esc(a.line)}」</p></div></div>`).join('') || '<p class="hr-dsub">進言する家臣・寄子がいない。</p>';
+    const opts = (['chikara', 'hyoro', 'choryaku', 'youchi'] as GG.Saku[]).map((k) => `<button class="hr-btn sm" data-h="gg" data-id="${k}" ${why ? 'disabled' : ''}>${GG.SAKU_NAME[k]}${k === 'choryaku' ? `（見込み${Math.round(GG.choryakuChance(st) * 100)}%）` : ''}<small>${esc(GG.SAKU_DESC[k])}</small></button>`).join('');
+    return `<div class="hr-dlg"><h4 class="hr-sub">軍議 ― ${esc(c?.name ?? '')}をいかに攻めるか</h4><p class="hr-dsub">${c ? `城兵およそ${Math.round(c.garrison / 100) * 100}・城の士気${c.gMorale.toFixed(2)}` : ''}${why ? `（${esc(why)}）` : ''}</p>${adv}<div class="hr-dacts">${opts}</div><button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div>`;
+  }
   if (d.kind === 'ronko') { // 論功行賞: 手柄を自分・寄子・家臣に配る
     const r = YO.ronkoOf(st); if (!r) return '<div class="hr-dlg"><p class="hr-none">論功行賞は済んだ。</p><button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div>';
     const used = Object.values(ronkoAlloc).reduce((a, b) => a + b, 0), meId = st.hero!.id;
@@ -735,6 +743,14 @@ function onClick(e: Event) {
   if (h === 'shikan') { void act(() => CR.askService(s!), 'tojo'); return; }
   if (h === 'jingari') { void act(() => RP.jingari(s!, +id), 'town'); return; }
   if (h === 'leavemerc') { void act(() => RP.leaveMerc(s!), 'town', true); return; }
+  if (h === 'gungi-open') { dlg = { kind: 'gungi' }; say = null; render(); showDlg(); return; }
+  if (h === 'gg') {
+    if (busy) return;
+    const st = s, r = GG.gungi(st, id as GG.Saku); dlg = null;
+    if (!r.ok) { say = { text: r.text }; render(); return; }
+    if (r.ban) { void openBan(BP.skirmishBan(st, 'youchi'), `${GG.targetCastle(st)?.name ?? ''} ― 夜討ち`, banColors(st)).then(async (b) => { const t2 = `${r.text}${GG.applyYouchi(st, b)}`; H.note(st, t2); say = { text: t2, hold: true }; save(); render(); await advance(); }); return; }
+    H.note(st, r.text); say = { text: r.text, hold: true }; save(); render(); void advance(); return;
+  }
   if (h === 'ronko') { ronkoAlloc = {}; dlg = { kind: 'ronko' }; say = null; render(); showDlg(); return; }
   if (h === 'rk-plus' || h === 'rk-minus') { const r = YO.ronkoOf(s); if (!r) return; const used = Object.values(ronkoAlloc).reduce((a, b) => a + b, 0); const n = ronkoAlloc[id] ?? 0; if (h === 'rk-plus' && used < r.pool) ronkoAlloc[id] = n + 1; if (h === 'rk-minus' && n > 0) ronkoAlloc[id] = n - 1; render(); return; }
   if (h === 'rk-done') { const t2 = YO.applyRonko(s, ronkoAlloc); H.note(s, t2); dlg = null; say = { text: t2, hold: true }; save(); render(); return; }

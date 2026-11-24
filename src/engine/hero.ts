@@ -17,6 +17,7 @@ import { myHyojoMonth } from './myhyojo';
 import { suisenBlock, yoriMonth, yorikoMonth } from './yorioya';
 import { meiseiMonth } from './meisei';
 import { sasoiMonth } from './sasoi';
+import { hyoroMonth } from './gungi';
 import { noteSeen } from './roninplay';
 import { reward, rewardDue } from './yari';
 import { HP, hpMax, hpMonth, hpOf, lv, masterRumor, spendHp } from './skill';
@@ -52,6 +53,7 @@ export interface Hero {
   pupil?: { gid: string; k: import('./skill').SkillKey; turn: number }; // 弟子入りを願う者（その月だけ）
   gunyaku?: { clan: string; troops: number; until: number; done?: boolean }; // 領主の軍役（ryoshu.ts）
   neTried?: Record<string, number>; neOffer?: { clan: string; turn: number }; // 領主の寝返り（ryoplot.ts）
+  gungi?: number; hyoro?: { castle: number; turn: number }; // 攻略の軍議を開いた月・兵糧攻めで囲む城（gungi.ts）
   yoriko?: string[]; yorikoSuisen?: Record<string, number>; ronko?: { turn: number; pool: number; foe: string }; // 寄子・寄子を推挙した月・論功行賞（yorioya.ts）
   yorioya?: string; yoriRank?: number; rival?: string; rivalAhead?: string; // 寄親と、その身分（出世を見る）・張り合う同輩・先を越された知らせ（yorioya.ts）
   ryoOrder?: import('./ryohyojo').RyoOrder; ryoHyojo?: number; ryoEv?: import('./ryohyojo').HyojoEv; // 領主の評定（ryohyojo.ts）
@@ -627,6 +629,7 @@ export function heroMonth(s: GameState): string[] {
   out.push(...meiseiMonth(s));
   out.push(...sasoiMonth(s));
   out.push(...kashinMonth(s));
+  out.push(...hyoroMonth(s)); // 兵糧攻め（攻略の軍議）
   out.push(...leadMonth(s));
   out.push(...returnLent(s));
   tradeMonth(s);
