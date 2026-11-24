@@ -41,7 +41,7 @@ function cellCls(x: number, y: number, reach: Set<string>, tg: Set<number>) {
 function terrHtml(_x: number, _y: number) { return ''; }
 // 駒の絵（assets/ban。なければ文字の駒）。味方は背面、敵は正面の絵。足もとに家の色の輪（主人公は金、名のある将は朱）
 // 人の大きさをそろえる: 騎馬は少し大きく、膝をついた鉄砲は少し小さく
-const ART_SCALE: Record<string, number> = { kiba: 1.25, sho: 1.25, hero: 1.25, ashi: 1, yumi: 1, teppo: 0.82 };
+const ART_SCALE: Record<string, number> = { kiba: 1.45, sho: 1.45, hero: 1.45, ashi: 1, yumi: 1, teppo: 0.82 };
 const artKey = (p: Piece) => { const d = p.side === 'me' ? 'b' : 'f'; for (const k of [p.sho ? 'sho' : p.hero ? 'hero' : '', p.kind]) if (k && BAN_ART[`${k}_${d}`]?.length) return k; return null; };
 const artOf = (p: Piece) => { const k = artKey(p); return k ? { src: BAN_ART[`${k}_${p.side === 'me' ? 'b' : 'f'}`][0], sc: ART_SCALE[k] ?? 1 } : null; };
 function pieceHtml(p: Piece) {
