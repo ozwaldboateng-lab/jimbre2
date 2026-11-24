@@ -36,13 +36,25 @@ export function keikoBan(s: GameState): Ban {
 export const BANW = { SEEN: 1.5, MERIT: 2, FAME_PER: 4, HP_K: 40, LOSE_HP: 10, LOSE_SICK: 0.4, MOB_PER_KUBI: 5, SHO_SICK: 2 }; // 手柄1で功績2。首級は名のある将と、雑兵5人ごとに一つ
 // 同輩（張り合う相手）は、味方の駒として盤に出る（自分では動かせない）
 function rivalPiece(s: GameState): BanSetup['me'] { const r = rivalOf(s); return r && !r.sick ? [{ kind: kindOf(r), who: whoOf(r, { rival: true }) }] : []; }
+// 同僚: 同じ家中の足軽組頭・足軽大将を一人（同輩・寄親・家臣・身内でない者。主人公のいる城の者を先に）。同輩と合わせて二人まで。張り合いはしない
+export const BANP_ALLY = { MAX: 2 };
+function allyPieces(s: GameState, n: number): BanSetup['me'] {
+  if (n <= 0) return [];
+  const H = s.hero!, me = s.generals[H.id], r = rivalOf(s), Y = (H as typeof H & { yorioya?: string }).yorioya;
+  if (!me.clan) return [];
+  const sur = (x: string) => x.slice(0, 2);
+  const cs = Object.values(s.generals).filter((g) => g.clan === me.clan && g.id !== me.id && g.id !== r?.id && g.id !== Y && g.rank >= 2 && !g.kin && !g.liege && !g.sick && ['free', 'army', 'camp'].includes(g.status) && !(H.retainers ?? []).includes(g.id) && sur(g.name) !== sur(me.name));
+  cs.sort((a, b) => (a.loc === me.loc ? 0 : 1) - (b.loc === me.loc ? 0 : 1) || rand(s) - 0.5);
+  return cs.slice(0, n).map((g) => ({ kind: kindOf(g), who: whoOf(g, { npc: true }) }));
+}
 export function battleBan(s: GameState): Ban | null {
   const P = banPendOf(s); if (!P) return null;
   const f = P.foe ? s.generals[P.foe] : null, ok = f && f.status !== 'dead' && f.status !== 'captive';
   const sho: Who = ok ? { name: f!.name, bra: f!.bra, int: f!.int, lea: f!.lea, gid: f!.id, sho: true } : { name: '敵の侍大将', bra: 66, int: 56, lea: 62, sho: true };
   const mob = (k: BKind) => ({ kind: k, who: null });
+  const rv = rivalPiece(s), friends: BanSetup['me'] = [...myPieces(s), ...rv, ...allyPieces(s, BANP_ALLY.MAX - rv.length)];
   return newBan({
-    me: [...myPieces(s), ...rivalPiece(s)], foe: (['ashi', 'ashi', 'yumi', 'teppo'] as BKind[]).map(mob), seed: Math.floor(rand(s) * 1e9),
+    me: friends, foe: ([...(['ashi', 'ashi', 'yumi', 'teppo'] as BKind[]), ...friends.filter((u) => u.who?.npc || u.who?.rival).map(() => 'ashi' as BKind)]).map(mob), seed: Math.floor(rand(s) * 1e9), // 同輩・同僚一人につき敵の足軽を一駒増やす
     mid: [{ kind: 'kiba', who: sho }, mob('ashi')], end: P.won ? 'oiuchi' : 'shingari', late: [mob('kiba'), mob('ashi'), mob('ashi')],
   });
 }

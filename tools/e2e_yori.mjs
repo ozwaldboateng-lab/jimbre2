@@ -41,6 +41,9 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   const rival = await p.$('#ban .pa.rival, #ban .pc.rival');
   console.log(vp.tag, '同輩の駒:', !!rival);
   if (rival) { await rival.click(); await p.waitForTimeout(100); console.log(vp.tag, '同輩を押す:', await p.$eval('#ban .ban-info', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => ''), '| 動ける先', (await p.$$('#ban .bc.reach')).length); }
+  const npc = await p.$('#ban .pa.npc, #ban .pc.npc');
+  console.log(vp.tag, '同僚の駒:', !!npc, '| 味方の駒', (await p.$$('#ban .pa.me, #ban .pc.me')).length, '敵の駒', (await p.$$('#ban .pa.foe, #ban .pc.foe')).length);
+  if (npc) { await npc.click(); await p.waitForTimeout(100); console.log(vp.tag, '同僚を押す:', await p.$eval('#ban .ban-info', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => ''), '| 動ける先', (await p.$$('#ban .bc.reach')).length); }
   await p.screenshot({ path: `${out}/yori-ban-${vp.tag}.png` });
   await p.click('#ban [data-b="auto"]'); await p.waitForTimeout(300);
   console.log(vp.tag, '盤:', await p.$eval('#ban .ban-over', (e) => e.textContent.replace(/\s+/g, ' ')));

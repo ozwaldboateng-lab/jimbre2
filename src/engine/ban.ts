@@ -13,6 +13,7 @@ export interface Piece {
   kyoho: number; confused?: number; flee?: boolean; gone?: boolean; // 虚報の残り回数・混乱の残り手番・逃げる（追い討ち）・盤から去った
   bra: number; // 一騎討ちに使う武勇
   rival?: boolean; // 同輩の駒（味方だが自分では動かせない。討ち取りは同輩の手柄）
+  npc?: boolean; // 自分では動かせない味方（同輩・同僚）。手番の終わりに自分で動き、討ち取りは主人公の手柄にならない
 }
 export interface Ban {
   w: number; h: number; terr: Terr[]; pieces: Piece[]; turn: number; maxTurn: number; phase: BSide;
@@ -41,7 +42,7 @@ export const stageName = (b: Ban) => ({ jo: '序盤', naka: '中盤', shu: b.end
 export function rnd(b: Ban): number { let t = (b.seed = (b.seed + 0x6d2b79f5) | 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
 
 // ───────── 駒を作る ─────────
-export interface Who { name: string; bra: number; int: number; lea: number; gid?: string; hero?: boolean; sho?: boolean; rival?: boolean; yari?: number; hpRate?: number }
+export interface Who { name: string; bra: number; int: number; lea: number; gid?: string; hero?: boolean; sho?: boolean; rival?: boolean; npc?: boolean; yari?: number; hpRate?: number }
 // 武将の型で駒を決める: 武勇が知略より10以上高ければ足軽、知略が10以上高ければ弓、それ以外は鉄砲
 export const kindOf = (w: { bra: number; int: number }): BKind => (w.bra - w.int >= 10 ? 'ashi' : w.int - w.bra >= 10 ? 'yumi' : 'teppo');
 const atkStat = (k: BKind, w: Who) => (k === 'yumi' ? w.int : k === 'teppo' ? (w.bra + w.int) / 2 : w.bra);
@@ -53,7 +54,7 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
   const maxhp = w ? K.hp + Math.round(w.lea / 10) : K.hp - 4;
   const hp = Math.max(1, Math.round(maxhp * (w?.hpRate ?? 1)));
   return {
-    id, side, kind, name: w?.name ?? `${side === 'me' ? '味方' : '敵'}の${K.name}`, gid: w?.gid, hero: w?.hero, sho: w?.sho, rival: w?.rival,
+    id, side, kind, name: w?.name ?? `${side === 'me' ? '味方' : '敵'}の${K.name}`, gid: w?.gid, hero: w?.hero, sho: w?.sho, rival: w?.rival, npc: w?.npc || w?.rival,
     hp, maxhp, atk, def, int: w?.int ?? 30, mov: K.mov, rmin: K.rmin, rmax: K.rmax, crit: BAN.CRIT_BASE + (w?.yari ?? 0) * BAN.CRIT_YARI,
     x, y, moved: false, acted: false, alive: true, kyoho: w ? Math.floor(w.int / BAN.KYOHO_PER) : 0, // 虚報は武将だけ（知略30ごとに一回）
     bra: w ? w.bra + (w.yari ?? 0) * 4 : 40, // 一騎討ちに使う武勇（武芸一段で+4）
@@ -127,7 +128,7 @@ function hit(b: Ban, a: Piece, d: Piece, counter: boolean): string {
   if (d.hp <= 0) {
     d.alive = false; t += `、${d.name}を討ち取った`;
     const v2 = (d.sho ? BAN.TEGARA_SHO : BAN.TEGARA_MOB) + (d.flee ? BAN.OIUCHI : 0);
-    if (a.side === 'me' && d.side === 'foe') { if (a.rival) b.rivalTegara += v2; else { b.kills++; b.tegara += v2; } }
+    if (a.side === 'me' && d.side === 'foe') { if (a.rival) b.rivalTegara += v2; else if (!a.npc) { b.kills++; b.tegara += v2; } }
   }
   return t;
 }
