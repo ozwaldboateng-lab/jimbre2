@@ -79,6 +79,14 @@ export function applyBan(s: GameState, b: Ban): string[] {
   out.push(`槍働き（${P?.foeName ?? '敵'}との合戦）: ${how}。討ち取り${b.kills}${b.log.some((t) => t.startsWith('一番槍')) ? '・一番槍' : ''}${duels ? `・一騎討ちの勝ち${duels}` : ''}${b.duelLost ? `・一騎討ちの負け${b.duelLost}` : ''}。手柄${b.tegara}（功績+${merit}${fame ? `・名声+${fame}` : ''}${kubi ? `・首級${kubi}` : ''}）。`);
   for (const p of shoDown) if (p.gid) out.push(`${p.name}は深手を負って退いた。`);
   out.push(...yoriBan(s, b.tegara, b.rivalTegara, !!P?.yori));
+  settle(s, b, out);
+  return out;
+}
+export { BAN };
+
+// 盤のあとの体: 主人公の体力、配下の成長と手傷（槍働き・小競り合いで同じ）
+function settle(s: GameState, b: Ban, out: string[]) {
+  const Hh = s.hero!, me = s.generals[Hh.id];
   // 体力: 盤で受けた傷の分だけ減る。倒れれば、さらに減って病に伏すこともある
   const h = heroPiece(b);
   if (h) {
@@ -105,10 +113,7 @@ export function applyBan(s: GameState, b: Ban): string[] {
   }
   // 倒れた配下は手傷で、しばらく出られない
   for (const p of b.pieces) if (p.side === 'me' && !p.alive && p.gid && !p.hero) { const g = s.generals[p.gid]; if (g) { g.sick = Math.max(g.sick ?? 0, 1); out.push(`${g.name}は手傷を負い、しばらく養生する。`); } }
-  return out;
 }
-export { BAN };
-
 // 持ち場を願い出る（一合戦に一度）: 寄親との親しさ30からは聞き入れられる。それより下は半々
 export function askMochi(s: GameState, m: Mochi): { ok: boolean; text: string } {
   const P = banPendOf(s); if (!P || !P.mochi) return { ok: false, text: '持ち場はない' };
@@ -118,4 +123,27 @@ export function askMochi(s: GameState, m: Mochi): { ok: boolean; text: string } 
   const Y = (s.hero as typeof s.hero & { yorioya?: string })?.yorioya, v = Y ? s.hero!.rel[Y] ?? 0 : 0, y = Y ? s.generals[Y] : null;
   if (v >= 30 || rand(s) < 0.5) { P.mochi = m; return { ok: true, text: `${y ? `寄親の${y.name}は` : ''}願いを聞き入れた。持ち場は${MOCHI_NAME[m]}。` }; }
   return { ok: false, text: `${y ? `寄親の${y.name}は` : ''}願いを退けた。持ち場は${MOCHI_NAME[P.mochi]}のまま。` };
+}
+
+// ───────── 小競り合い（足軽大将の主命。境の城から） ─────────
+// 物見: 敵の端（一番上の行）まで主人公が行き着く（4手。敵5は2〜5行目に散らばる）。夜討ち: 柵の砦の敵6を討ち払う（5手、敵ははじめ寝込んで乱れる）。砦の守り: 柵の内で6手持ちこたえる（敵5、4手目に騎馬2・足軽2の新手。敵に下の二行＝砦の内へ入られれば破られる）
+export function skirmishBan(s: GameState, sub: 'scout' | 'youchi' | 'toride'): Ban {
+  const mob = (k: BKind) => ({ kind: k, who: null }), seed = Math.floor(rand(s) * 1e9), me = myPieces(s);
+  if (sub === 'scout') return newBan({ me, foe: (['ashi', 'ashi', 'yumi', 'teppo', 'kiba'] as BKind[]).map(mob), seed, maxTurn: 4, goal: 'reach', spread: true });
+  if (sub === 'youchi') return newBan({ me, foe: (['ashi', 'ashi', 'ashi', 'yumi', 'yumi', 'teppo'] as BKind[]).map(mob), seed, maxTurn: 5, goal: 'rout', fort: 'foe', sleep: true });
+  return newBan({ me, foe: (['ashi', 'ashi', 'ashi', 'yumi', 'teppo'] as BKind[]).map(mob), seed, maxTurn: 6, goal: 'hold', fort: 'me', mid: [mob('kiba'), mob('kiba'), mob('ashi'), mob('ashi')] });
+}
+// 盤の結果を主命に: 果たせば主命は果たした（登城して報告）。果たせなければ主命は残り、期日までにまた挑める。どちらも1旬を使い、手柄は功績に
+export function applySkirmish(s: GameState, b: Ban): { ok: boolean; text: string } {
+  const Hh = s.hero!, q = Hh.quest, me = s.generals[Hh.id];
+  const out: string[] = [];
+  const won = b.goal === 'hold' ? (b.over === 'time' || b.over === 'win') && !!heroPiece(b)?.alive && !b.breached : b.over === 'win';
+  Hh.jun++;
+  const merit = b.tegara * BANW.MERIT; me.merit += merit;
+  if (q && q.kind === 'zeriai') {
+    if (won) { q.done = q.need; q.ok = true; q.note = b.goal === 'reach' ? '敵陣の奥まで物見をしてきた。' : b.goal === 'rout' ? '夜討ちで砦の敵を討ち払った。' : '砦を守り抜いた。'; out.push(`${q.note}登城して報告せよ（討ち取り${b.kills}・功績+${merit}）。`); }
+    else out.push(`小競り合いは果たせなかった（${b.breached ? '砦を破られた' : b.over === 'retreat' ? '退いた' : b.over === 'lose' ? '手傷を負って退いた' : '時が尽きた'}・討ち取り${b.kills}・功績+${merit}）。期日までに、また挑める。`);
+  }
+  settle(s, b, out);
+  return { ok: won, text: out.join('') };
 }

@@ -23,7 +23,11 @@ export interface Ban {
   mid: BanSetup['foe']; late: BanSetup['foe']; // 中盤に現れる敵・殿で迫る敵
   duel?: Duel; duelWon?: string[]; duelLost?: number; // 一騎討ち（いま戦っている・勝った相手の名・負けた数）
   mochi?: Mochi; rescued?: number; // 持ち場（足軽大将から）・後詰めで救った組の数
+  goal?: Goal; breached?: boolean; // 小競り合いのねらい（主命。なければ合戦の槍働き）・砦を破られた
 }
+// 小競り合い（足軽大将の主命）のねらい: reach 主人公が敵の端（一番上の行）に着けば果たす・rout 敵を討ち払えば果たす・hold 手番の終わりまで主人公が持ちこたえれば果たす
+export type Goal = 'reach' | 'rout' | 'hold';
+export const GOAL_NAME: Record<Goal, string> = { reach: '物見（敵陣の端まで）', rout: '夜討ち（砦の敵を討ち払う）', hold: '砦の守り（持ちこたえる）' };
 // 持ち場: 先陣（敵が近くから始まり、一番槍は倍）・脇備え（中盤から横を突けて傷+2）・鉄砲備え（モブが鉄砲、陣の前に柵）・後詰め（崩れかけた味方の組を救う）
 export type Mochi = 'senjin' | 'waki' | 'teppo' | 'gozume';
 export const MOCHI_NAME: Record<Mochi, string> = { senjin: '先陣', waki: '脇備え', teppo: '鉄砲備え', gozume: '後詰め' };
@@ -42,7 +46,7 @@ export const TERR_NAME: Record<Terr, string> = { '.': '野', saku: '柵', mori: 
 export const DUEL = { YARI_SEEN: 2, HABIT: 0.5, READ: 0.25, BRA_K: 60, TEGARA: 3, LOSE_HP: 0.5 };
 export const BAN = { W: 8, H: 10, TURNS: 8, OKA: 2, CRIT_BASE: 0.05, CRIT_YARI: 0.03, CRIT_MULT: 1.5, TEGARA_MOB: 1, TEGARA_SHO: 5, ICHIBAN: 3, OIUCHI: 1, SHINGARI: 6, NAKA: 4, SHU: 7, KYOHO_PER: 30, KYOHO_RANGE: 3, LOSE_KEEP: 0.5 };
 export const stageOf = (b: Ban) => (b.turn >= BAN.SHU ? 'shu' : b.turn >= BAN.NAKA ? 'naka' : 'jo');
-export const stageName = (b: Ban) => ({ jo: '序盤', naka: '中盤', shu: b.end === 'oiuchi' ? '終盤・追い討ち' : '終盤・殿' })[stageOf(b)];
+export const stageName = (b: Ban) => b.goal ? GOAL_NAME[b.goal] : ({ jo: '序盤', naka: '中盤', shu: b.end === 'oiuchi' ? '終盤・追い討ち' : '終盤・殿' })[stageOf(b)];
 
 // ───────── 乱数（盤ごとの種） ─────────
 export function rnd(b: Ban): number { let t = (b.seed = (b.seed + 0x6d2b79f5) | 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
@@ -68,9 +72,9 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
 }
 
 // ───────── 盤を作る ─────────
-export interface BanSetup { mochi?: Mochi; rescue?: { kind: BKind; who: Who | null }[]; me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number; end?: 'oiuchi' | 'shingari'; mid?: { kind: BKind; who: Who | null }[]; late?: { kind: BKind; who: Who | null }[] }
+export interface BanSetup { goal?: Goal; fort?: 'foe' | 'me'; sleep?: boolean; spread?: boolean; mochi?: Mochi; rescue?: { kind: BKind; who: Who | null }[]; me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number; end?: 'oiuchi' | 'shingari'; mid?: { kind: BKind; who: Who | null }[]; late?: { kind: BKind; who: Who | null }[] }
 export function newBan(o: BanSetup): Ban {
-  const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, rivalTegara: 0, seed: o.seed | 0 || 1, end: o.end ?? 'oiuchi', mid: o.mid ?? [], late: o.late ?? [], mochi: o.mochi };
+  const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, rivalTegara: 0, seed: o.seed | 0 || 1, end: o.end ?? 'oiuchi', mid: o.mid ?? [], late: o.late ?? [], mochi: o.mochi, goal: o.goal };
   // 地形: 中ほど（上下3行は陣地として空ける）に林・丘・柵、川を一筋
   const mid = (y: number) => y >= 3 && y <= b.h - 4;
   const put = (t: Terr, n: number) => { for (let k = 0, tries = 0; k < n && tries < 60; tries++) { const x = Math.floor(rnd(b) * b.w), y = 3 + Math.floor(rnd(b) * (b.h - 6)); if (mid(y) && b.terr[y * b.w + x] === '.') { b.terr[y * b.w + x] = t; k++; } } };
@@ -85,7 +89,10 @@ export function newBan(o: BanSetup): Ban {
   };
   if (o.mochi === 'teppo') for (let x = 2; x <= 5; x++) b.terr[(b.h - 3) * b.w + x] = 'saku'; // 鉄砲備え: 陣の前に柵
   if (o.mochi === 'senjin') for (let y = 2; y <= 3; y++) for (let x = 0; x < b.w; x++) b.terr[y * b.w + x] = '.'; // 先陣: 敵の陣を空ける
+  if (o.fort) { const y = o.fort === 'foe' ? 2 : b.h - 3; for (let x = 0; x < b.w; x++) b.terr[y * b.w + x] = x === 3 || x === 4 ? '.' : 'saku'; for (let x = 0; x < b.w; x++) if (b.terr[(y + (o.fort === 'foe' ? 1 : -1)) * b.w + x] === 'saku') b.terr[(y + (o.fort === 'foe' ? 1 : -1)) * b.w + x] = '.'; } // 砦: 一行の柵（真ん中の二マスが木戸）
   place('me', o.me); place('foe', o.foe);
+  if (o.spread) for (const p of b.pieces) if (p.side === 'foe') { for (let k = 0; k < 30; k++) { const x = Math.floor(rnd(b) * b.w), y = 1 + Math.floor(rnd(b) * 4); if (!at(b, x, y) && terrAt(b, x, y) !== 'saku') { p.x = x; p.y = y; break; } } } // 物見: 敵は2〜5行目に散らばって見張る
+  if (o.sleep) for (const p of b.pieces) if (p.side === 'foe') p.confused = 1; // 夜討ち: 敵ははじめの一手、寝込んでいて乱れる
   // 後詰め: 盤の中ほど（5行目）に、崩れかけた味方の組（体は半ば。自分では動かせない）
   (o.rescue ?? []).forEach((u, i) => { const x = [2, 5, 3, 4][i % 4], y = 5; b.terr[y * b.w + x] = '.'; const p = makePiece(b.pieces.length, 'me', u.kind, u.who, x, y); p.npc = true; p.hp = Math.ceil(p.maxhp * 0.4); p.mov = 2; (p as Piece & { rescue?: boolean }).rescue = true; p.name = `崩れかけた味方の${KIND[u.kind].name}`; b.pieces.push(p); });
   return b;
@@ -161,6 +168,8 @@ export const hero = (b: Ban) => b.pieces.find((p) => p.hero) ?? null;
 function judge(b: Ban) {
   if (b.over) return;
   const h = hero(b);
+  if (b.goal === 'reach' && h?.alive && h.y === 0) { b.over = 'win'; b.log.push('敵陣の端まで見届けた。'); return; }
+  if (b.goal === 'hold' && b.pieces.some((p) => p.alive && p.side === 'foe' && p.y >= b.h - 2)) { b.over = 'lose'; b.breached = true; b.log.push('敵に砦の内へ踏み込まれた。砦は破られた。'); return; } // 砦の守り: 下の二行（砦の内）に敵が入れば破られる
   if (h && !h.alive) { b.over = 'lose'; b.tegara = Math.floor(b.tegara * BAN.LOSE_KEEP); b.log.push(`${h.name}は手傷を負い、後ろへ運ばれた（手柄の半ばを失った）。`); return; }
   if (!b.pieces.some((p) => p.alive && p.side === 'foe')) { b.over = 'win'; b.log.push('目の前の敵を討ち払った。'); countRescue(b); }
 }
@@ -179,7 +188,8 @@ export function endPhase(b: Ban) {
   if (b.turn > b.maxTurn) {
     b.over = 'time'; countRescue(b);
     const h = hero(b);
-    if (b.end === 'shingari' && h?.alive) { b.tegara += BAN.SHINGARI; b.log.push(`殿を務め上げた（手柄+${BAN.SHINGARI}）。`); }
+    if (b.goal) b.log.push(b.goal === 'hold' && h?.alive ? '砦を持ちこたえた。' : b.goal === 'reach' ? '敵陣の端まで行き着けなかった。' : '砦の敵を討ち払えなかった。');
+    else if (b.end === 'shingari' && h?.alive) { b.tegara += BAN.SHINGARI; b.log.push(`殿を務め上げた（手柄+${BAN.SHINGARI}）。`); }
     else b.log.push(b.end === 'oiuchi' ? '敵は散り、追い討ちを止めた。' : '合戦の流れが変わり、槍を収めた。');
     return;
   }
@@ -262,6 +272,11 @@ export function aiStep(b: Ban, p: Piece): string | null {
   }
   const tiles = p.moved ? [{ x: p.x, y: p.y }] : reach(b, p);
   // 主人公・名のある将は、体が三分の一を切ったら、討ち取れる相手がいない限り退がる
+  if (p.hero && b.goal === 'reach' && p.side === 'me') { // 物見のオート: 敵と組み合わず、なるべく上の端へ
+    let best = { t: { x: p.x, y: p.y }, v: 1e9 };
+    for (const t of tiles) { const v = t.y * 10 - Math.min(...foes.map((o) => dist(t, o))); if (v < best.v) best = { t, v }; }
+    p.x = best.t.x; p.y = best.t.y; p.moved = true; judge(b); if (b.over) return null;
+  }
   if ((p.hero || p.sho) && p.hp / p.maxhp < 0.35 && !tiles.some((t) => canShoot(b, p) && targets(b, p, t).some((d) => baseDmg(b, { ...p, x: t.x, y: t.y }, d) >= d.hp))) {
     let far = { t: { x: p.x, y: p.y }, v: -1 };
     for (const t of tiles) { const v = Math.min(...foes.map((o) => dist(t, o))); if (v > far.v) far = { t, v }; }

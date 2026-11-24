@@ -742,6 +742,15 @@ function onClick(e: Event) {
   if (h === 'buy') { pane = 'akinai'; void act(() => T.buy(s!, +id), 'ichi'); return; }
   if (h === 'sell') { pane = 'akinai'; void act(() => T.sell(s!, id), 'ichi'); return; }
   if (h === 'gov') { pane = 'shiro'; void act(() => M.govern(s!, id as M.GovAct), 'town'); return; }
+  if (h === 'work' && s.hero!.quest?.kind === 'zeriai') { // 小競り合いは槍働きの盤で
+    if (busy) return;
+    const st = s, q = st.hero!.quest!;
+    if (SK.isSick(st)) { say = { text: '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
+    dlg = null;
+    const bn = BP.skirmishBan(st, q.sub ?? 'scout');
+    void openBan(bn, `${st.castles[q.castle].name}の境 ― 小競り合い`, banColors(st, Object.values(st.generals).find((g) => g.clan === q.target)?.id)).then(async (r) => { const res = BP.applySkirmish(st, r); H.note(st, res.text); say = { text: res.text, hold: true }; save(); render(); await advance(); });
+    return;
+  }
   if (h === 'work') { const k = s.hero!.quest!.kind; void act(() => H.work(s!), k); return; }
   if (h === 'yori-sw') { void act(() => { const r = YO.switchYori(s!, id); if (r.ok) s!.hero!.jun++; return r; }, 'yashiki'); return; }
   if (h === 'visit') { void act(() => H.visit(s!, id), 'yashiki'); return; }
