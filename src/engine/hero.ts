@@ -14,7 +14,7 @@ import { leadMonth } from './heroArmy';
 import { upkeepMonth } from './meibutsu';
 import { familyYear } from './family';
 import { myHyojoMonth } from './myhyojo';
-import { suisenBlock, yoriMonth } from './yorioya';
+import { suisenBlock, yoriMonth, yorikoMonth } from './yorioya';
 import { meiseiMonth } from './meisei';
 import { sasoiMonth } from './sasoi';
 import { noteSeen } from './roninplay';
@@ -52,6 +52,7 @@ export interface Hero {
   pupil?: { gid: string; k: import('./skill').SkillKey; turn: number }; // 弟子入りを願う者（その月だけ）
   gunyaku?: { clan: string; troops: number; until: number; done?: boolean }; // 領主の軍役（ryoshu.ts）
   neTried?: Record<string, number>; neOffer?: { clan: string; turn: number }; // 領主の寝返り（ryoplot.ts）
+  yoriko?: string[]; yorikoSuisen?: Record<string, number>; ronko?: { turn: number; pool: number; foe: string }; // 寄子・寄子を推挙した月・論功行賞（yorioya.ts）
   yorioya?: string; yoriRank?: number; rival?: string; rivalAhead?: string; // 寄親と、その身分（出世を見る）・張り合う同輩・先を越された知らせ（yorioya.ts）
   ryoOrder?: import('./ryohyojo').RyoOrder; ryoHyojo?: number; ryoEv?: import('./ryohyojo').HyojoEv; // 領主の評定（ryohyojo.ts）
   azuke?: string[]; // 預け: 家臣の枠を超えて主家に預けた配下（kashin.ts）
@@ -636,6 +637,7 @@ export function heroMonth(s: GameState): string[] {
   else if (q && q.done < q.need && s.turn >= q.until) { H.favor = clamp(H.favor - HERO.FAVOR_NG); H.failed++; H.quest = null; out.push(`主命（${QUEST_NAME[q.kind]}）の期日が過ぎた。主君の覚え−${HERO.FAVOR_NG}。`); note(s, `主命（${QUEST_NAME[q.kind]}）の期日を過ぎてしまった。`); }
   // 寄親と同輩（足軽組頭・足軽大将）。寄親の出世で引き上げられることもある
   out.push(...yoriMonth(s, () => H.favor >= 30 + (3 - me.rank) * 10));
+  out.push(...yorikoMonth(s)); // 侍大将からは寄子が付く
   // 取り立て（功績が満ちて、主君の覚えがよく、寄親の推挙があれば）
   { const sb = me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10 ? suisenBlock(s) : null; if (sb) out.push(`功績は満ちたが、取り立てられない: ${sb}。`); }
   while (me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10 && !suisenBlock(s)) {
