@@ -4,6 +4,7 @@ import * as RY from '../engine/ryoshu';
 import * as KS from '../engine/kashin';
 import * as RH from '../engine/ryohyojo';
 import * as NE from '../engine/ryoplot';
+import * as SH from '../engine/ryoshin';
 import * as WK from '../engine/watakushi';
 import * as MBU from '../engine/meibutsu';
 import * as PLT from '../engine/plot';
@@ -341,6 +342,34 @@ function openWatakushi(st: GameState) {
     [wkBtn('wk-dvisit', g.id, '訪ねる', null, none), wkBtn('wk-dgift', g.id, `進物（${WK.WK.GIFT_GOLD}貫）`, C.gold < WK.WK.GIFT_GOLD ? '金が足りない' : null, none), g.rank <= WK.WK.WED_RANK && !g.kin ? wkBtn('wk-dwed', g.id, '縁組（一門の娘を嫁がせる）', WK.dWedBlock(st, g), none) : ''].join(' '))).join('');
   openModal(`${head}${tea}${let0}<h3>家臣（恩の薄い順）</h3>${ps || '<p>家臣がいない</p>'}`);
 }
+// 領主の謀反（領ごと独立して大名プレイへ）と出奔（浪人として武将の画面へ）。主家の欄と討手の窓から
+function ryoRebel(st: GameState): boolean {
+  const r = CR.rebel(st);
+  if (!r.ok || !r.clan) { toast(r.text); return false; }
+  st.player = r.clan; st.hero = undefined; st.clans[r.clan].delegate = undefined; closeModal(); startWith(st); store(AUTO_KEY, JSON.stringify(st));
+  openModal(`<h2 id="modal-title">謀反</h2><p>${esc(r.text)}</p><p>${esc(st.clans[r.clan].name)}家の当主として、大名プレイを始める。</p>`); return true;
+}
+function ryoLeave(st: GameState, pre = '') { RY.toHero(st); const t2 = CR.leaveLord(st); closeModal(); store(AUTO_KEY, null); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: pre + t2 }); }
+// 主君との出来事（月のはじめ）: 詰問・討手・国替え。閉じたら next
+let shinNext: (() => void) | null = null;
+function openRyoShin(st: GameState, next: () => void) {
+  const ev = RY.isRyoshu(st) ? SH.shinEvOf(st) : null;
+  if (!ev) { next(); return; }
+  shinNext = next;
+  const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null, me = st.generals[st.hero!.id];
+  const who = (line: string) => `<div style="display:flex;gap:12px;align-items:center">${L ? face(L.id, 72) : ''}<div><b>${esc(L?.name ?? '')}</b><p style="margin:4px 0 0">「${esc(line)}」</p></div></div>`;
+  const u = SH.utagaiOf(st), rb = CR.canRebel(st);
+  let body = '';
+  if (ev.kind === 'kitsumon') body = `${who(`${me.name}、そなたの近ごろの振る舞い、聞き捨てならぬ噂がある。申し開きがあるなら、参って述べよ。`)}<p class="hint">疑い${u}（${SH.utagaiName(u)}）。出向けば申し開き（見込み${Math.round(SH.benmeiChance(st) * 100)}%。魅力・弁舌・主君との親しさが効き、疑いが深いほど通りにくい）。通れば疑い−30、通らなければ覚え−10・疑い+10。拒めば疑いが極まり、討手が来る。</p><div class="actions"><button class="act primary" data-act="rv-go">出向いて申し開く</button><button class="act" data-act="rv-refuse">呼び出しを拒む</button></div>`;
+  else if (ev.kind === 'uchite') body = `${who('謀反の企て、もはや明らか。討手を差し向ける。')}<p class="hint">主君の討手が迫っている。謀反を起こすか、出奔するか、命がけで申し開くか（見込み${Math.round(SH.benmeiChance(st, true) * 100)}%。通らなければ領をすべて召し上げられ、足軽大将に落とされる）。</p><div class="actions"><button class="act primary" data-act="rv-rebel" ${rb ? `disabled title="${esc(rb)}"` : ''}>謀反を起こす${rb ? `（${esc(rb)}）` : ''}</button><button class="act" data-act="rv-leave">出奔する</button><button class="act" data-act="rv-benmei">申し開きに出向く</button></div>`;
+  else body = `${who(`${me.name}。家の都合じゃ。${(ev.to ?? []).map((i) => st.castles[i].name).join('・')}へ移れ。`)}<p class="hint">国替え: 育てた領（${RY.fiefCastles(st).map((c) => esc(c.name)).join('・')}）を手放し、${(ev.to ?? []).map((i) => esc(st.castles[i].name)).join('・')}へ移る。従えば覚え+10・疑い−20。背けば討手が来る。</p><div class="actions"><button class="act primary" data-act="rv-obey">従う</button><button class="act" data-act="rv-defy">背く</button></div>`;
+  openModal(`<h2 id="modal-title">${ev.kind === 'kitsumon' ? '詰問' : ev.kind === 'uchite' ? '討手' : '国替え'} ― ${esc(C.name)}家</h2>${body}`, false);
+}
+function shinResult(st: GameState, line: string, text: string) {
+  const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null;
+  openModal(`<h2 id="modal-title">${esc(C.name)}家</h2>${line ? `<div style="display:flex;gap:12px;align-items:center">${L ? face(L.id, 72) : ''}<div><b>${esc(L?.name ?? '')}</b><p style="margin:4px 0 0">「${esc(line)}」</p></div></div>` : ''}<p>${esc(text)}</p><div class="actions"><button class="act primary" data-act="rv-close">閉じる</button></div>`, false);
+  store(AUTO_KEY, JSON.stringify(st)); refresh();
+}
 // 主家との縁: 寝返りの誘いへの返事・寝返りを持ちかける・謀反・出奔（謀反と出奔は二度押して決める）
 let ryoArm: string | null = null;
 function shukeEn(st: GameState) {
@@ -357,6 +386,8 @@ function openShuke(st: GameState) {
   const tr = RY.tributeOf(st);
   openModal(`<h2 id="modal-title">主家 ― ${esc(C.name)}家</h2>
     <dl class="kv"><dt>主君</dt><dd>${L ? `${face(L.id, 48)} ${esc(L.name)}` : '―'}</dd><dt>主君の覚え</dt><dd>${H0.favor}</dd>
+    <dt>主君の疑い</dt><dd>${SH.utagaiOf(st)}（${SH.utagaiName(SH.utagaiOf(st))}）<span class="hint" style="margin:0">　50で詰問、80で減封、100で討手。覚えがよければ薄れる</span></dd>
+    <dt>評定の席次</dt><dd>${(() => { const k = SH.sekiOf(st); const r = SH.rivalJoOf(st); return `家中の城持ち${k.of}人のうち${k.seki}番目${r ? `・張り合う城主は${esc(r.name)}（親しさ${st.hero!.rel[r.id] ?? 0}。親しくないと主君に讒言することがある。主君と懇意なら退けられる）` : ''}`; })()}</dd>
     <dt>主家の構え</dt><dd>${esc(C.stance ?? '均衡')}${C.target ? `・狙う家 <b>${esc(clanName(st, C.target))}家</b>` : '・狙う家なし'}</dd>
     <dt>攻めてよい家</dt><dd>${[C.target ? `${esc(clanName(st, C.target))}家` : '', g && !g.done ? `軍役の${esc(clanName(st, g.clan))}家` : ''].filter(Boolean).join('・') || 'いまはない'}（領に寄せてきた敵の軍勢はどの家でも討てる）</dd>
     <dt>承っている命</dt><dd>${RH.currentOrder(st) ? esc(RH.orderText(st, RH.currentOrder(st)!)) : 'なし（月のはじめの評定で受ける）'}</dd>
@@ -1033,7 +1064,7 @@ function doEndTurn() {
     if (st.over) { showGameOver(); return; }
     mapMood(st);
     if (st.log.some((l) => l.turn === st.turn - 1 && l.kind === 'castle' && l.text.includes(`${st.clans[st.player].name}家が`) && l.text.includes('を攻略'))) sfx('castle');
-    playEvents(st, () => openRyoHyojo(st, () => afterTurnReports(st)));
+    playEvents(st, () => openRyoHyojo(st, () => openRyoShin(st, () => afterTurnReports(st))));
   }, 30);
 }
 function afterTurnReports(st: GameState) {
@@ -3006,17 +3037,22 @@ function onModalClick(e: Event) {
   if (act === 'rh-decline') { hyojoResult(st, RH.declineOrder(st)); return; }
   if (act === 'rh-ken') { hyojoResult(st, RH.kensaku(st, id)); return; }
   if (act === 'rh-close') { closeModal(); store(AUTO_KEY, JSON.stringify(st)); const n = hyojoNext; hyojoNext = null; n?.(); return; }
+  if (act.startsWith('rv-')) {
+    if (act === 'rv-close') { closeModal(); const n = shinNext; shinNext = null; if (SH.shinEvOf(st)) openRyoShin(st, n ?? (() => {})); else n?.(); return; }
+    if (act === 'rv-go') { const r = SH.kitsumonGo(st); shinResult(st, r.line, r.text); return; }
+    if (act === 'rv-refuse') { shinResult(st, '', SH.kitsumonRefuse(st)); return; }
+    if (act === 'rv-obey') { startWith(st); shinResult(st, '', SH.kunigaeObey(st)); return; }
+    if (act === 'rv-defy') { shinResult(st, '', SH.kunigaeDefy(st)); return; }
+    if (act === 'rv-rebel') { (st.hero as { shinEv?: unknown }).shinEv = undefined; ryoRebel(st); return; }
+    if (act === 'rv-leave') { (st.hero as { shinEv?: unknown }).shinEv = undefined; ryoLeave(st, '討手を逃れ、'); return; }
+    if (act === 'rv-benmei') { const r = SH.uchiteBenmei(st); if (r.lost) { closeModal(); store(AUTO_KEY, null); RY.toHero(st); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: r.text }); return; } shinResult(st, r.line, r.text); return; }
+  }
   if (act === 'ryo-offer' || act === 'ryo-ne' || act === 'ryo-rebel' || act === 'ryo-leave') {
     const key = act === 'ryo-offer' ? 'offer' : act === 'ryo-ne' ? 'ne:' + id : act === 'ryo-rebel' ? 'rebel' : 'leave';
     if (!(act === 'ryo-offer' && id === 'no') && ryoArm !== key) { ryoArm = key; openShuke(st); return; } // 二度押して決める
     ryoArm = null;
-    if (act === 'ryo-rebel') {
-      const r = CR.rebel(st);
-      if (!r.ok || !r.clan) { toast(r.text); openShuke(st); return; }
-      st.player = r.clan; st.hero = undefined; st.clans[r.clan].delegate = undefined; closeModal(); startWith(st); store(AUTO_KEY, JSON.stringify(st));
-      openModal(`<h2 id="modal-title">謀反</h2><p>${esc(r.text)}</p><p>${esc(st.clans[r.clan].name)}家の当主として、大名プレイを始める。</p>`); return;
-    }
-    if (act === 'ryo-leave') { RY.toHero(st); const t2 = CR.leaveLord(st); closeModal(); store(AUTO_KEY, null); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: t2 }); return; }
+    if (act === 'ryo-rebel') { if (!ryoRebel(st)) openShuke(st); return; }
+    if (act === 'ryo-leave') { ryoLeave(st); return; }
     const r = act === 'ryo-offer' ? NE.answerOffer(st, id === 'yes') : NE.offerDefect(st, id);
     toast(r.text); closeModal(); startWith(st); store(AUTO_KEY, JSON.stringify(st)); openShuke(st); return;
   }

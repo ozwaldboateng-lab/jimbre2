@@ -8,6 +8,7 @@ import { familyYear } from './family';
 import { hpMonth } from './skill';
 import { orderMonth } from './ryohyojo';
 import { defectOfferMonth } from './ryoplot';
+import { ryoshinMonth } from './ryoshin';
 import { KASHIN, capOf, retainersOf, take } from './kashin';
 import { addLog, clanCastles, clanName, hostile, rand } from './state';
 import { NEIGHBORS, hexDist } from './map';
@@ -86,6 +87,7 @@ export function ryoshuAfter(s: GameState): { lines: string[]; back: boolean; bea
   out.push(...gunyakuMonth(s));
   out.push(...orderMonth(s));
   out.push(...defectOfferMonth(s));
+  out.push(...ryoshinMonth(s)); // 主君の疑い・加増と国替え・席次と讒言
   const cev = careerMonth(s);
   if (cev) out.push(...cev.lines);
   const f = ryoshuOf(s);

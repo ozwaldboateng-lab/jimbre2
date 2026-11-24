@@ -2,6 +2,7 @@
 // 縁は親しさ（0〜100）を段階で呼ぶ。友より深い家中の武将には、謀反の折に味方する約束を内々に取りつけられる（城と軍勢ごと加わる）。
 // 他家の当主とは密約を結べる（謀反して家を立てた時、その家と盟を結び、主家を共に攻める＝援軍が来る）。
 // どちらも、しくじれば主君の耳に入ることがある
+import { addUtagai } from './ryoshin';
 import type { Act } from './hero';
 import { lv } from './skill';
 import * as R from './rules';
@@ -84,7 +85,7 @@ export function offerSecret(s: GameState): Act {
     return { ok: true, who: L, line: `${clanName(s, me.clan!)}の家中に、骨のある者がおるとはな。……よかろう。そなたが起った時は、わが家が盟を結ぶ。`, text: `${clanName(s, clan)}家の当主と密約を結んだ（礼物${EN.SECRET_GOLD}貫）。謀反して家を立てれば、${clanName(s, clan)}家と盟を結び、主家を共に攻める。` };
   }
   if (rand(s) < EN.SECRET_LEAK * (1 - lv(s, 'ninjutsu') * 0.15)) {
-    H.favor = Math.max(0, H.favor - EN.SECRET_LEAK_FAVOR);
+    H.favor = Math.max(0, H.favor - EN.SECRET_LEAK_FAVOR); addUtagai(s, 20);
     addLog(s, `${me.name}が${clanName(s, clan)}家と通じているとの噂が立った。`, 'info', true);
     return { ok: true, who: L, line: '面白い話だが、乗れぬな。……せいぜい、主に気取られぬことだ。', text: `密約はならず、他家と通じているとの噂が主君の耳に入った（礼物${EN.SECRET_GOLD}貫は戻らない）。主君の覚え−${EN.SECRET_LEAK_FAVOR}。` };
   }

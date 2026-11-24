@@ -8,6 +8,7 @@ import { delegateOf } from './delegate';
 import { ryoshuOf, toRyoshu } from './ryoshu';
 import * as R from './rules';
 import { lv } from './skill';
+import { addUtagai } from './ryoshin';
 import { addLog, castleKoku, clanCastles, clanName, hostile, rand } from './state';
 import type { GameState } from './types';
 
@@ -62,7 +63,7 @@ export function offerDefect(s: GameState, clan: string): { ok: boolean; text: st
   (H.neTried ??= {})[clan] = s.turn;
   const p = defectChance(s, clan);
   if (rand(s) < p) return { ok: true, text: defect(s, clan) };
-  if (rand(s) < NE.LEAK) { H.favor = Math.max(0, H.favor - NE.LEAK_FAVOR); addLog(s, `${s.generals[H.id].name}が${clanName(s, clan)}家と通じているとの噂が立った。`, 'info', true); return { ok: true, text: `${clanName(s, clan)}家は応じず、話が主君の耳に入った（覚え−${NE.LEAK_FAVOR}）。` }; }
+  if (rand(s) < NE.LEAK) { H.favor = Math.max(0, H.favor - NE.LEAK_FAVOR); addUtagai(s, 20); addLog(s, `${s.generals[H.id].name}が${clanName(s, clan)}家と通じているとの噂が立った。`, 'info', true); return { ok: true, text: `${clanName(s, clan)}家は応じず、話が主君の耳に入った（覚え−${NE.LEAK_FAVOR}）。` }; }
   return { ok: true, text: `${clanName(s, clan)}家は応じなかった（見込み${Math.round(p * 100)}%）。` };
 }
 // 誘いが来る（月の終わり）
