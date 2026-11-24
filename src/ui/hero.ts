@@ -27,6 +27,7 @@ import * as YO from '../engine/yorioya';
 import * as BP from '../engine/banplay';
 import * as BN from '../engine/ban';
 import * as MS from '../engine/meisei';
+import * as SA from '../engine/sasoi';
 import { openBan } from './ban';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
@@ -53,7 +54,8 @@ let root: HTMLElement | null = null;
 let pane: 'spots' | 'yashiki' | 'tabi' | 'diary' | 'akinai' | 'shiro' | 'homen' = 'spots';
 let bg = 'town';
 let say: { who?: string; line?: string; text: string; hold?: boolean; offer?: boolean } | null = null; // hold: セリフの窓（押すと閉じる）。offer: 主命を承るか断るか
-let dlg: { kind: 'person'; id: string } | { kind: 'dojo' | 'tera' } | null = null; // 画面に立ち上げる窓（会う相手・道場・寺）
+let offerMsg = ''; // 誘いの窓に出す、さっきの返事の首尾
+let dlg: { kind: 'person'; id: string } | { kind: 'dojo' | 'tera' | 'offers' } | null = null; // 画面に立ち上げる窓（会う相手・道場・寺）
 let heldReport: string[] | null = null, heldBeats: Beat[] | null = null; // セリフの窓を閉じるまで待たせる、月の報告と出世の場面
 let busy = false;
 let report: string[] | null = null;
@@ -253,6 +255,7 @@ function roninSpots(st: GameState): string | null {
   const btn = (h: string, b: string, sp: string, cls = '', id = '', dis = false) => `<button class="hr-spot${cls}" data-h="${h}"${id ? ` data-id="${id}"` : ''} ${dis ? 'disabled' : ''}><b>${b}</b><span>${sp}</span></button>`;
   const out: string[] = [];
   const lh = CR.lordHere(st);
+  { const os = SA.offersOf(st); if (os.length) out.push(btn('offers', `誘い（${os.length}）`, os.map((o) => `${esc(clanName(st, o.clan))}家・${R.RANK_NAME[o.rank]}`).join('／') + '。条件を比べて返事をする', ' main')); }
   if (lh) out.push(btn('shikan', '仕官を願う', `${esc(clanName(st, lh))}家の当主に目通りを願う（見込み${Math.round(RP.serviceChance(st, lh) * 100)}%・1旬）。名声・口添え・首級・配下が効く`, ' main'));
   if (Hh.field) { out.push(...RP.mercArmies(st).map((a) => btn('jingari', '陣借りする', `${esc(clanName(st, a.clan))}家・${esc(st.generals[a.main]?.name ?? '')}の軍勢（兵${a.troops.toLocaleString('ja-JP')}）に雇われる`, ' main', String(a.id)))); return out.join('') + btn('pane', '旅を続ける', '地図で行き先を選ぶ', '', 'tabi') + btn('rest', '休む', '1旬を過ごす', ' dim'); }
   out.push(...RP.mercArmies(st).map((a) => btn('jingari', '陣借りする', `${esc(clanName(st, a.clan))}家・${esc(st.generals[a.main]?.name ?? '')}の軍勢（兵${a.troops.toLocaleString('ja-JP')}）に雇われる。どの家でも構わない`, ' main', String(a.id))));
@@ -303,6 +306,12 @@ function dlgHtml(st: GameState) {
 }
 function dlgHtml0(st: GameState) {
   const d = dlg!;
+  if (d.kind === 'offers') { // 誘い: 条件を並べて比べ、受ける・吊り上げる（一度だけ）・断る
+    const os = SA.offersOf(st);
+    const rows = os.map((o) => { const L = st.clans[o.clan].leader!; return `<div class="hr-offerc"><div class="hr-who">${face(L, 64) || ''}<div><b>${esc(clanName(st, o.clan))}家</b>${o.match ? '<span class="hr-rel">札が合う</span>' : ''}<p class="hr-dsub">${R.RANK_NAME[o.rank]}・俸禄月${o.pay}貫・支度金${o.shitaku}貫</p><p class="hr-dsub">役目: ${esc(o.yaku)}・${esc(o.follow)}・返事は${Math.max(0, o.until - st.turn)}か月のうちに</p></div></div>
+      <div class="hr-dacts"><button class="hr-btn sm primary" data-h="of-acc" data-id="${o.clan}">受ける</button><button class="hr-btn sm" data-h="of-raise" data-id="${o.clan}" ${o.raised ? 'disabled title="もう吊り上げた"' : ''}>吊り上げる${o.raised ? '（済）' : `（見込み${Math.round(SA.raiseChance(st, o) * 100)}%）`}</button><button class="hr-btn sm" data-h="of-no" data-id="${o.clan}">断る</button></div></div>`; }).join('');
+    return `<div class="hr-dlg"><h4 class="hr-sub">誘い（${os.length}）</h4>${offerMsg ? `<p class="hr-dsub hr-ofmsg">${esc(offerMsg)}</p>` : ''}<p class="hr-dsub">名を上げた土地の近くの家から来た誘い。吊り上げは一度だけ（通れば条件が上がり、通らなければ相手が引く）。歳をとるほど条件は落ちる。</p>${rows || '<p class="hr-none">いまは誘いがない。</p>'}<button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div>`;
+  }
   if (d.kind === 'person') {
     const g = st.generals[d.id]; if (!g) return '';
     const v = st.hero!.rel[g.id] ?? 0, mk = CR.freeHero(st) ? SK.masterSkill(g) : null;
@@ -712,6 +721,9 @@ function onClick(e: Event) {
   if (h === 'shikan') { void act(() => CR.askService(s!), 'tojo'); return; }
   if (h === 'jingari') { void act(() => RP.jingari(s!, +id), 'town'); return; }
   if (h === 'leavemerc') { void act(() => RP.leaveMerc(s!), 'town', true); return; }
+  if (h === 'offers') { offerMsg = ''; dlg = { kind: 'offers' }; say = null; render(); showDlg(); return; }
+  if (h === 'of-acc') { void act(() => SA.acceptOffer(s!, id), 'tojo'); return; }
+  if (h === 'of-raise' || h === 'of-no') { const r = h === 'of-raise' ? SA.raiseOffer(s, id) : SA.declineOffer(s, id); H.note(s, r.text); offerMsg = r.text; if (!SA.offersOf(s).length) { dlg = null; say = { text: r.text }; } save(); render(); return; }
   if (h === 'kensaku') { void act(() => MS.gunKensaku(s!), 'jinmaku'); return; }
   if (h === 'fuuke') { void act(() => MS.fushinUke(s!), 'town'); return; }
   if (h === 'renga') { const st = s; void act(() => MS.renga(st, H.townsfolk(st, st.hero!.town).filter((g) => g.clan)), 'yashiki'); return; }
@@ -842,6 +854,7 @@ export const CSS = `
 .hr-scene.map .hr-town{position:relative;z-index:1;pointer-events:none}
 .hr-dlg{box-sizing:border-box;margin:auto;align-self:center;width:min(720px,calc(100% - 32px));max-height:calc(100% - 24px);overflow:auto;background:rgba(10,10,10,.9);border:1px solid rgba(207,169,94,.6);padding:18px 22px;border-radius:4px;position:relative;z-index:2}.hr-dlg .hr-dsub{margin:2px 0;font-size:12.5px;opacity:.85}.hr-dacts{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px}.hr-dacts .hr-btn{flex:1 1 180px}.hr-dacts .hr-btn small{display:block;font-size:10.5px;opacity:.85;margin-top:2px}.hr-dacts .hr-rel{align-self:center;color:#cfa95e}.hr-dclose{float:right}.hr-meet{width:100%;text-align:left;cursor:pointer;color:inherit;font:inherit;background:transparent}.hr-meet:hover{background:rgba(207,169,94,.08)}.hr-go{margin-left:auto;font-style:normal;color:#cfa95e;font-size:12px;white-space:nowrap;align-self:center}
 .hr-say.hold{cursor:pointer}.hr-close{display:block;text-align:right;font-size:12px;color:#cfa95e;opacity:.8;margin-top:6px}.hr-cands{display:flex;flex-direction:column;gap:6px;margin-top:10px}.hr-cand{text-align:left;background:rgba(207,169,94,.08);border:1px solid rgba(207,169,94,.45);color:inherit;padding:8px 12px;border-radius:3px;cursor:pointer;font:inherit}.hr-cand:hover{background:rgba(207,169,94,.2)}.hr-cand b{display:block;color:#cfa95e;font-size:14px}.hr-cand span{font-size:12.5px;opacity:.9}
+.hr-ofmsg{color:#f2d27a;border-left:3px solid #cfa95e;padding-left:8px}.hr-offerc{border-top:1px solid rgba(207,169,94,.25);padding:10px 0}.hr-offerc .hr-rel{margin-left:8px;font-size:12px;color:#8fb36a}
 .hr-offer{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}.hr-mochi{flex-wrap:wrap;justify-content:flex-start;gap:6px}.hr-mochi .hr-rel{flex-basis:100%;color:#cfa95e}.hr-mochi .hr-btn{flex:1 1 auto;padding:6px 8px;font-size:12.5px}.hr-offer .hr-btn{min-width:96px}
 .hr-say.mini{position:relative;z-index:1;margin:auto 12px 12px;width:auto;align-self:stretch;padding:10px 14px;pointer-events:none}
 .hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}

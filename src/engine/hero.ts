@@ -16,6 +16,7 @@ import { familyYear } from './family';
 import { myHyojoMonth } from './myhyojo';
 import { suisenBlock, yoriMonth } from './yorioya';
 import { meiseiMonth } from './meisei';
+import { sasoiMonth } from './sasoi';
 import { noteSeen } from './roninplay';
 import { reward, rewardDue } from './yari';
 import { HP, hpMax, hpMonth, hpOf, lv, masterRumor, spendHp } from './skill';
@@ -613,7 +614,7 @@ export function heroMonth(s: GameState): string[] {
   const out: string[] = [...storyGuard(s)];
   const H = s.hero!, me = heroOf(s)!;
   if (!me || me.status === 'dead') return out;
-  const pay = me.clan ? HERO.PAY[me.rank] ?? 50 : 0; // 浪人に俸禄はない
+  const pay = me.clan ? (HERO.PAY[me.rank] ?? 50) + ((H as { payExtra?: number }).payExtra ?? 0) : 0; // 浪人に俸禄はない。誘いで迎えられた時の上乗せ（payExtra）
   const chi = chigyo(s);
   H.gold += pay + chi; out.push(`俸禄 ${pay}貫${chi ? `と知行 ${chi}貫` : ''}を受け取った（手元 ${H.gold}貫）。`);
   out.push(...ieMonth(s));
@@ -623,6 +624,7 @@ export function heroMonth(s: GameState): string[] {
   if (freeHero(s)) out.push(...hpMonth(s, () => rand(s))); // 体力が戻る・尽きかけていれば病に // 正月: 子の誕生と元服
   out.push(...roninMonth(s));
   out.push(...meiseiMonth(s));
+  out.push(...sasoiMonth(s));
   out.push(...kashinMonth(s));
   out.push(...leadMonth(s));
   out.push(...returnLent(s));

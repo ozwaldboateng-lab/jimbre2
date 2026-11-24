@@ -245,6 +245,22 @@ export function lordHere(s: GameState): string | null {
   for (const c of Object.values(s.clans)) if (c.alive && c.leader && s.generals[c.leader]?.loc === H.town && s.generals[c.leader].status !== 'dead') return c.id;
   return null;
 }
+// 家に仕える（願い出た仕官と、誘いを受けた時）。配下は家臣に（枠を超えた者は預け）
+export function joinClan(s: GameState, clan: string, rank: number): { kept: string[]; az: string[] } {
+  const H = s.hero!, me = s.generals[H.id], C = s.clans[clan], L = s.generals[C.leader!];
+  const fol = followersOf(s);
+  me.clan = clan; s.player = clan; me.status = 'hero'; H.career!.ronin = undefined;
+  me.rank = Math.min(me.rank, rank); if (me.rank < 1) me.rank = 1; // 新参は侍大将まで
+  me.merit = Math.max(me.merit, R.MERIT_AT[me.rank]);
+  H.favor = 35 + Math.round(fameOf(s) / 4) + Math.min(3, H.kubi ?? 0) * 3; H.title = undefined; H.kubi = 0;
+  const kept = followersToRetainers(s); // 配下は家臣に（上限まで）。あふれた者は主家の武将に
+  const az: string[] = [];
+  for (const g of fol) if (!kept.includes(g.name)) { g.clan = clan; g.status = 'free'; g.loc = L.loc; g.rank = Math.max(2, g.rank); (H.azuke ??= []).push(g.id); az.push(g.name); } // 枠を超えた者は預け（主家の直臣として仕え、枠が空けば呼び戻せる）
+  H.followers = [];
+  const d = delegateOf(s); for (const k of Object.keys(d) as (keyof typeof d)[]) d[k] = true; // 家の政は大名（AI）が行う
+  addLog(s, `${me.name}が${C.name}家に仕官した。`, 'info', true);
+  return { kept, az };
+}
 export function askService(s: GameState): { ok: boolean; text: string; who?: string; line?: string } {
   const H = s.hero!, me = s.generals[H.id], clan = lordHere(s);
   if (!clan) return { ok: false, text: 'この城下には仕官を願える大名がいない' };
@@ -257,18 +273,8 @@ export function askService(s: GameState): { ok: boolean; text: string; who?: str
   tried[clan] = s.turn;
   const p = serviceChance(s, clan);
   if (rand(s) < p) {
-    const fol = followersOf(s);
-    me.clan = clan; s.player = clan; me.status = 'hero'; H.career!.ronin = undefined;
-    me.rank = Math.min(me.rank, serviceRank(s)); if (me.rank < 1) me.rank = 1; // 新参は侍大将まで
-    me.merit = Math.max(me.merit, R.MERIT_AT[me.rank]);
-    H.favor = 35 + Math.round(fameOf(s) / 4) + Math.min(3, H.kubi ?? 0) * 3; H.title = undefined; H.kubi = 0;
-    const kept = followersToRetainers(s); // 配下は家臣に（上限まで）。あふれた者は主家の武将に
-    const az: string[] = [];
-    for (const g of fol) if (!kept.includes(g.name)) { g.clan = clan; g.status = 'free'; g.loc = L.loc; g.rank = Math.max(2, g.rank); (H.azuke ??= []).push(g.id); az.push(g.name); } // 枠を超えた者は預け（主家の直臣として仕え、枠が空けば呼び戻せる）
-    H.followers = [];
-    const d = delegateOf(s); for (const k of Object.keys(d) as (keyof typeof d)[]) d[k] = true; // 家の政は大名（AI）が行う
-    addLog(s, `${me.name}が${C.name}家に仕官した。`, 'info', true);
-    return { ok: true, who: L.id, line: fameOf(s) >= 40 ? `${me.name}か。名は聞いておる。……わが家で働け。` : `よかろう。働きしだいで取り立ててやる。`, text: `${C.name}家に仕官した（${R.RANK_NAME[me.rank]}）。主君は${L.name}。${kept.length ? `配下の${kept.join('・')}は家臣に。` : ''}${az.length ? `家臣の枠を超えた${az.join('・')}は${C.name}家に預けた（直臣として仕え、枠が空けば屋敷から呼び戻せる）。` : ''}${fol.length >= 2 ? '一党を率いての仕官として迎えられた。' : ''}` };
+    const { kept, az } = joinClan(s, clan, serviceRank(s));
+    return { ok: true, who: L.id, line: fameOf(s) >= 40 ? `${me.name}か。名は聞いておる。……わが家で働け。` : `よかろう。働きしだいで取り立ててやる。`, text: `${C.name}家に仕官した（${R.RANK_NAME[me.rank]}）。主君は${L.name}。${kept.length ? `配下の${kept.join('・')}は家臣に。` : ''}${az.length ? `家臣の枠を超えた${az.join('・')}は${C.name}家に預けた（直臣として仕え、枠が空けば屋敷から呼び戻せる）。` : ''}${kept.length + az.length >= 2 ? '一党を率いての仕官として迎えられた。' : ''}` };
   }
   return { ok: true, who: L.id, line: fameOf(s) < 20 ? '聞かぬ名だな。……名を上げてから参れ。' : '今は浪人を抱える余裕はない。……また参れ。', text: `${C.name}家への仕官はかなわなかった（見込み${Math.round(p * 100)}%）。月を改めて、また願い出ることができる。` };
 }
