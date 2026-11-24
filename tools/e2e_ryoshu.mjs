@@ -45,6 +45,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   // 城下へ出る → 武将の画面 → 領へ戻る
   await p.click('#btn-jokaku'); await p.waitForTimeout(300);
   console.log(vp.tag, 'jokaku: hero shown', !(await p.evaluate(() => document.querySelector('#hero')?.hidden)), '|', await p.$eval('#hero .hr-town', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => ''), '| back btn', !!(await p.$('#hero [data-h="ryo-back"]')));
+  console.log(vp.tag, 'jokaku: 城の政', !!(await p.$('#hero [data-h="pane"][data-id="shiro"]')), '方面/主家との縁', !!(await p.$('#hero [data-h="pane"][data-id="homen"]')), '（どちらも false が正しい。領の画面にある）');
   await p.screenshot({ path: `${out}/ry-${vp.tag}-4-jokaku.png` });
   await p.click('#hero [data-h="ryo-back"]'); await p.waitForTimeout(400);
   console.log(vp.tag, 'back: hero hidden', await p.evaluate(() => document.querySelector('#hero')?.hidden), '|', await p.$eval('#stats', (e) => e.textContent.replace(/\s+/g, ' ').slice(0, 40)));

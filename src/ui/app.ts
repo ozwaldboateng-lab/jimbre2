@@ -431,7 +431,7 @@ function refresh() {
       stat('治安', `${Math.round(fc.reduce((t2, c) => t2 + c.chian, 0) / Math.max(1, fc.length))}`),
       '<button type="button" class="plaque" id="btn-shuke" title="主君・主家の方針・上納・軍役">主家</button>',
       `<button type="button" class="plaque" id="btn-wk" title="人と交わる（月に${WK.WK.PER_MONTH}度まで）">私事 ${WK.leftOf(st)}</button>`,
-      '<button type="button" class="plaque" id="btn-jokaku" title="武将として城下を歩く（屋敷・茶屋・主家との縁など）">城下へ出る</button>',
+      '<button type="button" class="plaque" id="btn-jokaku" title="武将として城下を歩く（屋敷・茶屋・道場・寺・市・商い・旅など。旬を使う）">城下へ出る</button>',
     ].join('');
     { const sb = document.getElementById('btn-shuke'); if (sb) sb.onclick = () => { if (s) openShuke(s); }; if (sb && RY.gunyakuOf(st) && !RY.gunyakuOf(st)!.done) sb.classList.add('warn'); }
     const jb = document.getElementById('btn-jokaku'); if (jb) jb.onclick = () => { if (!s || busy) return; const st2 = s; if (!['hero', 'free', 'governor'].includes(st2.generals[st2.hero!.id].status)) { toast('部隊を率いている間は、城下へ出られない'); return; } st2.generals[st2.hero!.id].status = 'hero'; st2.hero!.out = true; store(AUTO_KEY, null); openHeroWith((id, w) => face(id, w), () => openTitle(), st2, { text: `${st2.castles[st2.hero!.town].name}の城下に出た。用が済んだら「領へ戻る」。` }); };

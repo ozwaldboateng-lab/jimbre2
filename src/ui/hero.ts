@@ -161,7 +161,7 @@ function render() {
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
-        <div class="hr-pane">${pane === 'spots' ? spotsHtml(st) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : pane === 'shiro' ? castleHtml(st) : pane === 'homen' ? homenHtml(st) : diaryHtml(st)}</div>
+        <div class="hr-pane">${pane === 'spots' ? spotsHtml(st) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : pane === 'shiro' || pane === 'homen' ? (isRyoOut(st) ? ryoOutNote() : pane === 'shiro' ? castleHtml(st) : homenHtml(st)) : diaryHtml(st)}</div>
       </aside>
     </div>
     ${report ? `<div class="hr-modal"><div class="hr-report"><h3>${Hh.over && CR.freeHero(st) ? '一生の締め' : `${st.year}年${st.month}月を迎えた`}</h3><ul>${report.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>${Hh.over && CR.freeHero(st) && FA.heirSon(st) ? `<button class="hr-btn primary" data-h="succeed">${esc(FA.heirSon(st)!.name)}が家を継いで続ける</button> ` : ''}<button class="hr-btn${Hh.over && FA.heirSon(st) ? '' : ' primary'}" data-h="report-ok">${Hh.over ? '閉じる' : '城下へ'}</button></div></div>` : ''}
@@ -219,7 +219,8 @@ function spotsHtml(st: GameState) {
   const sick = SK.isSick(st) ? `<p class="hr-note" style="color:#d26a5c">病に伏している（あと${H.heroOf(st)!.sick}か月ほど）。休むことしかできない。</p>` : '';
   const work = H.canWork(st) ? `<button class="hr-spot main" data-h="work"><b>主命を果たす</b><span>${esc(H.QUEST_NAME[st.hero!.quest!.kind])}（1旬）</span></button>` : '';
   const desc: Record<H.Spot, string> = { tojo: st.hero!.story === 'toshiie' ? '主命を受ける・報告する' : `上旬の評定で主命を選ぶ・報告する${st.hero!.jun === 0 ? '（いま評定の時）' : ''}`, yashiki: '武将を訪ねて親しくなる', chaya: '噂を聞く。他国なら城の様子も', ichi: `進物を買う（${H.HERO.GOODS_COST}貫）`, dojo: CR.freeHero(st) ? '稽古で武勇・統率を磨く。武芸・築城・忍術の独学（一段まで）' : `稽古で武勇・統率を磨く（${H.HERO.TRAIN_COST}貫）`, tera: CR.freeHero(st) ? '学問で知略・魅力を磨く。弁舌・算術・茶道の独学（一段まで）' : `学問で知略・魅力を磨く（${H.HERO.TRAIN_COST}貫）`, tabi: 'ほかの城下へ', nanban: '南蛮の品と噂（試作では茶屋と同じ）' };
-  const gov = M.canGovern(st) ? `<button class="hr-spot main" data-h="pane" data-id="shiro"><b>城の政</b><span>${esc(M.fuchuText(st))}。開発・商業・新田・普請・見回り・城代など</span></button>` : '';
+  const ryoOut = isRyoOut(st);
+  const gov = M.canGovern(st) && !ryoOut ? `<button class="hr-spot main" data-h="pane" data-id="shiro"><b>城の政</b><span>${esc(M.fuchuText(st))}。開発・商業・新田・普請・見回り・城代など</span></button>` : '';
   const prx = KS.canProxy(st) ? `<button class="hr-spot" data-h="proxy"><b>家臣を遣わす</b><span>この主命（${esc(H.QUEST_NAME[st.hero!.quest!.kind])}）を家臣に任せる。来月に首尾が分かる（1旬）</span></button>` : '';
   const adv = M.canAdvice(st) ? `<button class="hr-spot" data-h="advice"><b>家中の進言</b><span>${st.hero!.story === 'toshiie' ? '奥村・村井' : '家老・家臣'}の話を聞いて、${st.hero!.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}のことを決める（月に一度・1旬）</span></button>` : '';
   const trade = T.canTrade(st, c) ? `<button class="hr-spot" data-h="pane" data-id="akinai"><b>商い</b><span>${T.buyOffer(st, c) ? `特産「${esc(T.buyOffer(st, c)!.name)}」を仕入れる。` : ''}荷を売る（荷駄 ${T.loadOf(st)}/${T.capOf(st)}）</span></button>` : '';
@@ -231,9 +232,9 @@ function spotsHtml(st: GameState) {
   const mei = mo ? `<button class="hr-spot" data-h="buymei" data-id="${mo.id}" ${st.hero!.gold < mo.price ? 'disabled' : ''}><b>名物を求める: ${esc(mo.name)}（${mo.price.toLocaleString('ja-JP')}貫）</b><span>${mo.kind}の名物が売りに出ている。名声+${mo.fame}。茶会に使え、主君への献上は覚えと功績に大きく効く</span></button>` : '';
   const sc = CR.freeHero(st) ? PL.secretHere(st) : null;
   const secret = sc && H.heroOf(st)!.clan ? (() => { const why = PL.secretBlock(st, sc); return `<button class="hr-spot dim" data-h="secret" ${why ? 'disabled' : ''}><b>密約を持ちかける</b><span>${why ? esc(why) : `${esc(clanName(st, sc))}家の当主に、謀反の折の盟を内々に持ちかける（礼物${PL.EN.SECRET_GOLD}貫・見込み${Math.round(PL.secretChance(st, sc) * 100)}%・しくじると主君の耳に入ることがある・1旬）`}</span></button>`; })() : '';
-  const ryo = CR.freeHero(st) && toRyoshuUI && CR.hasStep(st, 'shiro') && !H.inArmy(st) && !HA.leading(st) && H.heroOf(st)!.clan ? `<button class="hr-spot main" data-h="ryo-back"><b>${st.hero!.mode === 'ryoshu' ? '領へ戻る' : '領主として治める'}</b><span>大名の画面で自分の領（城・軍勢・家臣）を治める（月刻み）。主家のことは主君が決める</span></button>` : '';
-  const hf = CR.homenOf(st);
-  const homen = hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>${hf.castles.length}城・${FR.frontArmies(st, hf).length}軍勢。方針（${R.FRONT_POLICY_NAME[hf.policy]}）と攻略の目標を決める。謀反・出奔もここで</span></button>` : CR.freeHero(st) && H.heroOf(st)!.clan && !st.hero!.field && !H.inArmy(st) ? `<button class="hr-spot dim" data-h="pane" data-id="homen"><b>主家との縁</b><span>${CR.canRebel(st) === null ? '謀反を起こす・' : ''}出奔して浪人になる（他家に仕官し直せる）</span></button>` : '';
+  const ryo = CR.freeHero(st) && toRyoshuUI && CR.hasStep(st, 'shiro') && !H.inArmy(st) && !HA.leading(st) && H.heroOf(st)!.clan ? `<button class="hr-spot main" data-h="ryo-back"><b>${st.hero!.mode === 'ryoshu' ? '領へ戻る' : '領主として治める'}</b><span>${st.hero!.mode === 'ryoshu' ? '大名の画面へ。城の政・陣立て・家臣・私事（人と交わる）・主家との縁（寝返り・謀反・出奔）は領の画面で' : '大名の画面で自分の領（城・軍勢・家臣）を治める（月刻み）。主家のことは主君が決める'}</span></button>` : '';
+  const hf = ryoOut ? null : CR.homenOf(st);
+  const homen = ryoOut ? '' : hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>${hf.castles.length}城・${FR.frontArmies(st, hf).length}軍勢。方針（${R.FRONT_POLICY_NAME[hf.policy]}）と攻略の目標を決める。謀反・出奔もここで</span></button>` : CR.freeHero(st) && H.heroOf(st)!.clan && !st.hero!.field && !H.inArmy(st) ? `<button class="hr-spot dim" data-h="pane" data-id="homen"><b>主家との縁</b><span>${CR.canRebel(st) === null ? '謀反を起こす・' : ''}出奔して浪人になる（他家に仕官し直せる）</span></button>` : '';
   return `${ryo}${shikan}${work}${prx}${ldb}${homen}${gov}${ask}${join}${adv}${sick}${trade}${mei}${secret}${spots.map((k) => `<button class="hr-spot" data-h="spot" data-id="${k}"><b>${H.SPOT_NAME[k]}</b><span>${desc[k]}</span></button>`).join('')}
     <button class="hr-spot dim" data-h="rest"><b>休む</b><span>1旬を過ごす</span></button>${ret}${(() => { const n = nextStory(st); return n ? `<button class="hr-spot" data-h="skip"><b>月日を送る</b><span>次の物語（${esc(n.when)}）まで時を跳ぶ。世の中の動きはそのまま、俸禄はまとめて</span></button>` : ''; })()}`;
 }
@@ -352,6 +353,9 @@ function travelHtml(st: GameState) {
   }).join('')}`;
 }
 // 商い: この城下の特産を仕入れ、持っている荷をここで売る（遠くの町・商いの要所ほど高い）
+// 領主（物語の外）が城下に出ている: 城の政・自分の評定・方面の差配・主家との縁は領主の画面にある
+const isRyoOut = (st: GameState) => CR.freeHero(st) && st.hero!.mode === 'ryoshu';
+const ryoOutNote = () => '<p class="hr-none">城の政・自分の評定・方面の差配・主家との縁は、領の画面（大名の画面）で行う。「領へ戻る」で戻る。</p><button class="hr-spot dim" data-h="pane" data-id="spots"><b>城下へ戻る</b><span></span></button>';
 // 城の政: 大名プレイの城の画面と同じ数値・同じ政（費えは自分の金）＋治め（見回りなど）＋城代
 function castleHtml(st: GameState) {
   if (!M.canGovern(st)) return '<p class="hr-none">治める城の城下にいなければ、城の政はできない。</p><button class="hr-spot dim" data-h="pane" data-id="spots"><b>城下へ戻る</b><span></span></button>';
