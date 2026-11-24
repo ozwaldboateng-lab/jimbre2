@@ -16,6 +16,8 @@ import { PORTRAITS } from '../data/portraits';
 import { TILE_ART } from '../data/tiles';
 import type { Army, BattleReport, GameState } from '../engine/types';
 import { drawFootSoldiers } from './render';
+import { openBan } from './ban';
+import * as BP from '../engine/banplay';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -903,6 +905,7 @@ export function openBattle(s: GameState, a: Army, target: Target, joined: Army[]
   if (!view) {
     view = new BattleView($('bt-map') as HTMLCanvasElement);
     (window as unknown as { __sengoku_bt: unknown }).__sengoku_bt = view;
+    (window as unknown as { __sengoku_bt2: unknown }).__sengoku_bt2 = { tNeighbors, hqOf }; // 試験用
     view.onClick = onTile;
     $('bt-end').onclick = () => endPlayerPhase();
     $('bt-auto').onclick = () => delegate();
@@ -1072,6 +1075,7 @@ async function runAI(alliesOnly = false) {
     if (delegateQueued) break;
     const u = nextAIUnit(t, side, alliesOnly ? (x) => !isMine(x) : undefined);
     if (!u) break;
+    if (await honjinCheck(u)) { refresh(); continue; } // 本陣に敵が迫った: 盤で自ら戦う（合戦に一度）
     const before = new Map(t.units.map((x) => [x.id, x.troops]));
     const r = aiUnit(t, gs!, u);
     if (r && (r.from !== r.to || r.msg)) {
@@ -1089,6 +1093,25 @@ async function runAI(alliesOnly = false) {
   else runAI();
 }
 
+// 本陣の盤: 主人公が総大将として率いる合戦で、敵の部隊が主人公の本陣の隣に来た時、合戦に一度だけ盤で自ら戦う
+let honjinDone: Tactical | null = null;
+async function honjinCheck(u: TUnit): Promise<boolean> {
+  const t = tac!, s = gs!, H = s.hero;
+  if (!H || H.story === 'toshiie' || honjinDone === t || u.side === t.playerSide || u.routed || u.out) return false;
+  if (!t.playerSide) return false;
+  const hq = hqOf(t, t.playerSide);
+  if (!hq || hq.general !== H.id || tDist(t, u.tile, hq.tile) > 1) return false;
+  honjinDone = t;
+  const g = u.general ? s.generals[u.general] : null;
+  const foe = g ? { name: g.name, bra: g.bra, int: g.int, lea: g.lea, gid: g.id } : { name: `${u.name}の将`, bra: 60, int: 50, lea: 55 };
+  addLog(s, `${u.name}が${s.generals[H.id].name}の本陣に迫った。`, 'battle', true);
+  const b = await openBan(BP.honjinBan(s, foe), `本陣に${foe.name}が迫った`);
+  const r = BP.honjinResult(s, b);
+  if (r === 'win') { u.troops = Math.round(u.troops * (1 - BP.HONJIN.WIN_TROOPS)); u.morale = Math.max(0, u.morale - BP.HONJIN.WIN_MORALE); u.acted = true; u.moved = true; addLog(s, `${s.generals[H.id].name}が自ら槍を取って${u.name}を押し返した。`, 'battle', true); }
+  else if (r === 'part') { u.troops = Math.round(u.troops * (1 - BP.HONJIN.PART_TROOPS)); u.morale = Math.max(0, u.morale - BP.HONJIN.PART_MORALE); addLog(s, `${s.generals[H.id].name}の本陣が${u.name}を少し押し返した。`, 'battle', true); }
+  else if (r === 'lose') { hq.morale = Math.max(0, hq.morale - BP.HONJIN.LOSE_MORALE); addLog(s, `${s.generals[H.id].name}が本陣で手傷を負った。本陣が揺らいでいる。`, 'battle', true); }
+  return r === 'win';
+}
 let delegateQueued = false;
 function delegate() {
   deploy = null;

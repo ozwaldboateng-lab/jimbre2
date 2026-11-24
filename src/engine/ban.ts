@@ -23,7 +23,7 @@ export interface Ban {
   mid: BanSetup['foe']; late: BanSetup['foe']; // 中盤に現れる敵・殿で迫る敵
   duel?: Duel; duelWon?: string[]; duelLost?: number; // 一騎討ち（いま戦っている・勝った相手の名・負けた数）
   mochi?: Mochi; rescued?: number; // 持ち場（足軽大将から）・後詰めで救った組の数
-  goal?: Goal; goalLabel?: string; breached?: boolean; // 小競り合いのねらい（主命。なければ合戦の槍働き）・砦を破られた
+  goal?: Goal; goalLabel?: string; breached?: boolean; night?: boolean; // night: 夜討ち（盤を暗く） // 小競り合いのねらい（主命。なければ合戦の槍働き）・砦を破られた
 }
 // 小競り合い（足軽大将の主命）のねらい: reach 主人公が敵の端（一番上の行）に着けば果たす・rout 敵を討ち払えば果たす・hold 手番の終わりまで主人公が持ちこたえれば果たす
 export type Goal = 'reach' | 'rout' | 'hold';
@@ -92,6 +92,7 @@ export function newBan(o: BanSetup): Ban {
   if (o.fort) { const y = o.fort === 'foe' ? 2 : b.h - 3; for (let x = 0; x < b.w; x++) b.terr[y * b.w + x] = x === 3 || x === 4 ? '.' : 'saku'; for (let x = 0; x < b.w; x++) if (b.terr[(y + (o.fort === 'foe' ? 1 : -1)) * b.w + x] === 'saku') b.terr[(y + (o.fort === 'foe' ? 1 : -1)) * b.w + x] = '.'; } // 砦: 一行の柵（真ん中の二マスが木戸）
   place('me', o.me); place('foe', o.foe);
   if (o.spread) for (const p of b.pieces) if (p.side === 'foe') { for (let k = 0; k < 30; k++) { const x = Math.floor(rnd(b) * b.w), y = 1 + Math.floor(rnd(b) * 4); if (!at(b, x, y) && terrAt(b, x, y) !== 'saku') { p.x = x; p.y = y; break; } } } // 物見: 敵は2〜5行目に散らばって見張る
+  if (o.sleep) b.night = true;
   if (o.sleep) for (const p of b.pieces) if (p.side === 'foe') p.confused = 1; // 夜討ち: 敵ははじめの一手、寝込んでいて乱れる
   // 後詰め: 盤の中ほど（5行目）に、崩れかけた味方の組（体は半ば。自分では動かせない）
   (o.rescue ?? []).forEach((u, i) => { const x = [2, 5, 3, 4][i % 4], y = 5; b.terr[y * b.w + x] = '.'; const p = makePiece(b.pieces.length, 'me', u.kind, u.who, x, y); p.npc = true; p.hp = Math.ceil(p.maxhp * 0.4); p.mov = 2; (p as Piece & { rescue?: boolean }).rescue = true; p.name = `崩れかけた味方の${KIND[u.kind].name}`; b.pieces.push(p); });
