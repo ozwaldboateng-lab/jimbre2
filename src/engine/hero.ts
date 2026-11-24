@@ -15,6 +15,8 @@ import { upkeepMonth } from './meibutsu';
 import { familyYear } from './family';
 import { myHyojoMonth } from './myhyojo';
 import { suisenBlock, yoriMonth } from './yorioya';
+import { meiseiMonth } from './meisei';
+import { noteSeen } from './roninplay';
 import { reward, rewardDue } from './yari';
 import { HP, hpMax, hpMonth, hpOf, lv, masterRumor, spendHp } from './skill';
 import { becomeRonin, chigyo, followClan, freeHero, lifeSummary, syncGovernor } from './career';
@@ -185,7 +187,7 @@ export function rumor(s: GameState): Act {
   const H = s.hero!, me = heroOf(s)!, c = s.castles[H.town];
   used(s);
   const parts: string[] = [];
-  if (c.owner && c.owner !== me.clan) { learnCastle(s, c.i, me.clan!); parts.push(`この${c.name}には兵がおよそ${Math.round(c.garrison / 100) * 100}、蔵の米は${storeOf(c) >= 1000 ? Math.round(storeOf(c) / 1000) + '千石ほど' : '乏しい'}らしい`); }
+  if (c.owner && c.owner !== me.clan) { learnCastle(s, c.i, me.clan!); if (!me.clan) noteSeen(s, c.i); /* 浪人は報せを売れる */ parts.push(`この${c.name}には兵がおよそ${Math.round(c.garrison / 100) * 100}、蔵の米は${storeOf(c) >= 1000 ? Math.round(storeOf(c) / 1000) + '千石ほど' : '乏しい'}らしい`); }
   const near = Object.values(s.clans).filter((x) => x.alive && x.id !== me.clan && clanCastles(s, x.id).some((k) => hexDist(k.hex, c.hex) <= R.hx(8)));
   const x = near[Math.floor(rand(s) * near.length)];
   if (x) parts.push(`${x.name}家は${x.stance === '攻勢' ? '戦支度を急いでいる' : x.stance === '守勢' ? '守りを固めている' : '静かにしている'}${x.target ? `。${clanName(s, x.target)}家を狙っているとか` : ''}`);
@@ -620,6 +622,7 @@ export function heroMonth(s: GameState): string[] {
   if (freeHero(s) && s.month === 1) out.push(...familyYear(s));
   if (freeHero(s)) out.push(...hpMonth(s, () => rand(s))); // 体力が戻る・尽きかけていれば病に // 正月: 子の誕生と元服
   out.push(...roninMonth(s));
+  out.push(...meiseiMonth(s));
   out.push(...kashinMonth(s));
   out.push(...leadMonth(s));
   out.push(...returnLent(s));

@@ -12,8 +12,10 @@ let last = ''; // いちばん新しい出来事（目立たせる）
 let aim = false; // 虚報の的を選んでいる
 export type BanColors = { me?: string; foe?: string }; // 駒の色（家の色）
 
-export function openBan(ban: Ban, heading: string, colors: BanColors = {}): Promise<Ban> {
-  b = ban; sel = null; busy = false; title = heading; last = ''; aim = false; groundKey = '';
+let duelOnly = false; // 道場破り: 一騎討ちだけ（終われば盤も終わる）
+export function openBan(ban: Ban, heading: string, colors: BanColors = {}, opt: { duelOnly?: boolean } = {}): Promise<Ban> {
+  b = ban; sel = null; busy = false; title = heading; last = ''; aim = false; groundKey = ''; duelOnly = !!opt.duelOnly;
+  if (duelOnly) { const f = ban.pieces.find((p) => p.side === 'foe'); if (f) B.startDuel(ban, f); }
   if (!root) {
     root = document.createElement('div'); root.id = 'ban'; root.className = 'ban';
     document.body.appendChild(root);
@@ -70,7 +72,7 @@ function render() {
   for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) { const p = B.at(b, x, y); cells += `<button class="${cellCls(x, y, reach, tg)}" data-x="${x}" data-y="${y}" aria-label="${x + 1}列${y + 1}行・${B.TERR_NAME[B.terrAt(b, x, y)]}${p ? ' ' + esc(p.name) : ''}">${terrHtml(x, y)}${p ? pieceHtml(p) : ''}</button>`; }
   const foes = b.pieces.filter((p) => p.side === 'foe' && p.alive).length, ours = b.pieces.filter((p) => p.side === 'me' && p.alive).length;
   const phase = `${b.mochi ? `持ち場 ${B.MOCHI_NAME[b.mochi]}・` : ''}${B.stageName(b)}・${b.over ? '終わり' : b.phase === 'me' ? 'あなたの手番' : '敵の手番'}`;
-  const over = b.over ? `<div class="ban-over"><b>${b.breached ? '砦を破られた' : b.goal === 'reach' && b.over === 'win' ? '敵陣の端まで見届けた' : b.goal === 'hold' && b.over === 'time' ? '砦を持ちこたえた' : b.goal && b.over === 'time' ? '時が尽きた' : { win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}${b.pieces.some((q) => q.rival) ? `（同輩${b.rivalTegara}）` : ''}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
+  const over = b.over ? `<div class="ban-over"><b>${duelOnly ? (b.over === 'win' ? '師範を打ち負かした' : '師範に敗れた') : b.breached ? '砦を破られた' : b.goal === 'reach' && b.over === 'win' ? '敵陣の端まで見届けた' : b.goal === 'hold' && b.over === 'time' ? '砦を持ちこたえた' : b.goal && b.over === 'time' ? '時が尽きた' : { win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}${b.pieces.some((q) => q.rival) ? `（同輩${b.rivalTegara}）` : ''}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
   const btns = b.over ? '' : `<div class="ban-acts">
     <button class="ban-btn" data-b="wait" ${mine && !s!.acted ? '' : 'disabled'}>待機</button>
     ${B.duelFoes(b).length && s && s.hero ? `<button class="ban-btn duel" data-b="nanori" data-id="${B.duelFoes(b)[0].id}">名乗る（${esc(B.duelFoes(b)[0].name)}と一騎討ち）</button>` : ''}
@@ -95,7 +97,7 @@ async function onClick(e: Event) {
   if (act === 'kyoho') { aim = !aim; render(); return; }
   if (act === 'nanori') { const f = b.pieces[+el.dataset.id!]; if (f && B.startDuel(b, f)) { sel = null; aim = false; } render(); return; }
   if (act === 'duel') { B.duelRound(b, el.dataset.id as B.Move); render(); return; }
-  if (act === 'duel-end') { B.endDuel(b); last = b.log[b.log.length - 1] ?? ''; sel = b.over ? null : nextIdle(); render(); return; }
+  if (act === 'duel-end') { if (duelOnly && !b.over) b.over = b.duel?.over === 'win' ? 'win' : 'lose'; B.endDuel(b); last = b.log[b.log.length - 1] ?? ''; sel = b.over ? null : nextIdle(); render(); return; }
   if (act === 'end') { await foeTurn(); return; }
   if (act === 'auto') { busy = true; render(); B.autoAll(b); last = b.log[b.log.length - 1] ?? ''; busy = false; sel = null; render(); return; }
   if (act === 'retreat') { B.retreat(b); render(); return; }

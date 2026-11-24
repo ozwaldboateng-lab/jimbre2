@@ -23,7 +23,7 @@ export interface Ban {
   mid: BanSetup['foe']; late: BanSetup['foe']; // 中盤に現れる敵・殿で迫る敵
   duel?: Duel; duelWon?: string[]; duelLost?: number; // 一騎討ち（いま戦っている・勝った相手の名・負けた数）
   mochi?: Mochi; rescued?: number; // 持ち場（足軽大将から）・後詰めで救った組の数
-  goal?: Goal; breached?: boolean; // 小競り合いのねらい（主命。なければ合戦の槍働き）・砦を破られた
+  goal?: Goal; goalLabel?: string; breached?: boolean; // 小競り合いのねらい（主命。なければ合戦の槍働き）・砦を破られた
 }
 // 小競り合い（足軽大将の主命）のねらい: reach 主人公が敵の端（一番上の行）に着けば果たす・rout 敵を討ち払えば果たす・hold 手番の終わりまで主人公が持ちこたえれば果たす
 export type Goal = 'reach' | 'rout' | 'hold';
@@ -46,7 +46,7 @@ export const TERR_NAME: Record<Terr, string> = { '.': '野', saku: '柵', mori: 
 export const DUEL = { YARI_SEEN: 2, HABIT: 0.5, READ: 0.25, BRA_K: 60, TEGARA: 3, LOSE_HP: 0.5 };
 export const BAN = { W: 8, H: 10, TURNS: 8, OKA: 2, CRIT_BASE: 0.05, CRIT_YARI: 0.03, CRIT_MULT: 1.5, TEGARA_MOB: 1, TEGARA_SHO: 5, ICHIBAN: 3, OIUCHI: 1, SHINGARI: 6, NAKA: 4, SHU: 7, KYOHO_PER: 30, KYOHO_RANGE: 3, LOSE_KEEP: 0.5 };
 export const stageOf = (b: Ban) => (b.turn >= BAN.SHU ? 'shu' : b.turn >= BAN.NAKA ? 'naka' : 'jo');
-export const stageName = (b: Ban) => b.goal ? GOAL_NAME[b.goal] : ({ jo: '序盤', naka: '中盤', shu: b.end === 'oiuchi' ? '終盤・追い討ち' : '終盤・殿' })[stageOf(b)];
+export const stageName = (b: Ban) => b.goal ? b.goalLabel ?? GOAL_NAME[b.goal] : ({ jo: '序盤', naka: '中盤', shu: b.end === 'oiuchi' ? '終盤・追い討ち' : '終盤・殿' })[stageOf(b)];
 
 // ───────── 乱数（盤ごとの種） ─────────
 export function rnd(b: Ban): number { let t = (b.seed = (b.seed + 0x6d2b79f5) | 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
@@ -72,9 +72,9 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
 }
 
 // ───────── 盤を作る ─────────
-export interface BanSetup { goal?: Goal; fort?: 'foe' | 'me'; sleep?: boolean; spread?: boolean; mochi?: Mochi; rescue?: { kind: BKind; who: Who | null }[]; me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number; end?: 'oiuchi' | 'shingari'; mid?: { kind: BKind; who: Who | null }[]; late?: { kind: BKind; who: Who | null }[] }
+export interface BanSetup { goalLabel?: string; goal?: Goal; fort?: 'foe' | 'me'; sleep?: boolean; spread?: boolean; mochi?: Mochi; rescue?: { kind: BKind; who: Who | null }[]; me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number; end?: 'oiuchi' | 'shingari'; mid?: { kind: BKind; who: Who | null }[]; late?: { kind: BKind; who: Who | null }[] }
 export function newBan(o: BanSetup): Ban {
-  const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, rivalTegara: 0, seed: o.seed | 0 || 1, end: o.end ?? 'oiuchi', mid: o.mid ?? [], late: o.late ?? [], mochi: o.mochi, goal: o.goal };
+  const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, rivalTegara: 0, seed: o.seed | 0 || 1, end: o.end ?? 'oiuchi', mid: o.mid ?? [], late: o.late ?? [], mochi: o.mochi, goal: o.goal, goalLabel: o.goalLabel };
   // 地形: 中ほど（上下3行は陣地として空ける）に林・丘・柵、川を一筋
   const mid = (y: number) => y >= 3 && y <= b.h - 4;
   const put = (t: Terr, n: number) => { for (let k = 0, tries = 0; k < n && tries < 60; tries++) { const x = Math.floor(rnd(b) * b.w), y = 3 + Math.floor(rnd(b) * (b.h - 6)); if (mid(y) && b.terr[y * b.w + x] === '.') { b.terr[y * b.w + x] = t; k++; } } };

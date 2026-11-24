@@ -26,6 +26,7 @@ import * as RY from '../engine/ryoshu';
 import * as YO from '../engine/yorioya';
 import * as BP from '../engine/banplay';
 import * as BN from '../engine/ban';
+import * as MS from '../engine/meisei';
 import { openBan } from './ban';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
@@ -248,7 +249,7 @@ function spotsHtml(st: GameState) {
 function roninSpots(st: GameState): string | null {
   if (!RP.isRonin(st)) return null;
   const Hh = st.hero!;
-  if (Hh.merc) { const a = st.armies[Hh.merc.army]; return `<p class="hr-note">${esc(clanName(st, Hh.merc.clan))}家の${esc(st.generals[a?.main ?? '']?.name ?? '')}の軍勢に陣借りしている。軍勢とともに動き、合戦があれば雇い賃と名声が入る。</p><button class="hr-spot main" data-h="rest"><b>陣中で過ごす</b><span>1旬</span></button><button class="hr-spot dim" data-h="leavemerc"><b>陣を離れる</b><span>雇われの身をやめる</span></button>`; }
+  if (Hh.merc) { const a = st.armies[Hh.merc.army]; const kb = MS.kensakuBlock(st); return `<button class="hr-spot" data-h="kensaku" ${kb ? 'disabled' : ''}><b>軍議で献策する</b><span>${kb ? esc(kb) : `知略で策を述べる。用いられれば名声と軍略の評判（1旬・月に一度）`}</span></button><p class="hr-note">${esc(clanName(st, Hh.merc.clan))}家の${esc(st.generals[a?.main ?? '']?.name ?? '')}の軍勢に陣借りしている。軍勢とともに動き、合戦があれば雇い賃と名声が入る。</p><button class="hr-spot main" data-h="rest"><b>陣中で過ごす</b><span>1旬</span></button><button class="hr-spot dim" data-h="leavemerc"><b>陣を離れる</b><span>雇われの身をやめる</span></button>`; }
   const btn = (h: string, b: string, sp: string, cls = '', id = '', dis = false) => `<button class="hr-spot${cls}" data-h="${h}"${id ? ` data-id="${id}"` : ''} ${dis ? 'disabled' : ''}><b>${b}</b><span>${sp}</span></button>`;
   const out: string[] = [];
   const lh = CR.lordHere(st);
@@ -263,6 +264,12 @@ function roninSpots(st: GameState): string | null {
     const pn = RP.riseChance(st, 'naio');
     out.push(btn('rise', '旗揚げ（内応）', need.length ? `足りない: ${need.join('・')}` : pn ? `金500貫で城の中の者に門を開けさせる（見込み${Math.round(pn * 100)}%）` : '先に城を探っておく', '', 'naio', !!need.length || !pn));
   }
+  const c0 = st.castles[Hh.town], sp0 = H.spotsOf(st, c0);
+  if (sp0.includes('dojo')) { const w = MS.dojoBlock(st), f = MS.dojoFoe(st); out.push(btn('dojoyaburi', '道場破り', w ?? `道場の師範（武勇${f.bra}）に他流試合を挑む。一騎討ちで勝てば看板料${MS.MEI.DOJO_GOLD}貫と武の名（1旬）`, '', '', !!w)); }
+  if (MS.nozokuHere(st)) { const w = MS.nozokuBlock(st); out.push(btn('nozoku', '野盗退治', w ?? `治安の悪い村から頼まれる。配下と牢人衆を連れ、槍働きの盤で野盗を討ち払う（礼金${MS.MEI.NOZOKU_GOLD}貫・治安の名・1旬）`, '', '', !!w)); }
+  if (MS.fushinHere(st)) { const w = MS.fushinBlock(st); out.push(btn('fuuke', '普請を請け負う', w ?? `国衆の城の石垣と堀を差配する（築城の段で稼ぎと名が増える・1旬）`, '', '', !!w)); }
+  if (MS.rengaHere(st)) { const w = MS.rengaBlock(st); out.push(btn('renga', `連歌会に出る（${MS.MEI.RENGA_COST}貫）`, w ?? '魅力・茶道・弁舌で句を競い、文の名を上げる。城下の武将とも親しくなる（1旬・月に一度）', '', '', !!w)); }
+  if (lh) { const w = MS.infoBlock(st); out.push(btn('info', '報せを売る', w ?? `探った敵の城の兵と守りの報せを、${esc(clanName(st, lh))}家に売る（金${MS.MEI.INFO_GOLD}貫・当主と親しく・諜報の名・1旬）`, '', '', !!w)); }
   out.push(btn('yojinbo', '用心棒', '商人の荷を護って稼ぐ（1旬）'));
   if (RP.canTeach(st)) out.push(btn('teach', '武芸の指南', '道場で槍を教えて稼ぐ（1旬）'));
   out.push(btn('hire', `牢人衆を雇う（${RP.RONIN.HIRE_COST}貫）`, `手勢+${RP.RONIN.HIRE_N}。毎月扶持がかかる（1旬）`, '', '', Hh.gold < RP.RONIN.HIRE_COST));
@@ -270,7 +277,8 @@ function roninSpots(st: GameState): string | null {
   out.push(...H.spotsOf(st, c).filter((x) => x !== 'tojo').map((x) => btn('spot', H.SPOT_NAME[x], x === 'yashiki' ? '武将を訪ねる・浪人を配下に誘う' : x === 'tabi' ? 'ほかの城下へ' : '', '', x)));
   if (T.canTrade(st, c)) out.push(btn('pane', '商い', '特産を仕入れ、荷を売る', '', 'akinai'));
   out.push(btn('rest', '休む', '1旬を過ごす', ' dim'));
-  return `<p class="hr-note">浪人の身。主命も俸禄もない。毎月、自分と配下・牢人衆の扶持がかかる。近くの国衆の城: ${RP.nearKunishu(st).map((x) => esc(x.name)).join('・')}</p>` + out.join('');
+  const fd = MS.fudaOf(st);
+  return `<p class="hr-note"><b>名声${Hh.fame ?? 0}</b>${fd.length ? `・評判の札: ${fd.map((x) => `「${x.name}」`).join('')}` : '・評判の札はまだない（同じ系統で名を8上げると付く）'}</p><p class="hr-note">浪人の身。主命も俸禄もない。毎月、自分と配下・牢人衆の扶持がかかる。近くの国衆の城: ${RP.nearKunishu(st).map((x) => esc(x.name)).join('・')}</p>` + out.join('');
 }
 function peopleHtml(st: GameState) {
   const me = H.heroOf(st)!;
@@ -704,6 +712,20 @@ function onClick(e: Event) {
   if (h === 'shikan') { void act(() => CR.askService(s!), 'tojo'); return; }
   if (h === 'jingari') { void act(() => RP.jingari(s!, +id), 'town'); return; }
   if (h === 'leavemerc') { void act(() => RP.leaveMerc(s!), 'town', true); return; }
+  if (h === 'kensaku') { void act(() => MS.gunKensaku(s!), 'jinmaku'); return; }
+  if (h === 'fuuke') { void act(() => MS.fushinUke(s!), 'town'); return; }
+  if (h === 'renga') { const st = s; void act(() => MS.renga(st, H.townsfolk(st, st.hero!.town).filter((g) => g.clan)), 'yashiki'); return; }
+  if (h === 'info') { void act(() => MS.sellInfo(s!), 'tojo'); return; }
+  if (h === 'dojoyaburi' || h === 'nozoku') {
+    if (busy) return;
+    const st = s;
+    if (SK.isSick(st)) { say = { text: '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
+    dlg = null;
+    if (h === 'dojoyaburi') { const w = MS.dojoBlock(st); if (w) { say = { text: w }; render(); return; } void openBan(MS.dojoBan(st), `${st.castles[st.hero!.town].name}の道場 ― 道場破り`, banColors(st), { duelOnly: true }).then(async (r) => { const res = MS.applyDojo(st, r.over === 'win'); H.note(st, res.text); say = { text: res.text, hold: true }; save(); render(); await advance(); }); return; }
+    const w = MS.nozokuBlock(st); if (w) { say = { text: w }; render(); return; }
+    void openBan(MS.nozokuBan(st), `${st.castles[st.hero!.town].name}の村 ― 野盗退治`, banColors(st)).then(async (r) => { const res = MS.applyNozoku(st, r); H.note(st, res.text); say = { text: res.text, hold: true }; save(); render(); await advance(); });
+    return;
+  }
   if (h === 'yojinbo') { void act(() => RP.yojinbo(s!), 'ichi'); return; }
   if (h === 'teach') { void act(() => RP.teach(s!), 'dojo'); return; }
   if (h === 'hire') { void act(() => RP.hire(s!), 'town'); return; }

@@ -21,6 +21,20 @@ export const RONIN = {
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 export const fameOf = (s: GameState) => s.hero?.fame ?? 0;
 export function addFame(s: GameState, n: number) { const H = s.hero!; H.fame = clamp((H.fame ?? 0) + n); }
+// 名を上げる（meisei.ts の札）: 名声に足し、系統（武・戦・軍略・普請・治安・文・諜報）と名を上げた城下を覚える
+export type Kei = 'bu' | 'sen' | 'gun' | 'fu' | 'chi' | 'bun' | 'cho';
+type RX = { renown?: Partial<Record<Kei, number>>; fameAt?: Record<number, { n: number; t: number }>; fameTurn?: number; seen?: Record<number, number> };
+export function renown(s: GameState, kei: Kei, n: number) {
+  addFame(s, n);
+  if (n <= 0) return;
+  const H = s.hero! as NonNullable<GameState['hero']> & RX;
+  (H.renown ??= {})[kei] = (H.renown[kei] ?? 0) + n;
+  const a = (H.fameAt ??= {})[H.town];
+  H.fameAt[H.town] = { n: (a?.n ?? 0) + n, t: s.turn };
+  H.fameTurn = s.turn;
+}
+// 他家の城を探った（報せを売れる）
+export function noteSeen(s: GameState, castle: number) { ((s.hero! as NonNullable<GameState['hero']> & RX).seen ??= {})[castle] = s.turn; }
 export const isRonin = (s: GameState) => !!s.hero && s.hero.story !== 'toshiie' && !s.generals[s.hero.id].clan;
 export const followersOf = (s: GameState): General[] => (s.hero?.followers ?? []).map((id) => s.generals[id]).filter((g) => g && g.status !== 'dead');
 export const isFollower = (s: GameState, g: General) => !!s.hero?.followers?.includes(g.id);
@@ -50,7 +64,7 @@ function mercMonth(s: GameState): string[] {
     m.fought = a.fought!;
     const me = s.generals[H.id], kubi = rand(s) < RONIN.MERC_KUBI + me.bra / 400 + lv(s, 'yari') * 0.05;
     const pay = Math.round(RONIN.MERC_PAY * (1 + fameOf(s) / 100));
-    H.gold += pay; addFame(s, RONIN.MERC_FAME + (kubi ? 2 : 0)); if (kubi) H.kubi = (H.kubi ?? 0) + 1;
+    H.gold += pay; renown(s, 'sen', RONIN.MERC_FAME + (kubi ? 2 : 0)); if (kubi) H.kubi = (H.kubi ?? 0) + 1;
     return [`陣借りした${clanName(s, m.clan)}家の合戦で働いた。雇い賃${pay}貫・名声+${RONIN.MERC_FAME + (kubi ? 2 : 0)}${kubi ? '。首級を挙げた' : ''}。`];
   }
   return [];
@@ -61,7 +75,7 @@ export function yojinbo(s: GameState): Act {
   used(s);
   if (rand(s) < RONIN.GUARD_RISK - me.bra / 1000) { H.gold += RONIN.GUARD_PAY[0] / 2; return { ok: true, text: `荷を護る道中で野盗に襲われ、手傷を負った。半分の${RONIN.GUARD_PAY[0] / 2}貫だけ受け取った。` }; }
   const pay = Math.round(RONIN.GUARD_PAY[0] + rand(s) * (RONIN.GUARD_PAY[1] - RONIN.GUARD_PAY[0]));
-  H.gold += pay; addFame(s, RONIN.GUARD_FAME); H.rel['merchant'] = clamp((H.rel['merchant'] ?? 0) + 3);
+  H.gold += pay; renown(s, 'chi', RONIN.GUARD_FAME); H.rel['merchant'] = clamp((H.rel['merchant'] ?? 0) + 3);
   return { ok: true, text: `商人の荷を護って隣の宿まで送った。${pay}貫。名声+${RONIN.GUARD_FAME}。` };
 }
 // 武芸の指南（武勇70以上、大きな城下で）
@@ -69,7 +83,7 @@ export const canTeach = (s: GameState) => isRonin(s) && s.generals[s.hero!.id].b
 export function teach(s: GameState): Act {
   const H = s.hero!;
   used(s); const pay = Math.round(RONIN.TEACH_PAY * (1 + fameOf(s) / 100));
-  H.gold += pay; addFame(s, RONIN.TEACH_FAME);
+  H.gold += pay; renown(s, 'bu', RONIN.TEACH_FAME);
   return { ok: true, text: `道場で若い者に槍を教えた。${pay}貫。名声+${RONIN.TEACH_FAME}。` };
 }
 
@@ -158,7 +172,7 @@ export function rise(s: GameState, how: 'youchi' | 'naio'): { ok: boolean; text:
   const C: Clan = { id, name: Object.values(s.clans).some((x) => x.name === fam && x.alive) ? me.name : fam, color: '#b5442e', leader: me.id, prestige: 20 + Math.round(fameOf(s) / 4), food: Math.round(H.gold * 10), alive: true, stance: '均衡', target: null, gold: H.gold, guns: 0, budget: { chisui: 10, hodo: 10 }, focus: null, mobilize: R.MOBILIZE_DEFAULT, court: 0 };
   s.clans[id] = C;
   c.owner = id; c.oldOwner = null; c.ember = 30; c.chian = Math.max(30, c.chian - 10); c.garrison = Math.max((H.ie?.shu ?? 0), Math.round(garrisonMax(c) * 0.3));
-  learnCastle(s, c.i, id);
+  learnCastle(s, c.i, id); noteSeen(s, c.i);
   me.clan = id; me.status = 'free'; me.loc = c.i; me.rank = 0; me.army = null;
   for (const g of followersOf(s)) { g.clan = id; g.status = 'free'; g.loc = c.i; g.rank = 1; g.merit = R.MERIT_AT[1]; }
   H.gold = 0;
