@@ -11,13 +11,19 @@ export interface Piece {
   hp: number; maxhp: number; atk: number; def: number; int: number; mov: number; rmin: number; rmax: number; crit: number;
   x: number; y: number; moved: boolean; acted: boolean; noShootUntil?: number; alive: boolean;
   kyoho: number; confused?: number; flee?: boolean; gone?: boolean; // 虚報の残り回数・混乱の残り手番・逃げる（追い討ち）・盤から去った
+  bra: number; // 一騎討ちに使う武勇
 }
 export interface Ban {
   w: number; h: number; terr: Terr[]; pieces: Piece[]; turn: number; maxTurn: number; phase: BSide;
   log: string[]; tegara: number; kills: number; over?: 'win' | 'lose' | 'retreat' | 'time'; seed: number;
   end: 'oiuchi' | 'shingari'; ichiban?: boolean; event?: string; // 終盤の形（勝ち戦なら追い討ち、負け戦なら殿）・一番槍が出たか・局面の変わり目の知らせ
   mid: BanSetup['foe']; late: BanSetup['foe']; // 中盤に現れる敵・殿で迫る敵
+  duel?: Duel; duelWon?: string[]; duelLost?: number; // 一騎討ち（いま戦っている・勝った相手の名・負けた数）
 }
+// 一騎討ち: 三合のうち二合を取れば勝ち。攻める・受ける・崩すの三すくみ（攻めは崩しに、崩しは受けに、受けは攻めに勝つ）
+export type Move = 'seme' | 'uke' | 'kuzushi';
+export const MOVE_NAME: Record<Move, string> = { seme: '攻める', uke: '受ける', kuzushi: '崩す' };
+export interface Duel { me: number; foe: number; round: number; myWins: number; foeWins: number; habit: Move; seen: boolean; log: string[]; over?: 'win' | 'lose' }
 export const KIND: Record<BKind, { name: string; ch: string; mov: number; rmin: number; rmax: number; hp: number; atk: number; def: number }> = {
   kiba: { name: '騎馬', ch: '騎', mov: 5, rmin: 1, rmax: 1, hp: 26, atk: 10, def: 4 },
   ashi: { name: '足軽', ch: '足', mov: 4, rmin: 1, rmax: 1, hp: 22, atk: 9, def: 4 },
@@ -25,6 +31,7 @@ export const KIND: Record<BKind, { name: string; ch: string; mov: number; rmin: 
   teppo: { name: '鉄砲', ch: '鉄', mov: 2, rmin: 2, rmax: 4, hp: 16, atk: 12, def: 2 },
 };
 export const TERR_NAME: Record<Terr, string> = { '.': '野', saku: '柵', take: '竹束', kawa: '川', oka: '丘' };
+export const DUEL = { YARI_SEEN: 2, HABIT: 0.5, READ: 0.25, BRA_K: 60, TEGARA: 3, LOSE_HP: 0.5 };
 export const BAN = { W: 8, H: 10, TURNS: 8, OKA: 2, CRIT_BASE: 0.05, CRIT_YARI: 0.03, CRIT_MULT: 1.5, TEGARA_MOB: 1, TEGARA_SHO: 5, ICHIBAN: 3, OIUCHI: 1, SHINGARI: 6, NAKA: 4, SHU: 7, KYOHO_PER: 30, KYOHO_RANGE: 3, LOSE_KEEP: 0.5 };
 export const stageOf = (b: Ban) => (b.turn >= BAN.SHU ? 'shu' : b.turn >= BAN.NAKA ? 'naka' : 'jo');
 export const stageName = (b: Ban) => ({ jo: '序盤', naka: '中盤', shu: b.end === 'oiuchi' ? '終盤・追い討ち' : '終盤・殿' })[stageOf(b)];
@@ -48,6 +55,7 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
     id, side, kind, name: w?.name ?? `${side === 'me' ? '味方' : '敵'}の${K.name}`, gid: w?.gid, hero: w?.hero, sho: w?.sho,
     hp, maxhp, atk, def, int: w?.int ?? 30, mov: K.mov, rmin: K.rmin, rmax: K.rmax, crit: BAN.CRIT_BASE + (w?.yari ?? 0) * BAN.CRIT_YARI,
     x, y, moved: false, acted: false, alive: true, kyoho: w ? Math.floor(w.int / BAN.KYOHO_PER) : 0, // 虚報は武将だけ（知略30ごとに一回）
+    bra: w ? w.bra + (w.yari ?? 0) * 4 : 40, // 一騎討ちに使う武勇（武芸一段で+4）
   };
 }
 
@@ -252,6 +260,39 @@ export function runSide(b: Ban, side: BSide): string[] {
   for (const p of b.pieces.filter((q) => q.side === side && q.alive)) { const t = aiStep(b, p); if (t) out.push(t); if (b.over) break; }
   return out;
 }
+// ───────── 一騎討ち（主人公が名のある将の隣で名乗る） ─────────
+export const duelFoes = (b: Ban): Piece[] => { const h = hero(b); return h && h.alive && !h.acted && !h.confused && b.phase === 'me' && !b.over ? b.pieces.filter((p) => p.alive && p.sho && p.side === 'foe' && !p.flee && dist(h, p) === 1) : []; };
+export function startDuel(b: Ban, foe: Piece): Duel | null {
+  const h = hero(b); if (!h || !duelFoes(b).includes(foe)) return null;
+  const habits: Move[] = ['seme', 'uke', 'kuzushi'], habit = habits[Math.floor(rnd(b) * 3)];
+  b.duel = { me: h.id, foe: foe.id, round: 1, myWins: 0, foeWins: 0, habit, seen: (BRA_YARI(h)) >= DUEL.YARI_SEEN, log: [] };
+  b.log.push(`${h.name}が名乗りを上げ、${foe.name}と一騎討ちになった。`);
+  return b.duel;
+}
+const BRA_YARI = (p: Piece) => Math.round((p.crit - BAN.CRIT_BASE) / BAN.CRIT_YARI); // 武芸の段（会心から戻す）
+const beats = (a: Move, c: Move) => (a === 'seme' && c === 'kuzushi') || (a === 'kuzushi' && c === 'uke') || (a === 'uke' && c === 'seme');
+export const duelChance = (b: Ban, read: 0 | 1 | -1) => { const d = b.duel!, me = b.pieces[d.me], f = b.pieces[d.foe]; return Math.max(0.05, Math.min(0.95, 0.5 + (me.bra - f.bra) / DUEL.BRA_K + read * DUEL.READ)); };
+// 一合: 自分の手を出す。相手は癖の手を半々で、ほかは等しく出す。読み勝てば見込み+25%、読み負ければ−25%。見込みで一合の勝ち負けが決まる
+export function duelRound(b: Ban, mv: Move): string {
+  const d = b.duel; if (!d || d.over) return '';
+  const others = (['seme', 'uke', 'kuzushi'] as Move[]).filter((m) => m !== d.habit);
+  const fm = rnd(b) < DUEL.HABIT ? d.habit : others[Math.floor(rnd(b) * 2)];
+  const read: 0 | 1 | -1 = beats(mv, fm) ? 1 : beats(fm, mv) ? -1 : 0;
+  const win = rnd(b) < duelChance(b, read);
+  const me = b.pieces[d.me], f = b.pieces[d.foe];
+  if (win) d.myWins++; else d.foeWins++;
+  const t = `第${d.round}合: ${me.name}は${MOVE_NAME[mv]}、${f.name}は${MOVE_NAME[fm]}。${read > 0 ? '読み勝ち、' : read < 0 ? '読み負け、' : ''}${win ? `${me.name}が取った` : `${f.name}が取った`}。`;
+  d.log.push(t); d.round++;
+  if (d.myWins >= 2 || d.foeWins >= 2) {
+    d.over = d.myWins >= 2 ? 'win' : 'lose';
+    if (d.over === 'win') { f.hp = 0; f.alive = false; b.kills++; b.tegara += BAN.TEGARA_SHO + DUEL.TEGARA; (b.duelWon ??= []).push(f.name); b.log.push(`一騎討ちで${f.name}を打ち負かした（手柄+${BAN.TEGARA_SHO + DUEL.TEGARA}）。`); }
+    else { me.hp = Math.max(0, me.hp - Math.round(me.maxhp * DUEL.LOSE_HP)); b.duelLost = (b.duelLost ?? 0) + 1; if (me.hp <= 0) me.alive = false; b.log.push(`一騎討ちで${f.name}に敗れ、深手を負った。`); }
+    me.acted = true; me.moved = true;
+    judge(b);
+  }
+  return t;
+}
+export function endDuel(b: Ban) { b.duel = undefined; }
 // オート: 終わるまで両方を動かす
 export function autoAll(b: Ban) {
   for (let g = 0; g < 100 && !b.over; g++) {

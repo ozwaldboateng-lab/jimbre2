@@ -43,6 +43,7 @@ const BG: Record<string, string> = { town: 'ichi', tojo: 'zashiki_day', yashiki:
 
 type Face = (id: string | null | undefined, w: number) => string;
 let s: GameState | null = null;
+try { Object.defineProperty(window, "__hero", { get: () => s, configurable: true }); } catch { /* 試験用。なくても動く */ }
 let face: Face = () => '';
 let onQuit: () => void = () => {};
 let root: HTMLElement | null = null;
@@ -429,6 +430,7 @@ const dateOf = (st: GameState, turn: number) => { const m0 = (st.startMonth ?? 6
 function hyojoHtml(st: GameState) {
   if (SK.pupilOf(st)) return '<div class="hr-offer"><button class="hr-btn primary" data-h="pupil-teach">教える</button><button class="hr-btn" data-h="pupil-no">断る</button></div>';
   if (YR.duelOf(st)) return '<div class="hr-offer"><button class="hr-btn primary" data-h="duel-yes">受けて立つ</button><button class="hr-btn" data-h="duel-no">退く</button></div>';
+  if (YR.banPendOf(st)) return '<div class="hr-offer"><button class="hr-btn primary" data-h="ban-go">槍を取る（盤で戦う）</button><button class="hr-btn" data-h="ban-auto">任せる（オート）</button></div>';
   const hy = st.hero!.hyojo;
   if (!hy || hy.turn !== st.turn) return '<div class="hr-offer"><button class="hr-btn primary" data-h="q-accept">承る</button><button class="hr-btn" data-h="q-decline">断る</button></div>';
   return `<div class="hr-cands">${hy.cands.map((q, i) => `<button class="hr-cand" data-h="q-pick" data-id="${i}"><b>${esc(H.QUEST_NAME[q.kind])}</b><span>${esc(H.questText(st, q))}</span></button>`).join('')}</div><div class="hr-offer"><button class="hr-btn" data-h="q-decline">どれも断る</button></div>`;
@@ -489,7 +491,9 @@ async function advance() {
   if (cev && !hadShiro && CR.hasStep(st, 'shiro')) pendRyo = true; // 城を預かった: 場面と報告のあと領主の画面へ
   if (cev) { lines.push(...cev.lines); for (const x of cev.lines) H.note(st, x); }
   if (monthPassed && CR.freeHero(st)) { // 槍働き（主人公の軍勢が戦った月）。一騎討ちを挑まれたら、受けるか退くかを先に
+    if (YR.banPendOf(st) || (st.hero as { banPend?: unknown }).banPend) { const ob = BP.autoBan(st); if (ob) { const t2 = BP.applyBan(st, ob); lines.push(...t2); for (const x of t2) H.note(st, x); } else YR.clearBanPend(st); } // 前の月の槍働きを放っておいた: 任せたことにする
     const am = YR.aftermath(st); lines.push(...am.lines); for (const x of am.lines) H.note(st, x);
+    if (am.ban) { const P = YR.banPendOf(st)!; say = { text: `${P.foeName}との合戦（${P.won ? '味方の勝ち戦' : '味方の負け戦'}）。隊を率いない身として、自分の槍働きをどうする。盤で戦えば一番槍・敵将との一騎討ち・${P.won ? '追い討ち' : '殿'}で手柄を立てられる。`, hold: true, offer: true }; }
     if (!am.duel && !say?.offer) { const pg = SK.pupilEvent(st, H.townsfolk(st, st.hero!.town), () => Math.random()); if (pg) { const pk = SK.pupilOf(st)!.k; say = { who: pg.id, line: `${H.heroOf(st)!.name}殿の${SK.SKILL_NAME[pk]}、聞き及んでおります。……どうか、教えを乞いたい`, text: `${pg.name}が${SK.SKILL_NAME[pk]}の弟子入りを願ってきた。教えれば親しくなり、謝礼も入る（1旬）。`, hold: true, offer: true }; } }
     if (am.duel) { const f = st.generals[am.duel]; say = { who: f.id, line: `そこな武者、名のある者と見た。${f.name}、一騎討ちを所望する！`, text: `敵将${f.name}（武勇${f.bra}）が一騎討ちを挑んできた。勝つ見込み${Math.round(YR.duelChance(st, f.id) * 100)}%。`, hold: true, offer: true }; }
   }
@@ -715,6 +719,13 @@ function onClick(e: Event) {
   if (h === 'pupil-teach') { const r = SK.teachPupil(s, () => Math.random()); H.note(s, r.text); say = { who: r.who, line: r.line, text: r.text, hold: true }; save(); render(); return; } // 月の報告は、この窓を閉じてから
   if (h === 'pupil-no') { const r = SK.declinePupil(s); say = { text: r.text, hold: true }; save(); render(); return; }
   if (h === 'duel-no') { const r = YR.declineDuel(s); say = { text: r.text, hold: true }; save(); render(); return; }
+  if (h === 'ban-go' || h === 'ban-auto') {
+    const st = s, P = YR.banPendOf(st); if (!P) { say = null; render(); return; }
+    const fin = (bn: import('../engine/ban').Ban) => { const t2 = BP.applyBan(st, bn); for (const x of t2) H.note(st, x); say = { text: t2.join(''), hold: true }; save(); render(); };
+    if (h === 'ban-auto') { const bn = BP.autoBan(st); if (bn) fin(bn); return; }
+    const bn = BP.battleBan(st); if (!bn) return;
+    void openBan(bn, `${P.foeName}との合戦 ― 槍働き`).then(fin); return;
+  }
   if (h === 'rise') { riseUp(id as 'youchi' | 'naio'); return; }
   if (h === 'retire') { if (!retireArm) { retireArm = true; say = { text: '家督を譲れば、一生はそこで締めになる。もう一度押すと隠居する。' }; render(); return; } retireArm = false; const ls = CR.retire(s); for (const x of ls) H.note(s, x); report = [...ls, '一生を終えた。']; save(); render(); return; }
   if (h === 'buy') { pane = 'akinai'; void act(() => T.buy(s!, +id), 'ichi'); return; }

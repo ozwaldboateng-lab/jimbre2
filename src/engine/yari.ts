@@ -13,11 +13,12 @@ export const YARI = {
   DUEL_P: 0.35, DUEL_MERIT: 25, DUEL_FAME: 3, DUEL_HP: 40, // 一騎討ち: 名のある敵将がいれば35%で挑まれる
   REWARD: { MEI: 8, KANJO: 4 }, // 論功行賞: 手柄8で名物の下賜、4で感状
 };
-type Battle = { turn: number; won: boolean; foe?: string; castle?: string; foeName: string };
+type Battle = { turn: number; won: boolean; foe?: string; castle?: string; foeName: string; lead?: boolean }; // lead: 主人公が軍勢を率いていた
 type Deeds = { kubi: number; duel: number; castles: number; wins: number; battles: number };
-type YX = { battle?: Battle; duel?: { foe: string; turn: number }; deeds?: Deeds };
+export type BanPend = { turn: number; won: boolean; foe?: string; foeName: string };
+type YX = { battle?: Battle; duel?: { foe: string; turn: number }; deeds?: Deeds; banPend?: BanPend };
 const X = (s: GameState) => s.hero! as typeof s.hero & YX;
-const deedsOf = (s: GameState): Deeds => (X(s).deeds ??= { kubi: 0, duel: 0, castles: 0, wins: 0, battles: 0 });
+export const deedsOf = (s: GameState): Deeds => (X(s).deeds ??= { kubi: 0, duel: 0, castles: 0, wins: 0, battles: 0 });
 export const deedScore = (d: Deeds) => d.kubi + d.duel * 3 + d.castles * 4 + d.wins * 0.5;
 
 // 合戦の決着を記録する（hooks.ts の resolveBattle から）: 主人公の軍勢が攻め手か守り手のとき
@@ -31,17 +32,21 @@ export function recordBattle(s: GameState, a: Army, t: Target, joined: Army[], r
   const won = atk ? r.outcome === '攻撃側の勝利' : r.outcome === '守備側の勝利';
   const foe = atk ? (t.kind === 'army' ? t.army.main : s.castles[t.castle].governor ?? undefined) : a.main;
   const castle = atk && won && t.kind === 'castle' ? s.castles[t.castle].name : undefined;
-  X(s).battle = { turn: s.turn, won, foe: foe ?? undefined, castle, foeName: atk ? r.defenderName : r.attackerName };
+  X(s).battle = { turn: s.turn, won, foe: foe ?? undefined, castle, foeName: atk ? r.defenderName : r.attackerName, lead: H.leads !== undefined && H.leads !== null };
 }
 
 // 月の終わり: 槍働き。一騎討ちを挑まれたら H.duel に残す（受けるか退くかは画面で）
-export function aftermath(s: GameState): { lines: string[]; duel: string | null } {
+// 隊を率いずに加わった合戦は、首級をくじで決めず、槍働きの盤で戦う（H.banPend に残し、画面で「盤で戦う」か「任せる」）
+export const banPendOf = (s: GameState) => { const p = X(s).banPend; return p && p.turn >= s.turn - 1 ? p : null; };
+export function clearBanPend(s: GameState) { X(s).banPend = undefined; }
+export function aftermath(s: GameState): { lines: string[]; duel: string | null; ban?: boolean } {
   const H = X(s), b = H.battle, me = s.generals[H.id];
   H.battle = undefined;
   if (!b || b.turn < s.turn - 1 || !me || me.status === 'dead' || me.status === 'captive') return { lines: [], duel: null };
   const d = deedsOf(s), out: string[] = [];
   d.battles++; if (b.won) d.wins++;
   if (b.castle) { d.castles++; out.push(`${b.castle}の攻めに加わり、城は落ちた。`); }
+  if (!b.lead) { H.banPend = { turn: s.turn, won: b.won, foe: b.foe, foeName: b.foeName }; out.push(`${b.foeName}との合戦に加わった（${b.won ? '勝ち戦' : '負け戦'}）。`); return { lines: out, duel: null, ban: true }; }
   const p = (YARI.KUBI_P + lv(s, 'yari') * YARI.KUBI_YARI + me.bra / 400) * (b.won ? 1 : 0.5);
   if (rand(s) < p) { d.kubi++; H.kubi = (H.kubi ?? 0) + 1; me.merit += YARI.KUBI_MERIT; out.push(`${b.foeName}との合戦で、${me.name}は自ら槍を振るい、首級を挙げた（功績+${YARI.KUBI_MERIT}）。`); }
   else out.push(`${b.foeName}との合戦に加わった（${b.won ? '勝ち戦' : '負け戦'}）。`);

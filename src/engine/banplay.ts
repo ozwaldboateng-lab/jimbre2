@@ -1,8 +1,9 @@
 // 槍働きの盤を、遊びの状態から組み立てる（主人公の駒・配下の駒・敵の駒）
-import { BKind, kindOf, newBan, type Ban, type BanSetup, type Who } from './ban';
+import { autoAll, BAN, BKind, hero as heroPiece, kindOf, newBan, type Ban, type BanSetup, type Who } from './ban';
+import { banPendOf, clearBanPend, deedsOf, YARI } from './yari';
 import { retainersOf } from './kashin';
-import { hpMax, hpOf, lv } from './skill';
-import { rand } from './state';
+import { hpMax, hpOf, lv, spendHp } from './skill';
+import { addLog, rand } from './state';
 import type { GameState, General } from './types';
 
 export const BANP = { MIN: 3, MAX: 6, MOB_ORDER: ['ashi', 'yumi', 'teppo'] as BKind[] };
@@ -28,3 +29,47 @@ export function keikoBan(s: GameState): Ban {
     mid: [{ kind: 'kiba', who: sho }, mob('ashi')], end: rand(s) < 0.5 ? 'oiuchi' : 'shingari', late: [mob('kiba'), mob('ashi'), mob('ashi')],
   });
 }
+
+// ───────── 合戦の槍働き ─────────
+// 盤を組む: 敵の先手（足軽2・弓・鉄砲）、中盤に敵将（その合戦の敵の大将。いなければ侍大将）と足軽、終盤は勝ち戦なら追い討ち・負け戦なら殿
+export const BANW = { MERIT: 2, FAME_PER: 4, HP_K: 40, LOSE_HP: 10, LOSE_SICK: 0.4, MOB_PER_KUBI: 5, SHO_SICK: 2 }; // 手柄1で功績2。首級は名のある将と、雑兵5人ごとに一つ
+export function battleBan(s: GameState): Ban | null {
+  const P = banPendOf(s); if (!P) return null;
+  const f = P.foe ? s.generals[P.foe] : null, ok = f && f.status !== 'dead' && f.status !== 'captive';
+  const sho: Who = ok ? { name: f!.name, bra: f!.bra, int: f!.int, lea: f!.lea, gid: f!.id, sho: true } : { name: '敵の侍大将', bra: 66, int: 56, lea: 62, sho: true };
+  const mob = (k: BKind) => ({ kind: k, who: null });
+  return newBan({
+    me: myPieces(s), foe: (['ashi', 'ashi', 'yumi', 'teppo'] as BKind[]).map(mob), seed: Math.floor(rand(s) * 1e9),
+    mid: [{ kind: 'kiba', who: sho }, mob('ashi')], end: P.won ? 'oiuchi' : 'shingari', late: [mob('kiba'), mob('ashi'), mob('ashi')],
+  });
+}
+// オートで済ませる
+export function autoBan(s: GameState): Ban | null { const b = battleBan(s); if (b) autoAll(b); return b; }
+// 盤の結果を、功績・名声・首級・体力・配下の手傷に
+export function applyBan(s: GameState, b: Ban): string[] {
+  const P = banPendOf(s); clearBanPend(s);
+  const Hh = s.hero!, me = s.generals[Hh.id], d = deedsOf(s), out: string[] = [];
+  const shoDown = b.pieces.filter((p) => p.sho && p.side === 'foe' && !p.alive && !p.gone);
+  const mobKills = Math.max(0, b.kills - shoDown.length);
+  const kubi = shoDown.length + Math.floor(mobKills / BANW.MOB_PER_KUBI);
+  const duels = b.duelWon?.length ?? 0;
+  d.kubi += kubi; d.duel += duels; Hh.kubi = (Hh.kubi ?? 0) + kubi;
+  const merit = b.tegara * BANW.MERIT; me.merit += merit;
+  const fame = Math.floor(b.tegara / BANW.FAME_PER) + duels * YARI.DUEL_FAME; Hh.fame = Math.min(100, (Hh.fame ?? 0) + fame);
+  for (const p of shoDown) { const g = p.gid ? s.generals[p.gid] : null; if (g && g.status !== 'dead') { g.sick = Math.max(g.sick ?? 0, BANW.SHO_SICK); addLog(s, `${me.name}が${g.name}に深手を負わせた。`, 'battle', true); } }
+  const how = { win: '目の前の敵を討ち払った', lose: '手傷を負って後ろへ運ばれた', retreat: '持ち場へ退いた', time: b.end === 'shingari' ? '殿を務めた' : '槍を収めた' }[b.over ?? 'time'];
+  out.push(`槍働き（${P?.foeName ?? '敵'}との合戦）: ${how}。討ち取り${b.kills}${b.log.some((t) => t.startsWith('一番槍')) ? '・一番槍' : ''}${duels ? `・一騎討ちの勝ち${duels}` : ''}${b.duelLost ? `・一騎討ちの負け${b.duelLost}` : ''}。手柄${b.tegara}（功績+${merit}${fame ? `・名声+${fame}` : ''}${kubi ? `・首級${kubi}` : ''}）。`);
+  for (const p of shoDown) if (p.gid) out.push(`${p.name}は深手を負って退いた。`);
+  // 体力: 盤で受けた傷の分だけ減る。倒れれば、さらに減って病に伏すこともある
+  const h = heroPiece(b);
+  if (h) {
+    const lost = Math.round((1 - Math.max(0, h.hp) / h.maxhp) * BANW.HP_K) + (h.alive ? 0 : BANW.LOSE_HP);
+    if (lost > 0) spendHp(s, lost);
+    if (!h.alive && rand(s) < BANW.LOSE_SICK) { me.sick = Math.max(me.sick ?? 0, 1); out.push(`手傷が重く、病に伏した（体力−${lost}）。`); }
+    else if (lost > 0) out.push(`体力−${lost}。`);
+  }
+  // 倒れた配下は手傷で、しばらく出られない
+  for (const p of b.pieces) if (p.side === 'me' && !p.alive && p.gid && !p.hero) { const g = s.generals[p.gid]; if (g) { g.sick = Math.max(g.sick ?? 0, 1); out.push(`${g.name}は手傷を負い、しばらく養生する。`); } }
+  return out;
+}
+export { BAN };

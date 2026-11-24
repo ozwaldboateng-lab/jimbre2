@@ -1,11 +1,12 @@
 // 槍働きと論功行賞: 主人公の軍勢が戦った月の終わりに槍働きが月の報告に出て、一騎討ちを挑まれたら受けて立つ（場面と首尾）、続けて登城すると論功行賞
-// 使い方: node tools/e2e_yari.mjs <保存JSON（hero.battle に今月の合戦を入れ、主君の城下・下旬）> <画像の出力先>
+// 使い方: node tools/e2e_yari.mjs <保存JSON（hero.battle に今月の合戦を入れ、主君の城下・下旬）> <画像の出力先>（軍勢を率いていた合戦として試す）
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const [save, out] = process.argv.slice(2);
 const base = JSON.parse(readFileSync(save, 'utf8'));
+if (base.hero?.battle) base.hero.battle.lead = true; // 軍勢を率いていた合戦（率いていない合戦は槍働きの盤になる。e2e_ban3.mjs）
 const b = await chromium.launch(); const errors = [];
 let done = false;
 for (let k = 0; k < 8 && !done; k++) {

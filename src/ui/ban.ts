@@ -19,6 +19,7 @@ export function openBan(ban: Ban, heading: string): Promise<Ban> {
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   }
   root.hidden = false;
+  (window as unknown as { __ban: unknown }).__ban = { get b() { return b; }, render }; // 試験用
   render();
   return new Promise((r) => { done = r; });
 }
@@ -53,11 +54,13 @@ function render() {
   const over = b.over ? `<div class="ban-over"><b>${{ win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
   const btns = b.over ? '' : `<div class="ban-acts">
     <button class="ban-btn" data-b="wait" ${mine && !s!.acted ? '' : 'disabled'}>待機</button>
+    ${B.duelFoes(b).length && s && s.hero ? `<button class="ban-btn duel" data-b="nanori" data-id="${B.duelFoes(b)[0].id}">名乗る（${esc(B.duelFoes(b)[0].name)}と一騎討ち）</button>` : ''}
     <button class="ban-btn kyo" data-b="kyoho" ${mine && B.kyohoTargets(b, s!).length ? '' : 'disabled'}>${aim ? 'やめる' : `虚報${mine && s!.kyoho ? `（あと${s!.kyoho}）` : ''}`}</button>
     <button class="ban-btn main" data-b="end" ${b.phase === 'me' && !busy ? '' : 'disabled'}>手番を終える</button>
     <button class="ban-btn" data-b="auto" ${busy ? 'disabled' : ''}>オート</button>
     <button class="ban-btn dim" data-b="retreat" ${busy ? 'disabled' : ''}>持ち場へ退く</button></div>`;
-  root.innerHTML = `<div class="ban-wrap"><div class="ban-head"><b>${esc(title)}</b><span>第${Math.min(b.turn, b.maxTurn)}手／${b.maxTurn}・${phase}・味方${ours}・敵${foes}・手柄${b.tegara}</span></div>
+  const D = b.duel, duel = D ? duelHtml(D) : '';
+  root.innerHTML = `${duel}<div class="ban-wrap"><div class="ban-head"><b>${esc(title)}</b><span>第${Math.min(b.turn, b.maxTurn)}手／${b.maxTurn}・${phase}・味方${ours}・敵${foes}・手柄${b.tegara}</span></div>
     <div class="ban-body"><div class="ban-grid" style="grid-template-columns:repeat(${b.w},1fr);grid-template-rows:repeat(${b.h},1fr)">${cells}</div>
     <div class="ban-side">${over}${b.over ? '' : infoHtml(s)}${kyoList}${last && !b.over ? `<p class="ban-last">${esc(last)}</p>` : ''}${btns}<div class="ban-log">${b.log.slice(-6).reverse().map((t) => `<p>${esc(t)}</p>`).join('')}</div></div></div></div>`;
 }
@@ -67,8 +70,12 @@ async function onClick(e: Event) {
   const act = el.dataset.b;
   if (act === 'close') { root!.hidden = true; const r = done; done = null; r?.(b); return; }
   if (busy) return;
+  if (b.duel && !['duel', 'duel-end'].includes(act ?? '')) return;
   if (act === 'wait') { if (sel !== null) B.wait(b.pieces[sel]); aim = false; sel = nextIdle(); render(); return; }
   if (act === 'kyoho') { aim = !aim; render(); return; }
+  if (act === 'nanori') { const f = b.pieces[+el.dataset.id!]; if (f && B.startDuel(b, f)) { sel = null; aim = false; } render(); return; }
+  if (act === 'duel') { B.duelRound(b, el.dataset.id as B.Move); render(); return; }
+  if (act === 'duel-end') { B.endDuel(b); last = b.log[b.log.length - 1] ?? ''; sel = b.over ? null : nextIdle(); render(); return; }
   if (act === 'end') { await foeTurn(); return; }
   if (act === 'auto') { busy = true; render(); B.autoAll(b); last = b.log[b.log.length - 1] ?? ''; busy = false; sel = null; render(); return; }
   if (act === 'retreat') { B.retreat(b); render(); return; }
@@ -79,6 +86,18 @@ async function onClick(e: Event) {
   if (s && me(s) && p && p.side !== s.side && B.targets(b, s).includes(p)) { last = B.attack(b, s, p); sel = b.over ? null : nextIdle(); render(); return; }
   if (s && me(s) && !p && B.reach(b, s).some((t) => t.x === x && t.y === y)) { B.move(b, s, x, y); if (!B.targets(b, s).length && s.kind !== 'kiba') { /* 攻める敵がなければ選んだまま。待機で終える */ } render(); return; }
   sel = p ? p.id : null; render();
+}
+function duelHtml(D: B.Duel) {
+  const me = b!.pieces[D.me], f = b!.pieces[D.foe];
+  const pct = (r: 0 | 1 | -1) => Math.round(B.duelChance(b!, r) * 100);
+  const moves = (['seme', 'uke', 'kuzushi'] as B.Move[]).map((m) => `<button class="ban-btn main" data-b="duel" data-id="${m}">${B.MOVE_NAME[m]}</button>`).join('');
+  return `<div class="ban-duel"><div class="ban-dbox"><h3>一騎討ち ― ${esc(me.name)} 対 ${esc(f.name)}</h3>
+    <p class="ban-dsub">三合のうち二合を取れば勝ち。攻めるは崩すに、崩すは受けるに、受けるは攻めるに勝つ。読み勝てば一合を取る見込み${pct(1)}%、相打ちなら${pct(0)}%、読み負ければ${pct(-1)}%（武勇${me.bra}対${f.bra}）。</p>
+    <p class="ban-dsub">${D.seen ? `${esc(f.name)}の癖: <b>${B.MOVE_NAME[D.habit]}</b>を好む（武芸の目で見抜いた）` : `${esc(f.name)}の癖は分からない（武芸二段から見抜ける）`}</p>
+    <p class="ban-dscore">${esc(me.name)} ${'●'.repeat(D.myWins)}${'○'.repeat(2 - D.myWins)}　${'●'.repeat(D.foeWins)}${'○'.repeat(2 - D.foeWins)} ${esc(f.name)}</p>
+    ${D.log.map((t) => `<p class="ban-dlog">${esc(t)}</p>`).join('')}
+    ${D.over ? `<p class="ban-dres">${D.over === 'win' ? `${esc(f.name)}を打ち負かした！` : `${esc(f.name)}に敗れ、深手を負った……`}</p><button class="ban-btn main" data-b="duel-end">盤へ戻る</button>` : `<div class="ban-dacts">${moves}</div>`}
+  </div></div>`;
 }
 // 次に動かせる自分の駒
 const nextIdle = () => { const p = b!.pieces.find((q) => q.side === 'me' && q.alive && !q.acted && !q.confused); return p ? p.id : null; };
@@ -114,7 +133,11 @@ const CSS = `
 .pc.done{opacity:.55}
 .pc u{position:absolute;top:0;right:0;font-size:10px;line-height:1;padding:2px 3px;background:#8a3fb0;color:#fff;text-decoration:none;border-radius:0 0 0 4px}.pc u.fl{background:#8a6a2a}
 .bc.kyo{box-shadow:inset 0 0 0 3px rgba(170,90,220,.95)}
-.ban-btn.kyo{border-color:#a070c8}
+.ban-btn.kyo{border-color:#a070c8}.ban-btn.duel{grid-column:1/-1;background:#6b2a1c;border-color:#e0a060}
+.ban-duel{position:fixed;inset:0;z-index:2;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+.ban-dbox{width:min(560px,100%);max-height:100%;overflow:auto;background:#1c1510;border:1px solid #e0a060;border-radius:6px;padding:16px 18px;box-sizing:border-box}.ban-dbox h3{margin:0 0 8px;color:#f2d27a}
+.ban-dsub{font-size:13px;margin:4px 0;opacity:.9}.ban-dscore{font-size:20px;letter-spacing:2px;text-align:center;margin:10px 0;color:#f2d27a}.ban-dlog{margin:2px 0;font-size:13.5px}.ban-dres{font-size:17px;color:#f2d27a;margin:10px 0}
+.ban-dacts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 .ban-kyo{display:flex;flex-direction:column;gap:2px;border:1px solid #a070c8;padding:6px 10px;border-radius:4px;font-size:13px}.ban-kyo b{color:#d0a8f0}
 .pc i{position:absolute;left:0;bottom:0;height:4px;background:#5bc06a}.pc.foe i{background:#e0604f}
 .ban-side{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:8px}
