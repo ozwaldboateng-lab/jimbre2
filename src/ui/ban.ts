@@ -41,13 +41,15 @@ function cellCls(x: number, y: number, reach: Set<string>, tg: Set<number>) {
 function terrHtml(_x: number, _y: number) { return ''; }
 // 駒の絵（assets/ban。なければ文字の駒）。味方は背面、敵は正面の絵。足もとに家の色の輪（主人公は金、名のある将は朱）
 // 人の大きさをそろえる: 騎馬は少し大きく、膝をついた鉄砲は少し小さく
-const ART_SCALE: Record<string, number> = { kiba: 1.45, sho: 1.45, hero: 1.45, ashi: 1, yumi: 1, teppo: 0.82 };
+const ART_SCALE: Record<string, number> = { kiba: 1.65, sho: 1.65, hero: 1.65, ashi: 1, yumi: 1, teppo: 0.82 };
 const artKey = (p: Piece) => { const d = p.side === 'me' ? 'b' : 'f'; for (const k of [p.sho ? 'sho' : p.hero ? 'hero' : '', p.kind]) if (k && BAN_ART[`${k}_${d}`]?.length) return k; return null; };
-const artOf = (p: Piece) => { const k = artKey(p); return k ? { src: BAN_ART[`${k}_${p.side === 'me' ? 'b' : 'f'}`][0], sc: ART_SCALE[k] ?? 1 } : null; };
+// 騎馬は足もとを下げ、下のマス（馬の尻の側）にもはみ出す（マスの高さに対する割合）
+const ART_DROP: Record<string, number> = { kiba: 16, sho: 16, hero: 16 };
+const artOf = (p: Piece) => { const k = artKey(p); return k ? { src: BAN_ART[`${k}_${p.side === 'me' ? 'b' : 'f'}`][0], sc: ART_SCALE[k] ?? 1, dy: ART_DROP[k] ?? 0 } : null; };
 function pieceHtml(p: Piece) {
   const K = B.KIND[p.kind], art = artOf(p);
   const marks = `${p.confused ? '<u>乱</u>' : p.flee ? '<u class="fl">逃</u>' : ''}<i class="hpb" style="width:${Math.round((p.hp / p.maxhp) * 100)}%"></i>`;
-  if (art) return `<span class="pa ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}" style="--sc:${art.sc}"><s class="base"></s><img src="${art.src}" alt="">${p.hero || p.sho || p.gid ? `<em>${esc(p.name.slice(-3))}</em>` : ''}${marks}</span>`;
+  if (art) return `<span class="pa ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}" style="--sc:${art.sc};--dy:${art.dy}%"><s class="base"></s><img src="${art.src}" alt="">${p.hero || p.sho || p.gid ? `<em>${esc(p.name.slice(-3))}</em>` : ''}${marks}</span>`;
   return `<span class="pc ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}">${p.sho ? '将' : K.ch}${marks}</span>`;
 }
 function infoHtml(p: Piece | null) {
@@ -205,7 +207,7 @@ const CSS = `
 .pc{position:relative;width:78%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:clamp(14px,4.2vw,22px);font-weight:700;box-shadow:0 2px 4px rgba(0,0,0,.5);overflow:hidden}
 .pc{z-index:1}.pc.me{background:#f1e6c8;color:#1d2b4a;border:3px solid var(--me)}.pc.foe{background:#2a1a16;color:#f3d9c8;border:3px solid var(--foe)}
 .pa{position:relative;z-index:1;width:100%;height:100%;display:block}
-.pa img{position:absolute;left:50%;bottom:9%;height:calc(128% * var(--sc,1));width:auto;max-width:none;transform:translateX(-50%);filter:drop-shadow(0 3px 2px rgba(0,0,0,.55));pointer-events:none}.pa.done img{opacity:.55}
+.pa img{position:absolute;left:50%;bottom:calc(9% - var(--dy,0%));height:calc(128% * var(--sc,1));width:auto;max-width:none;transform:translateX(-50%);filter:drop-shadow(0 3px 2px rgba(0,0,0,.55));pointer-events:none}.pa.done img{opacity:.55}
 .pa .base{position:absolute;left:16%;right:16%;bottom:4%;height:15%;border-radius:50%;border:2px solid var(--me);background:color-mix(in srgb,var(--me) 35%,transparent)}.pa.foe .base{border-color:var(--foe);background:color-mix(in srgb,var(--foe) 35%,transparent)}
 .pa.hero .base{border-color:#e0b04a;box-shadow:0 0 6px #e0b04a}.pa.sho .base{border-color:#ff8a5a;box-shadow:0 0 6px #ff8a5a}
 .pa em{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:9.5px;font-style:normal;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000;white-space:nowrap;overflow:hidden}
