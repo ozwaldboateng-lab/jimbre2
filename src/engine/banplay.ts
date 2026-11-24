@@ -33,7 +33,7 @@ export function keikoBan(s: GameState): Ban {
 
 // ───────── 合戦の槍働き ─────────
 // 盤を組む: 敵の先手（足軽2・弓・鉄砲）、中盤に敵将（その合戦の敵の大将。いなければ侍大将）と足軽、終盤は勝ち戦なら追い討ち・負け戦なら殿
-export const BANW = { SEEN: 1.5, MERIT: 2, FAME_PER: 4, HP_K: 40, LOSE_HP: 10, LOSE_SICK: 0.4, MOB_PER_KUBI: 5, SHO_SICK: 2 }; // 手柄1で功績2。首級は名のある将と、雑兵5人ごとに一つ
+export const BANW = { GROW_AT: 8, GROW_MAX: 95, SEEN: 1.5, MERIT: 2, FAME_PER: 4, HP_K: 40, LOSE_HP: 10, LOSE_SICK: 0.4, MOB_PER_KUBI: 5, SHO_SICK: 2 }; // 手柄1で功績2。首級は名のある将と、雑兵5人ごとに一つ
 // 同輩（張り合う相手）は、味方の駒として盤に出る（自分では動かせない）
 function rivalPiece(s: GameState): BanSetup['me'] { const r = rivalOf(s); return r && !r.sick ? [{ kind: kindOf(r), who: whoOf(r, { rival: true }) }] : []; }
 // 同僚: 同じ家中の足軽組頭・足軽大将を一人（同輩・寄親・家臣・身内でない者。主人公のいる城の者を先に）。同輩と合わせて二人まで。張り合いはしない
@@ -83,6 +83,22 @@ export function applyBan(s: GameState, b: Ban): string[] {
     if (lost > 0) spendHp(s, lost);
     if (!h.alive && rand(s) < BANW.LOSE_SICK) { me.sick = Math.max(me.sick ?? 0, 1); out.push(`手傷が重く、病に伏した（体力−${lost}）。`); }
     else if (lost > 0) out.push(`体力−${lost}。`);
+  }
+  // 配下の成長: 盤で戦った配下は経験を積み（加わって1・討ち取りごとに2・傷を10以上与えて1）、8（その能力が70を超えると、超えた分の半分を足す）たまるごとに、乗った駒の能力が1上がる（足軽は武勇、弓は知略、鉄砲は低いほう。95まで）
+  const KX = Hh as typeof Hh & { kexp?: Record<string, number> };
+  for (const p of b.pieces) if (p.side === 'me' && p.gid && !p.hero && !p.npc) {
+    const g = s.generals[p.gid]; if (!g) continue;
+    const ex = ((KX.kexp ??= {})[g.id] ?? 0) + 1 + (p.kills ?? 0) * 2 + ((p.dealt ?? 0) >= 10 ? 1 : 0);
+    let left = ex;
+    for (;;) {
+      const k = p.kind === 'yumi' ? 'int' : p.kind === 'teppo' ? (g.bra <= g.int ? 'bra' : 'int') : 'bra';
+      const need = BANW.GROW_AT + Math.max(0, Math.round((g[k] - 70) / 2)); // 70を超えると、伸びるのに要る経験が増える
+      if (left < need || g[k] >= BANW.GROW_MAX) break;
+      left -= need;
+      const before = kindOf(g); g[k]++;
+      out.push(`${g.name}が槍働きで腕を上げた（${k === 'bra' ? '武勇' : '知略'}${g[k]}）。${kindOf(g) !== before ? `型が変わり、次から${({ ashi: '足軽', yumi: '弓', teppo: '鉄砲', kiba: '騎馬' } as Record<string, string>)[kindOf(g)]}の駒に乗る。` : ''}`);
+    }
+    KX.kexp[g.id] = left;
   }
   // 倒れた配下は手傷で、しばらく出られない
   for (const p of b.pieces) if (p.side === 'me' && !p.alive && p.gid && !p.hero) { const g = s.generals[p.gid]; if (g) { g.sick = Math.max(g.sick ?? 0, 1); out.push(`${g.name}は手傷を負い、しばらく養生する。`); } }

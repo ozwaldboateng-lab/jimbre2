@@ -14,6 +14,7 @@ export interface Piece {
   bra: number; // 一騎討ちに使う武勇
   rival?: boolean; // 同輩の駒（味方だが自分では動かせない。討ち取りは同輩の手柄）
   npc?: boolean; // 自分では動かせない味方（同輩・同僚）。手番の終わりに自分で動き、討ち取りは主人公の手柄にならない
+  kills?: number; dealt?: number; // この盤で討ち取った数・与えた傷（配下の成長に）
 }
 export interface Ban {
   w: number; h: number; terr: Terr[]; pieces: Piece[]; turn: number; maxTurn: number; phase: BSide;
@@ -120,6 +121,7 @@ function hit(b: Ban, a: Piece, d: Piece, counter: boolean): string {
   const crit = rnd(b) < a.crit;
   const v = Math.max(1, Math.round(baseDmg(b, a, d) * (0.85 + rnd(b) * 0.3) * (crit ? BAN.CRIT_MULT : 1)));
   d.hp = Math.max(0, d.hp - v);
+  if (d.side !== a.side) a.dealt = (a.dealt ?? 0) + v;
   let t = `${a.name}${counter ? 'の返し' : ''}が${d.name}に${v}${crit ? '（会心）' : ''}`;
   if (!b.ichiban && !counter && a.side === 'me' && d.side === 'foe' && a.rmax === 1) { // 一番槍: 最初に敵に槍をつけた者
     b.ichiban = true;
@@ -127,6 +129,7 @@ function hit(b: Ban, a: Piece, d: Piece, counter: boolean): string {
   }
   if (d.hp <= 0) {
     d.alive = false; t += `、${d.name}を討ち取った`;
+    if (d.side !== a.side) a.kills = (a.kills ?? 0) + 1;
     const v2 = (d.sho ? BAN.TEGARA_SHO : BAN.TEGARA_MOB) + (d.flee ? BAN.OIUCHI : 0);
     if (a.side === 'me' && d.side === 'foe') { if (a.rival) b.rivalTegara += v2; else if (!a.npc) { b.kills++; b.tegara += v2; } }
   }

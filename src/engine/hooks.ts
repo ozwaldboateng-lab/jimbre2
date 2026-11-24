@@ -21,7 +21,7 @@ export async function resolveBattle(s: GameState, a: Army, t: Target, charge: bo
   if (hook && !s.hero && ((a.clan === s.player && command) || defClan === s.player)) return hook(s, a, t, joined);
   // 武将で遊ぶ: 主人公が加わっている軍勢の合戦は、合戦の画面で主人公の一隊だけを采配する（ほかの部隊はAI）。「任せる」にしていればAIだけで
   const H = s.hero;
-  const leadsUnit = !!H && (H.leads !== undefined || (s.generals[H.id]?.rank ?? 3) <= 2); // 部隊を率いる立場（足軽大将から・総大将）でなければ、合戦は任せる
+  const leadsUnit = !!H && H.leads !== undefined && H.leads !== null; // 軍勢の総大将（侍大将から）の時だけ合戦の画面。率いていない合戦は、月の終わりに槍働きの盤で戦う
   const r = hook && H && H.selfCommand && leadsUnit && H.army !== null && H.army !== undefined && (a.id === H.army || joined.some((j) => j.id === H.army) || (t.kind === 'army' && t.army.id === H.army)) ? await hook(s, a, t, joined) : await battle(s, a, t, charge, joined);
   if (H) recordBattle(s, a, t, joined, r); // 武将で遊ぶ: 槍働きと論功行賞のため、主人公の軍勢の合戦を記録
   return r;
