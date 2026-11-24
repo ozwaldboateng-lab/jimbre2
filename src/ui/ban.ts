@@ -39,12 +39,15 @@ function cellCls(x: number, y: number, reach: Set<string>, tg: Set<number>) {
 }
 // 地形の名だけ（絵は盤の下のキャンバスに描く）
 function terrHtml(_x: number, _y: number) { return ''; }
-// 駒の絵（assets/ban。なければ文字の駒）。指物は家の色で描く。敵は左右を反転
-const artOf = (p: Piece) => (BAN_ART[p.sho ? 'sho' : p.hero ? 'hero' : p.kind] ?? BAN_ART[p.kind] ?? [])[0];
+// 駒の絵（assets/ban。なければ文字の駒）。味方は背面、敵は正面の絵。足もとに家の色の輪（主人公は金、名のある将は朱）
+// 人の大きさをそろえる: 騎馬は少し大きく、膝をついた鉄砲は少し小さく
+const ART_SCALE: Record<string, number> = { kiba: 1.25, sho: 1.25, hero: 1.25, ashi: 1, yumi: 1, teppo: 0.82 };
+const artKey = (p: Piece) => { const d = p.side === 'me' ? 'b' : 'f'; for (const k of [p.sho ? 'sho' : p.hero ? 'hero' : '', p.kind]) if (k && BAN_ART[`${k}_${d}`]?.length) return k; return null; };
+const artOf = (p: Piece) => { const k = artKey(p); return k ? { src: BAN_ART[`${k}_${p.side === 'me' ? 'b' : 'f'}`][0], sc: ART_SCALE[k] ?? 1 } : null; };
 function pieceHtml(p: Piece) {
   const K = B.KIND[p.kind], art = artOf(p);
   const marks = `${p.confused ? '<u>乱</u>' : p.flee ? '<u class="fl">逃</u>' : ''}<i class="hpb" style="width:${Math.round((p.hp / p.maxhp) * 100)}%"></i>`;
-  if (art) return `<span class="pa ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}"><s class="flag"></s><img src="${art}" alt=""><em>${esc(p.hero || p.sho || p.gid ? p.name.slice(-3) : K.name)}</em>${marks}</span>`;
+  if (art) return `<span class="pa ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}" style="--sc:${art.sc}"><s class="base"></s><img src="${art.src}" alt="">${p.hero || p.sho || p.gid ? `<em>${esc(p.name.slice(-3))}</em>` : ''}${marks}</span>`;
   return `<span class="pc ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}">${p.sho ? '将' : K.ch}${marks}</span>`;
 }
 function infoHtml(p: Piece | null) {
@@ -182,7 +185,7 @@ function drawGround(force = false) {
     }
   }
   // 柵: 柵の絵（assets/ban の 07_柵）があればマスに立て、なければ城の柵の帯をマスの中ほどに横に渡す
-  const sa = BAN_ART.saku?.[0];
+  const sa = BAN_ART.saku_f?.[0];
   if (sa) { let im = IMG['ban-saku']; if (!im) { im = new Image(); im.onload = () => drawGround(true); im.src = sa; IMG['ban-saku'] = im; } if (ok(im)) for (const [x, y] of cells('saku')) { const [cx, cy] = ctr(x, y); c.drawImage(im, cx - C * 0.6, cy - C * 0.7, C * 1.2, C * 1.2); } }
   const sk = img('w_saku');
   if (!sa && ok(sk)) for (const [x, y] of cells('saku')) { const [cx, cy] = ctr(x, y), sw = sk.naturalHeight * 2; c.drawImage(sk, (x * sw) % (sk.naturalWidth - sw), 0, sw, sk.naturalHeight, cx - C / 2, cy - C * 0.28, C, C * 0.56); }
@@ -195,14 +198,16 @@ const CSS = `
 .ban-wrap{box-sizing:border-box;width:min(980px,100%);padding:16px;margin:auto}
 .ban-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin-bottom:10px}.ban-head b{font-size:20px;color:#cfa95e}.ban-head span{font-size:13px;opacity:.85}
 .ban-body{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-.ban-grid{position:relative;display:grid;gap:0;flex:0 1 auto;width:min(480px,100%);aspect-ratio:8/10;background-color:#7d8a52;border:1px solid rgba(207,169,94,.55);border-radius:4px;box-sizing:border-box;overflow:hidden}
+.ban-grid{position:relative;display:grid;gap:0;flex:0 1 auto;width:min(480px,100%);aspect-ratio:8/10;background-color:#7d8a52;border:1px solid rgba(207,169,94,.55);border-radius:4px;box-sizing:border-box;overflow:visible}
 .bc{position:relative;border:0;padding:0;margin:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;font:inherit;color:inherit;box-shadow:inset 0 0 0 .5px rgba(30,22,12,.35);z-index:1}
 .ban-bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 .bc.reach{box-shadow:inset 0 0 0 3px rgba(80,170,230,.95)}.bc.tgt{box-shadow:inset 0 0 0 3px rgba(225,70,60,.95)}.bc.sel{box-shadow:inset 0 0 0 3px #f2d27a}
 .pc{position:relative;width:78%;aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:clamp(14px,4.2vw,22px);font-weight:700;box-shadow:0 2px 4px rgba(0,0,0,.5);overflow:hidden}
 .pc{z-index:1}.pc.me{background:#f1e6c8;color:#1d2b4a;border:3px solid var(--me)}.pc.foe{background:#2a1a16;color:#f3d9c8;border:3px solid var(--foe)}
-.pa{position:relative;z-index:1;width:100%;height:100%;display:block}.pa img{position:absolute;left:4%;bottom:6%;width:92%;height:104%;object-fit:contain;object-position:bottom;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))}.pa.foe img{transform:scaleX(-1)}.pa.done{opacity:.55}
-.pa .flag{position:absolute;left:58%;bottom:52%;width:14%;height:48%;background:var(--me);border:1px solid rgba(0,0,0,.6);border-left:2px solid #3a2a1a}.pa.foe .flag{background:var(--foe);left:28%}
+.pa{position:relative;z-index:1;width:100%;height:100%;display:block}
+.pa img{position:absolute;left:50%;bottom:9%;height:calc(128% * var(--sc,1));width:auto;max-width:none;transform:translateX(-50%);filter:drop-shadow(0 3px 2px rgba(0,0,0,.55));pointer-events:none}.pa.done img{opacity:.55}
+.pa .base{position:absolute;left:16%;right:16%;bottom:4%;height:15%;border-radius:50%;border:2px solid var(--me);background:color-mix(in srgb,var(--me) 35%,transparent)}.pa.foe .base{border-color:var(--foe);background:color-mix(in srgb,var(--foe) 35%,transparent)}
+.pa.hero .base{border-color:#e0b04a;box-shadow:0 0 6px #e0b04a}.pa.sho .base{border-color:#ff8a5a;box-shadow:0 0 6px #ff8a5a}
 .pa em{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:9.5px;font-style:normal;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000;white-space:nowrap;overflow:hidden}
 .pa.hero em{color:#f2d27a}.pa.sho em{color:#ffb08a}
 .pa .hpb{position:absolute;left:8%;bottom:1px;height:4px;max-width:84%;background:#5bc06a}.pa.foe .hpb{background:#e0604f}
