@@ -23,6 +23,8 @@ import * as SK from '../engine/skill';
 import * as MH from '../engine/myhyojo';
 import * as YR from '../engine/yari';
 import * as RY from '../engine/ryoshu';
+import * as BP from '../engine/banplay';
+import { openBan } from './ban';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
 import { PORTRAITS } from '../data/portraits';
@@ -298,7 +300,7 @@ function dlgHtml0(st: GameState) {
   const train = `<button class="hr-btn sm" data-h="train" data-id="${at}" ${st.hero!.gold < H.HERO.TRAIN_COST ? 'disabled' : ''} title="${at === 'dojo' ? '武勇か統率' : '知略か魅力'}が上がることがある">稽古する（${at === 'dojo' ? '武勇・統率' : '知略・魅力'}・${H.HERO.TRAIN_COST}貫）</button>`;
   const selfs = CR.freeHero(st) ? SK.selfList(at).map((k) => { const why = SK.skillBlock(st, k); return `<button class="hr-btn sm" data-h="study" data-id="${k}" ${why ? `disabled title="${esc(why)}"` : `title="${esc(SK.SKILL_DESC[k])}"`}>独学: ${SK.SKILL_NAME[k]}（${SK.lv(st, k)}段・${SK.skillCost(st, k)}貫）</button>`; }).join('') : '';
   const ms = CR.freeHero(st) ? H.townsfolk(st, st.hero!.town).filter((g) => SK.masterSkill(g) && SK.SKILL_AT[SK.masterSkill(g)!] === at) : [];
-  return `<div class="hr-dlg"><h4 class="hr-sub">${esc(st.castles[st.hero!.town].name)}の${name}</h4><p class="hr-dsub">${at === 'dojo' ? '武芸・築城・忍術' : '弁舌・算術・茶道'}は、ここで独学すれば${SK.SK.SELF_MAX}段まで。その先はその道の名人に、屋敷で師事を願う。${ms.length ? `この城下の名人: ${ms.map((g) => `${esc(g.name)}（${SK.SKILL_NAME[SK.masterSkill(g)!]}）`).join('・')}` : ''}</p><div class="hr-dacts">${train}${selfs}</div><button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div>`;
+  return `<div class="hr-dlg"><h4 class="hr-sub">${esc(st.castles[st.hero!.town].name)}の${name}</h4><p class="hr-dsub">${at === 'dojo' ? '武芸・築城・忍術' : '弁舌・算術・茶道'}は、ここで独学すれば${SK.SK.SELF_MAX}段まで。その先はその道の名人に、屋敷で師事を願う。${ms.length ? `この城下の名人: ${ms.map((g) => `${esc(g.name)}（${SK.SKILL_NAME[SK.masterSkill(g)!]}）`).join('・')}` : ''}</p><div class="hr-dacts">${train}${selfs}${at === 'dojo' && CR.freeHero(st) ? '<button class="hr-btn sm" data-h="ban-keiko" title="槍働きの盤を試す（手柄も傷も残らず、旬も使わない）">盤で稽古する（試し）</button>' : ''}</div><button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div>`;
 }
 // 会った相手にできること（画面の窓に出す）
 function personActs(st: GameState, g: General) {
@@ -664,6 +666,7 @@ function onClick(e: Event) {
   if (h === 'pane') { if (id === 'tabi') recenter = true; pane = id as typeof pane; render(); return; }
   if (h === 'meet') { dlg = { kind: 'person', id }; say = null; render(); showDlg(); return; }
   if (h === 'dlg-close') { dlg = null; render(); return; }
+  if (h === 'ban-keiko') { const bn = BP.keikoBan(s); void openBan(bn, `${s.castles[s.hero!.town].name}の道場 ― 盤の稽古`).then((r) => { dlg = null; say = { text: `盤の稽古を終えた（${{ win: '勝ち', lose: '負け', retreat: '退いた', time: '時切れ' }[r.over ?? 'time']}・討ち取り${r.kills}）。` }; render(); }); return; }
   if (h === 'train') { void act(() => H.train(s!, id as 'dojo' | 'tera'), id); return; }
   if (h === 'report-ok') { report = null; render(); playHeld(); return; }
   if (h === 'say-close') { closeSay(); return; }
