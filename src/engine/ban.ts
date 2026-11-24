@@ -12,10 +12,11 @@ export interface Piece {
   x: number; y: number; moved: boolean; acted: boolean; noShootUntil?: number; alive: boolean;
   kyoho: number; confused?: number; flee?: boolean; gone?: boolean; // 虚報の残り回数・混乱の残り手番・逃げる（追い討ち）・盤から去った
   bra: number; // 一騎討ちに使う武勇
+  rival?: boolean; // 同輩の駒（味方だが自分では動かせない。討ち取りは同輩の手柄）
 }
 export interface Ban {
   w: number; h: number; terr: Terr[]; pieces: Piece[]; turn: number; maxTurn: number; phase: BSide;
-  log: string[]; tegara: number; kills: number; over?: 'win' | 'lose' | 'retreat' | 'time'; seed: number;
+  log: string[]; tegara: number; kills: number; rivalTegara: number; over?: 'win' | 'lose' | 'retreat' | 'time'; seed: number;
   end: 'oiuchi' | 'shingari'; ichiban?: boolean; event?: string; // 終盤の形（勝ち戦なら追い討ち、負け戦なら殿）・一番槍が出たか・局面の変わり目の知らせ
   mid: BanSetup['foe']; late: BanSetup['foe']; // 中盤に現れる敵・殿で迫る敵
   duel?: Duel; duelWon?: string[]; duelLost?: number; // 一騎討ち（いま戦っている・勝った相手の名・負けた数）
@@ -40,7 +41,7 @@ export const stageName = (b: Ban) => ({ jo: '序盤', naka: '中盤', shu: b.end
 export function rnd(b: Ban): number { let t = (b.seed = (b.seed + 0x6d2b79f5) | 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
 
 // ───────── 駒を作る ─────────
-export interface Who { name: string; bra: number; int: number; lea: number; gid?: string; hero?: boolean; sho?: boolean; yari?: number; hpRate?: number }
+export interface Who { name: string; bra: number; int: number; lea: number; gid?: string; hero?: boolean; sho?: boolean; rival?: boolean; yari?: number; hpRate?: number }
 // 武将の型で駒を決める: 武勇が知略より10以上高ければ足軽、知略が10以上高ければ弓、それ以外は鉄砲
 export const kindOf = (w: { bra: number; int: number }): BKind => (w.bra - w.int >= 10 ? 'ashi' : w.int - w.bra >= 10 ? 'yumi' : 'teppo');
 const atkStat = (k: BKind, w: Who) => (k === 'yumi' ? w.int : k === 'teppo' ? (w.bra + w.int) / 2 : w.bra);
@@ -52,7 +53,7 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
   const maxhp = w ? K.hp + Math.round(w.lea / 10) : K.hp - 4;
   const hp = Math.max(1, Math.round(maxhp * (w?.hpRate ?? 1)));
   return {
-    id, side, kind, name: w?.name ?? `${side === 'me' ? '味方' : '敵'}の${K.name}`, gid: w?.gid, hero: w?.hero, sho: w?.sho,
+    id, side, kind, name: w?.name ?? `${side === 'me' ? '味方' : '敵'}の${K.name}`, gid: w?.gid, hero: w?.hero, sho: w?.sho, rival: w?.rival,
     hp, maxhp, atk, def, int: w?.int ?? 30, mov: K.mov, rmin: K.rmin, rmax: K.rmax, crit: BAN.CRIT_BASE + (w?.yari ?? 0) * BAN.CRIT_YARI,
     x, y, moved: false, acted: false, alive: true, kyoho: w ? Math.floor(w.int / BAN.KYOHO_PER) : 0, // 虚報は武将だけ（知略30ごとに一回）
     bra: w ? w.bra + (w.yari ?? 0) * 4 : 40, // 一騎討ちに使う武勇（武芸一段で+4）
@@ -62,7 +63,7 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
 // ───────── 盤を作る ─────────
 export interface BanSetup { me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number; end?: 'oiuchi' | 'shingari'; mid?: { kind: BKind; who: Who | null }[]; late?: { kind: BKind; who: Who | null }[] }
 export function newBan(o: BanSetup): Ban {
-  const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, seed: o.seed | 0 || 1, end: o.end ?? 'oiuchi', mid: o.mid ?? [], late: o.late ?? [] };
+  const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, rivalTegara: 0, seed: o.seed | 0 || 1, end: o.end ?? 'oiuchi', mid: o.mid ?? [], late: o.late ?? [] };
   // 地形: 中ほど（上下3行は陣地として空ける）に林・丘・柵、川を一筋
   const mid = (y: number) => y >= 3 && y <= b.h - 4;
   const put = (t: Terr, n: number) => { for (let k = 0, tries = 0; k < n && tries < 60; tries++) { const x = Math.floor(rnd(b) * b.w), y = 3 + Math.floor(rnd(b) * (b.h - 6)); if (mid(y) && b.terr[y * b.w + x] === '.') { b.terr[y * b.w + x] = t; k++; } } };
@@ -121,11 +122,12 @@ function hit(b: Ban, a: Piece, d: Piece, counter: boolean): string {
   let t = `${a.name}${counter ? 'の返し' : ''}が${d.name}に${v}${crit ? '（会心）' : ''}`;
   if (!b.ichiban && !counter && a.side === 'me' && d.side === 'foe' && a.rmax === 1) { // 一番槍: 最初に敵に槍をつけた者
     b.ichiban = true;
-    if (a.hero) { b.tegara += BAN.ICHIBAN; t = `一番槍！ ${t}`; } else t += `（一番槍は${a.name}に取られた）`;
+    if (a.hero) { b.tegara += BAN.ICHIBAN; t = `一番槍！ ${t}`; } else if (a.rival) { b.rivalTegara += BAN.ICHIBAN; t += `（一番槍は同輩の${a.name}に取られた）`; } else t += `（一番槍は${a.name}に取られた）`;
   }
   if (d.hp <= 0) {
     d.alive = false; t += `、${d.name}を討ち取った`;
-    if (a.side === 'me' && d.side === 'foe') { b.kills++; b.tegara += (d.sho ? BAN.TEGARA_SHO : BAN.TEGARA_MOB) + (d.flee ? BAN.OIUCHI : 0); }
+    const v2 = (d.sho ? BAN.TEGARA_SHO : BAN.TEGARA_MOB) + (d.flee ? BAN.OIUCHI : 0);
+    if (a.side === 'me' && d.side === 'foe') { if (a.rival) b.rivalTegara += v2; else { b.kills++; b.tegara += v2; } }
   }
   return t;
 }

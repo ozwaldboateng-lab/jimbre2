@@ -14,6 +14,7 @@ import { leadMonth } from './heroArmy';
 import { upkeepMonth } from './meibutsu';
 import { familyYear } from './family';
 import { myHyojoMonth } from './myhyojo';
+import { suisenBlock, yoriMonth } from './yorioya';
 import { reward, rewardDue } from './yari';
 import { HP, hpMax, hpMonth, hpOf, lv, masterRumor, spendHp } from './skill';
 import { becomeRonin, chigyo, followClan, freeHero, lifeSummary, syncGovernor } from './career';
@@ -48,6 +49,7 @@ export interface Hero {
   pupil?: { gid: string; k: import('./skill').SkillKey; turn: number }; // 弟子入りを願う者（その月だけ）
   gunyaku?: { clan: string; troops: number; until: number; done?: boolean }; // 領主の軍役（ryoshu.ts）
   neTried?: Record<string, number>; neOffer?: { clan: string; turn: number }; // 領主の寝返り（ryoplot.ts）
+  yorioya?: string; yoriRank?: number; rival?: string; rivalAhead?: string; // 寄親と、その身分（出世を見る）・張り合う同輩・先を越された知らせ（yorioya.ts）
   ryoOrder?: import('./ryohyojo').RyoOrder; ryoHyojo?: number; ryoEv?: import('./ryohyojo').HyojoEv; // 領主の評定（ryohyojo.ts）
   azuke?: string[]; // 預け: 家臣の枠を超えて主家に預けた配下（kashin.ts）
   mode?: 'ryoshu'; out?: boolean; // out: 領主が城下に出ている（武将の画面で私事・主家との縁） // 城持ちより上: 大名の画面で自分の領を動かす（ryoshu.ts）
@@ -623,8 +625,11 @@ export function heroMonth(s: GameState): string[] {
   const q = H.quest;
   if (q && q.kind === 'shutsujin' && q.done < q.need && H.army !== q.army && q.army !== undefined && !s.armies[q.army]) { H.quest = null; out.push('加わるはずの軍勢が陣を払い、出陣の主命は取りやめになった。'); }
   else if (q && q.done < q.need && s.turn >= q.until) { H.favor = clamp(H.favor - HERO.FAVOR_NG); H.failed++; H.quest = null; out.push(`主命（${QUEST_NAME[q.kind]}）の期日が過ぎた。主君の覚え−${HERO.FAVOR_NG}。`); note(s, `主命（${QUEST_NAME[q.kind]}）の期日を過ぎてしまった。`); }
-  // 取り立て（功績が満ちて、主君の覚えがよければ）
-  while (me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10) {
+  // 寄親と同輩（足軽組頭・足軽大将）。寄親の出世で引き上げられることもある
+  out.push(...yoriMonth(s, () => H.favor >= 30 + (3 - me.rank) * 10));
+  // 取り立て（功績が満ちて、主君の覚えがよく、寄親の推挙があれば）
+  { const sb = me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10 ? suisenBlock(s) : null; if (sb) out.push(`功績は満ちたが、取り立てられない: ${sb}。`); }
+  while (me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10 && !suisenBlock(s)) {
     me.rank--; H.favor = clamp(H.favor - 10);
     out.push(`${R.RANK_NAME[me.rank]}に取り立てられた！`); note(s, `${R.RANK_NAME[me.rank]}に取り立てられた。`);
     addLog(s, `${me.name}が${R.RANK_NAME[me.rank]}に取り立てられた。`, 'info', true);

@@ -23,6 +23,7 @@ import * as SK from '../engine/skill';
 import * as MH from '../engine/myhyojo';
 import * as YR from '../engine/yari';
 import * as RY from '../engine/ryoshu';
+import * as YO from '../engine/yorioya';
 import * as BP from '../engine/banplay';
 import { openBan } from './ban';
 import { attackTargets, reachable } from '../engine/move';
@@ -154,6 +155,7 @@ function render() {
     </header>
     ${Hh.fuchu !== undefined ? `<div class="hr-quest"><b>${Hh.story !== 'toshiie' ? '領地' : (Hh.storyDone ?? []).includes('ryo') ? '領国' : '府中'}</b> ${esc(M.fuchuText(st))}</div>` : ''}
     ${CR.freeHero(st) && !Hh.over ? `<div class="hr-quest"><b>目標</b> ${esc(CR.goalText(st))}</div>` : ''}
+    ${YO.needsYori(st) && !Hh.over ? yoriLine(st) : ''}
     <div class="hr-quest">${q ? `<b>主命</b> ${esc(H.QUEST_NAME[q.kind])}：${esc(H.questText(st, q))} <span>${q.done >= q.need ? '<em>果たした。登城して報告せよ</em>' : `期日まで${Math.max(0, q.until - st.turn)}か月`}</span>` : `<b>主命</b> なし。${L ? `主君${esc(L.name)}は${esc(st.castles[L.loc].name)}にいる。登城すれば主命を受けられる。` : ''}`}</div>
     <div class="hr-body">
       <section class="hr-scene${mapMode(st) ? ' map' : ''}" style="${art && !mapMode(st) ? `background-image:url(${art})` : ''}">
@@ -306,10 +308,15 @@ function dlgHtml0(st: GameState) {
 // 会った相手にできること（画面の窓に出す）
 function personActs(st: GameState, g: General) {
   const me = H.heroOf(st)!, v = st.hero!.rel[g.id] ?? 0;
-  return `${KS.canRecruit(st, g) ? `<button class="hr-btn sm" data-h="kakae" data-id="${g.id}" ${v < KS.KASHIN.REL || KS.retainersOf(st).length >= KS.capOf(st) ? 'disabled' : ''}>家臣に召し抱える</button>` : ''}${RP.isRonin(st) && g.status === 'ronin' && !RP.isFollower(st, g) ? `<button class="hr-btn sm" data-h="invite" data-id="${g.id}" ${v < RP.RONIN.FOLLOW_REL ? 'disabled' : ''}>配下に誘う</button>` : ''}${(() => { if (!CR.freeHero(st) || g.clan !== me.clan || v < PL.EN.PACT_REL || (st.hero!.retainers ?? []).includes(g.id) || g.id === H.lordOf(st)?.id) return ''; const why = PL.pactBlock(st, g); return why === '約束を取りつけてある' ? '<span class="hr-rel">謀反の味方</span>' : `<button class="hr-btn sm" data-h="pact" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>内々に誘う</button>`; })()}${(() => { if (!CR.freeHero(st) || st.hero!.wife || !st.hero!.ie || g.clan !== me.clan || g.rank > FA.FAM.WED_RANK || (st.year - (g.born ?? st.year - 30)) < FA.FAM.WED_AGE || v < 30) return ''; const why = FA.wedBlock(st, g); return `<button class="hr-btn sm" data-h="wed" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>縁組を申し込む</button>`; })()}${(() => { const k = CR.freeHero(st) ? SK.masterSkill(g) : null; if (!k || g.status === 'young') return ''; const why = SK.skillBlock(st, k, g); return `<button class="hr-btn sm" data-h="mstudy" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : `title="${esc(SK.SKILL_DESC[k])}"`}>師事を願う（${SK.SKILL_NAME[k]}・${SK.masterCap(g)}段まで）</button>`; })()}<button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button>`;
+  return `${KS.canRecruit(st, g) ? `<button class="hr-btn sm" data-h="kakae" data-id="${g.id}" ${v < KS.KASHIN.REL || KS.retainersOf(st).length >= KS.capOf(st) ? 'disabled' : ''}>家臣に召し抱える</button>` : ''}${RP.isRonin(st) && g.status === 'ronin' && !RP.isFollower(st, g) ? `<button class="hr-btn sm" data-h="invite" data-id="${g.id}" ${v < RP.RONIN.FOLLOW_REL ? 'disabled' : ''}>配下に誘う</button>` : ''}${(() => { if (!CR.freeHero(st) || g.clan !== me.clan || v < PL.EN.PACT_REL || (st.hero!.retainers ?? []).includes(g.id) || g.id === H.lordOf(st)?.id) return ''; const why = PL.pactBlock(st, g); return why === '約束を取りつけてある' ? '<span class="hr-rel">謀反の味方</span>' : `<button class="hr-btn sm" data-h="pact" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>内々に誘う</button>`; })()}${(() => { if (!CR.freeHero(st) || st.hero!.wife || !st.hero!.ie || g.clan !== me.clan || g.rank > FA.FAM.WED_RANK || (st.year - (g.born ?? st.year - 30)) < FA.FAM.WED_AGE || v < 30) return ''; const why = FA.wedBlock(st, g); return `<button class="hr-btn sm" data-h="wed" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>縁組を申し込む</button>`; })()}${(() => { const k = CR.freeHero(st) ? SK.masterSkill(g) : null; if (!k || g.status === 'young') return ''; const why = SK.skillBlock(st, k, g); return `<button class="hr-btn sm" data-h="mstudy" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : `title="${esc(SK.SKILL_DESC[k])}"`}>師事を願う（${SK.SKILL_NAME[k]}・${SK.masterCap(g)}段まで）</button>`; })()}${(() => { if (!YO.needsYori(st) || g.clan !== me.clan || g.rank > 1 || g.id === H.lordOf(st)?.id) return ''; if (g.id === st.hero!.yorioya) return '<span class="hr-rel">寄親</span>'; const why = YO.switchBlock(st, g); return `<button class="hr-btn sm" data-h="yori-sw" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>寄親に願う</button>`; })()}<button class="hr-btn sm" data-h="visit" data-id="${g.id}">訪ねる</button><button class="hr-btn sm" data-h="gift" data-id="${g.id}" ${st.hero!.goods < 1 && st.hero!.gold < H.HERO.GIFT_COST ? 'disabled' : ''}>進物</button>`;
 }
 // 槍働きの盤の駒の色: 味方は自家の色、敵はその合戦の敵将の家の色
 const banColors = (st: GameState, foe?: string) => { const me = H.heroOf(st)!, fc = foe ? st.generals[foe]?.clan : null; return { me: me.clan ? st.clans[me.clan]?.color : undefined, foe: fc ? st.clans[fc]?.color : undefined }; };
+// 寄親と同輩（足軽組頭・足軽大将）: 寄親との親しさと推挙の見込み、張り合う同輩
+function yoriLine(st: GameState) {
+  const y = YO.yoriOf(st), r = YO.rivalOf(st), need = YO.suisenNeed(st), v = y ? st.hero!.rel[y.id] ?? 0 : 0;
+  return `<div class="hr-quest"><b>寄親</b> ${y ? `${esc(y.name)}（${rankName(st, y)}・親しさ${v}）<span>${v >= need ? '<em>推挙を得られる</em>' : `取り立ての推挙は親しさ${need}から`}</span>` : 'まだ付いていない（月が変わると主君が付ける）'}${r ? `　<b>同輩</b> ${esc(r.name)}（${rankName(st, r)}）` : ''}</div>`;
+}
 // 預けている者（家臣の枠を超えて主家に預けた配下）: 枠が空けば呼び戻せる
 function azukeHtml(st: GameState) {
   const az = KS.azukeOf(st);
@@ -734,6 +741,7 @@ function onClick(e: Event) {
   if (h === 'sell') { pane = 'akinai'; void act(() => T.sell(s!, id), 'ichi'); return; }
   if (h === 'gov') { pane = 'shiro'; void act(() => M.govern(s!, id as M.GovAct), 'town'); return; }
   if (h === 'work') { const k = s.hero!.quest!.kind; void act(() => H.work(s!), k); return; }
+  if (h === 'yori-sw') { void act(() => { const r = YO.switchYori(s!, id); if (r.ok) s!.hero!.jun++; return r; }, 'yashiki'); return; }
   if (h === 'visit') { void act(() => H.visit(s!, id), 'yashiki'); return; }
   if (h === 'gift') { void act(() => H.giveGift(s!, id), 'yashiki'); return; }
   if (h === 'goto') { onHex(+id); return; }

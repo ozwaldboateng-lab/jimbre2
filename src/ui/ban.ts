@@ -32,7 +32,7 @@ export function openBan(ban: Ban, heading: string, colors: BanColors = {}): Prom
 
 const rgb = (h: string) => { const m = /^#?([0-9a-f]{6})$/i.exec(h.trim()); const n = m ? parseInt(m[1], 16) : 0; return [n >> 16, (n >> 8) & 255, n & 255]; };
 const near = (a: string, c: string) => { const x = rgb(a), y = rgb(c); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 110; };
-const me = (p: Piece | null) => !!p && p.side === 'me';
+const me = (p: Piece | null) => !!p && p.side === 'me' && !p.rival; // 自分で動かせる駒（同輩の駒は動かせない）
 function cellCls(x: number, y: number, reach: Set<string>, tg: Set<number>) {
   const p = B.at(b!, x, y), t = B.terrAt(b!, x, y);
   return ['bc', `t-${t === '.' ? 'no' : t}`, reach.has(`${x},${y}`) ? 'reach' : '', p && tg.has(p.id) ? (aim ? 'kyo' : 'tgt') : '', p && p.id === sel ? 'sel' : '', p && (p.id === sel || tg.has(p.id)) ? 'front' : ''].filter(Boolean).join(' '); // front: 選んだ駒と狙える敵は、重なっても手前に
@@ -49,13 +49,13 @@ const artOf = (p: Piece) => { const k = artKey(p); return k ? { src: BAN_ART[`${
 function pieceHtml(p: Piece) {
   const K = B.KIND[p.kind], art = artOf(p);
   const marks = `${p.confused ? '<u>乱</u>' : p.flee ? '<u class="fl">逃</u>' : ''}<i class="hpb" style="width:${Math.round((p.hp / p.maxhp) * 100)}%"></i>`;
-  if (art) return `<span class="pa ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}" style="--sc:${art.sc};--dy:${art.dy}%"><s class="base"></s><img src="${art.src}" alt="">${p.hero || p.sho || p.gid ? `<em>${esc(p.name.slice(-3))}</em>` : ''}${marks}</span>`;
+  if (art) return `<span class="pa ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.rival ? ' rival' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}" style="--sc:${art.sc};--dy:${art.dy}%"><s class="base"></s><img src="${art.src}" alt="">${p.hero || p.sho || p.gid ? `<em>${p.rival ? '同輩・' : ''}${esc(p.name.slice(-3))}</em>` : ''}${marks}</span>`;
   return `<span class="pc ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}">${p.sho ? '将' : K.ch}${marks}</span>`;
 }
 function infoHtml(p: Piece | null) {
   if (!p) return '<p class="ban-hint">自分の駒を押して選ぶ。青いマスへ動き、赤い敵を押して攻める。攻めずに終える駒は「待機」。武将の駒は「虚報」で、3マス以内の敵を惑わせられる（知略で見込みが決まる）。</p>';
   const K = B.KIND[p.kind], t = B.terrAt(b!, p.x, p.y);
-  return `<div class="ban-info"><b>${esc(p.name)}</b><span>${K.name}${p.hero ? '（あなた）' : p.sho ? '（名のある将）' : p.gid ? '（配下）' : ''}・${B.TERR_NAME[t]}</span>
+  return `<div class="ban-info"><b>${esc(p.name)}</b><span>${K.name}${p.hero ? '（あなた）' : p.sho ? '（名のある将）' : p.rival ? '（同輩。自分では動かせない。討ち取りは同輩の手柄）' : p.gid ? '（配下）' : ''}・${B.TERR_NAME[t]}</span>
     <span>体 ${p.hp}/${p.maxhp}・攻 ${p.atk}・守 ${p.def}・足 ${p.mov}・間合い ${p.rmin === p.rmax ? p.rmax : `${p.rmin}〜${p.rmax}`}${p.kind === 'teppo' && !B.canShoot(b!, p) ? '・<em>弾込め中</em>' : ''}</span>
     <span>知略 ${p.int}${p.kyoho ? `・虚報 あと${p.kyoho}回` : p.gid || p.hero || p.sho ? '・虚報 使い切った' : ''}${p.confused ? `・<em>惑っている（あと${p.confused}手）</em>` : ''}${p.flee ? '・<em>逃げている</em>' : ''}</span></div>`;
 }
@@ -70,7 +70,7 @@ function render() {
   for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) { const p = B.at(b, x, y); cells += `<button class="${cellCls(x, y, reach, tg)}" data-x="${x}" data-y="${y}" aria-label="${x + 1}列${y + 1}行・${B.TERR_NAME[B.terrAt(b, x, y)]}${p ? ' ' + esc(p.name) : ''}">${terrHtml(x, y)}${p ? pieceHtml(p) : ''}</button>`; }
   const foes = b.pieces.filter((p) => p.side === 'foe' && p.alive).length, ours = b.pieces.filter((p) => p.side === 'me' && p.alive).length;
   const phase = `${B.stageName(b)}・${b.over ? '終わり' : b.phase === 'me' ? 'あなたの手番' : '敵の手番'}`;
-  const over = b.over ? `<div class="ban-over"><b>${{ win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
+  const over = b.over ? `<div class="ban-over"><b>${{ win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}${b.pieces.some((q) => q.rival) ? `（同輩${b.rivalTegara}）` : ''}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
   const btns = b.over ? '' : `<div class="ban-acts">
     <button class="ban-btn" data-b="wait" ${mine && !s!.acted ? '' : 'disabled'}>待機</button>
     ${B.duelFoes(b).length && s && s.hero ? `<button class="ban-btn duel" data-b="nanori" data-id="${B.duelFoes(b)[0].id}">名乗る（${esc(B.duelFoes(b)[0].name)}と一騎討ち）</button>` : ''}
@@ -120,10 +120,12 @@ function duelHtml(D: B.Duel) {
   </div></div>`;
 }
 // 次に動かせる自分の駒
-const nextIdle = () => { const p = b!.pieces.find((q) => q.side === 'me' && q.alive && !q.acted && !q.confused); return p ? p.id : null; };
+const nextIdle = () => { const p = b!.pieces.find((q) => q.side === 'me' && !q.rival && q.alive && !q.acted && !q.confused); return p ? p.id : null; };
 async function foeTurn() {
   if (!b || b.over) return;
   busy = true; sel = null;
+  for (const p of b.pieces.filter((q) => q.rival && q.alive && !q.acted)) { const t = B.aiStep(b, p); if (t) last = t; render(); await sleep(reduced() ? 0 : 280); if (b.over) break; } // 同輩は手番の終わりに自分で動く
+  if (b.over) { busy = false; render(); return; }
   B.endPhase(b); render();
   for (const p of b.pieces.filter((q) => q.side === 'foe' && q.alive)) {
     if (b.over) break;
@@ -210,6 +212,7 @@ const CSS = `
 .pa{position:relative;z-index:1;width:100%;height:100%;display:block}
 .pa img{position:absolute;left:50%;bottom:calc(9% - var(--dy,0%));height:calc(128% * var(--sc,1));width:auto;max-width:none;transform:translateX(-50%);filter:drop-shadow(0 3px 2px rgba(0,0,0,.55));pointer-events:none}.pa.done img{opacity:.55}
 .pa .base{position:absolute;left:16%;right:16%;bottom:4%;height:15%;border-radius:50%;border:2px solid var(--me);background:color-mix(in srgb,var(--me) 35%,transparent)}.pa.foe .base{border-color:var(--foe);background:color-mix(in srgb,var(--foe) 35%,transparent)}
+.pa.rival .base{border:2px dashed #d8d8d8;background:rgba(220,220,220,.18)}.pa.rival em{color:#dcdcdc}
 .pa.hero .base{border-color:#e0b04a;box-shadow:0 0 6px #e0b04a}.pa.sho .base{border-color:#ff8a5a;box-shadow:0 0 6px #ff8a5a}
 .pa em{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:9.5px;font-style:normal;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000;white-space:nowrap;overflow:hidden}
 .pa.hero em{color:#f2d27a}.pa.sho em{color:#ffb08a}
