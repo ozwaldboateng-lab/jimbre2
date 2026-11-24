@@ -10,10 +10,13 @@ export interface Piece {
   id: number; side: BSide; kind: BKind; name: string; gid?: string; hero?: boolean; sho?: boolean; // sho: 名のある将
   hp: number; maxhp: number; atk: number; def: number; int: number; mov: number; rmin: number; rmax: number; crit: number;
   x: number; y: number; moved: boolean; acted: boolean; noShootUntil?: number; alive: boolean;
+  kyoho: number; confused?: number; flee?: boolean; gone?: boolean; // 虚報の残り回数・混乱の残り手番・逃げる（追い討ち）・盤から去った
 }
 export interface Ban {
   w: number; h: number; terr: Terr[]; pieces: Piece[]; turn: number; maxTurn: number; phase: BSide;
   log: string[]; tegara: number; kills: number; over?: 'win' | 'lose' | 'retreat' | 'time'; seed: number;
+  end: 'oiuchi' | 'shingari'; ichiban?: boolean; event?: string; // 終盤の形（勝ち戦なら追い討ち、負け戦なら殿）・一番槍が出たか・局面の変わり目の知らせ
+  mid: BanSetup['foe']; late: BanSetup['foe']; // 中盤に現れる敵・殿で迫る敵
 }
 export const KIND: Record<BKind, { name: string; ch: string; mov: number; rmin: number; rmax: number; hp: number; atk: number; def: number }> = {
   kiba: { name: '騎馬', ch: '騎', mov: 5, rmin: 1, rmax: 1, hp: 26, atk: 10, def: 4 },
@@ -22,7 +25,9 @@ export const KIND: Record<BKind, { name: string; ch: string; mov: number; rmin: 
   teppo: { name: '鉄砲', ch: '鉄', mov: 2, rmin: 2, rmax: 4, hp: 16, atk: 12, def: 2 },
 };
 export const TERR_NAME: Record<Terr, string> = { '.': '野', saku: '柵', take: '竹束', kawa: '川', oka: '丘' };
-export const BAN = { W: 8, H: 10, TURNS: 8, OKA: 2, CRIT_BASE: 0.05, CRIT_YARI: 0.03, CRIT_MULT: 1.5, TEGARA_MOB: 1, TEGARA_SHO: 5 };
+export const BAN = { W: 8, H: 10, TURNS: 8, OKA: 2, CRIT_BASE: 0.05, CRIT_YARI: 0.03, CRIT_MULT: 1.5, TEGARA_MOB: 1, TEGARA_SHO: 5, ICHIBAN: 3, OIUCHI: 1, SHINGARI: 6, NAKA: 4, SHU: 7, KYOHO_PER: 30, KYOHO_RANGE: 3, LOSE_KEEP: 0.5 };
+export const stageOf = (b: Ban) => (b.turn >= BAN.SHU ? 'shu' : b.turn >= BAN.NAKA ? 'naka' : 'jo');
+export const stageName = (b: Ban) => ({ jo: '序盤', naka: '中盤', shu: b.end === 'oiuchi' ? '終盤・追い討ち' : '終盤・殿' })[stageOf(b)];
 
 // ───────── 乱数（盤ごとの種） ─────────
 export function rnd(b: Ban): number { let t = (b.seed = (b.seed + 0x6d2b79f5) | 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
@@ -42,14 +47,14 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
   return {
     id, side, kind, name: w?.name ?? `${side === 'me' ? '味方' : '敵'}の${K.name}`, gid: w?.gid, hero: w?.hero, sho: w?.sho,
     hp, maxhp, atk, def, int: w?.int ?? 30, mov: K.mov, rmin: K.rmin, rmax: K.rmax, crit: BAN.CRIT_BASE + (w?.yari ?? 0) * BAN.CRIT_YARI,
-    x, y, moved: false, acted: false, alive: true,
+    x, y, moved: false, acted: false, alive: true, kyoho: w ? Math.floor(w.int / BAN.KYOHO_PER) : 0, // 虚報は武将だけ（知略30ごとに一回）
   };
 }
 
 // ───────── 盤を作る ─────────
-export interface BanSetup { me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number }
+export interface BanSetup { me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number; end?: 'oiuchi' | 'shingari'; mid?: { kind: BKind; who: Who | null }[]; late?: { kind: BKind; who: Who | null }[] }
 export function newBan(o: BanSetup): Ban {
-  const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, seed: o.seed | 0 || 1 };
+  const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, seed: o.seed | 0 || 1, end: o.end ?? 'oiuchi', mid: o.mid ?? [], late: o.late ?? [] };
   // 地形: 中ほど（上下3行は陣地として空ける）に竹束・丘・柵、川を一筋
   const mid = (y: number) => y >= 3 && y <= b.h - 4;
   const put = (t: Terr, n: number) => { for (let k = 0, tries = 0; k < n && tries < 60; tries++) { const x = Math.floor(rnd(b) * b.w), y = 3 + Math.floor(rnd(b) * (b.h - 6)); if (mid(y) && b.terr[y * b.w + x] === '.') { b.terr[y * b.w + x] = t; k++; } } };
@@ -105,9 +110,13 @@ function hit(b: Ban, a: Piece, d: Piece, counter: boolean): string {
   const v = Math.max(1, Math.round(baseDmg(b, a, d) * (0.85 + rnd(b) * 0.3) * (crit ? BAN.CRIT_MULT : 1)));
   d.hp = Math.max(0, d.hp - v);
   let t = `${a.name}${counter ? 'の返し' : ''}が${d.name}に${v}${crit ? '（会心）' : ''}`;
+  if (!b.ichiban && !counter && a.side === 'me' && d.side === 'foe' && a.rmax === 1) { // 一番槍: 最初に敵に槍をつけた者
+    b.ichiban = true;
+    if (a.hero) { b.tegara += BAN.ICHIBAN; t = `一番槍！ ${t}`; } else t += `（一番槍は${a.name}に取られた）`;
+  }
   if (d.hp <= 0) {
     d.alive = false; t += `、${d.name}を討ち取った`;
-    if (a.side === 'me') { b.kills++; b.tegara += d.sho ? BAN.TEGARA_SHO : BAN.TEGARA_MOB; }
+    if (a.side === 'me' && d.side === 'foe') { b.kills++; b.tegara += (d.sho ? BAN.TEGARA_SHO : BAN.TEGARA_MOB) + (d.flee ? BAN.OIUCHI : 0); }
   }
   return t;
 }
@@ -128,7 +137,7 @@ export const hero = (b: Ban) => b.pieces.find((p) => p.hero) ?? null;
 function judge(b: Ban) {
   if (b.over) return;
   const h = hero(b);
-  if (h && !h.alive) { b.over = 'lose'; b.log.push(`${h.name}は手傷を負い、後ろへ運ばれた。`); return; }
+  if (h && !h.alive) { b.over = 'lose'; b.tegara = Math.floor(b.tegara * BAN.LOSE_KEEP); b.log.push(`${h.name}は手傷を負い、後ろへ運ばれた（手柄の半ばを失った）。`); return; }
   if (!b.pieces.some((p) => p.alive && p.side === 'foe')) { b.over = 'win'; b.log.push('目の前の敵を討ち払った。'); }
 }
 export function retreat(b: Ban) { if (!b.over) { b.over = 'retreat'; b.log.push('持ち場へ退いた。'); } }
@@ -136,18 +145,93 @@ export function retreat(b: Ban) { if (!b.over) { b.over = 'retreat'; b.log.push(
 export function endPhase(b: Ban) {
   if (b.over) return;
   if (b.phase === 'me') { b.phase = 'foe'; for (const p of b.pieces) if (p.side === 'foe') { p.moved = false; p.acted = false; } return; }
-  b.phase = 'me'; b.turn++;
-  if (b.turn > b.maxTurn) { b.over = 'time'; b.log.push('合戦の流れが変わり、槍を収めた。'); return; }
+  b.phase = 'me'; b.turn++; b.event = undefined;
+  if (b.turn > b.maxTurn) {
+    b.over = 'time';
+    const h = hero(b);
+    if (b.end === 'shingari' && h?.alive) { b.tegara += BAN.SHINGARI; b.log.push(`殿を務め上げた（手柄+${BAN.SHINGARI}）。`); }
+    else b.log.push(b.end === 'oiuchi' ? '敵は散り、追い討ちを止めた。' : '合戦の流れが変わり、槍を収めた。');
+    return;
+  }
   for (const p of b.pieces) if (p.side === 'me') { p.moved = false; p.acted = false; }
+  if (b.turn === BAN.NAKA && b.mid.length) { const n = spawn(b, b.mid); b.event = `中盤: 敵の新手が現れた（${n.join('・')}）。`; b.log.push(b.event); }
+  if (b.turn === BAN.SHU) {
+    if (b.end === 'oiuchi') { for (const p of b.pieces) if (p.side === 'foe' && p.alive) p.flee = true; b.event = '終盤: 味方の勝ち戦。敵が崩れて逃げ出した。追い討ちで討つほど手柄になる。'; }
+    else { const n = spawn(b, b.late); b.event = `終盤: 味方の負け戦。殿を命じられた。${b.maxTurn}手目の終わりまで、あなたが持ちこたえれば手柄（敵の追手: ${n.join('・') || 'なし'}）。`; }
+    b.log.push(b.event);
+  }
+  judge(b);
+}
+// 新手を上の2行の空いた所に置く
+function spawn(b: Ban, list: BanSetup['foe']): string[] {
+  const out: string[] = [];
+  for (const u of list) {
+    const free: [number, number][] = []; for (const y of [0, 1, 2]) for (let x = 0; x < b.w; x++) if (!at(b, x, y) && terrAt(b, x, y) !== 'saku') free.push([x, y]);
+    if (!free.length) break;
+    const [x, y] = free[Math.floor(rnd(b) * free.length)];
+    const p = makePiece(b.pieces.length, 'foe', u.kind, u.who, x, y); p.moved = true; p.acted = true; b.pieces.push(p); out.push(p.sho ? p.name : KIND[u.kind].name);
+  }
+  return out;
+}
+
+// ───────── 虚報（知略で敵を惑わせる。武将の駒だけ。射程3） ─────────
+export const kyohoChance = (a: Piece, d: Piece) => Math.max(0.1, Math.min(0.9, 0.5 + (a.int - d.int) / 200));
+export const kyohoTargets = (b: Ban, a: Piece): Piece[] => (a.kyoho > 0 && !a.acted && !a.confused ? b.pieces.filter((o) => o.alive && o.side !== a.side && dist(a, o) <= BAN.KYOHO_RANGE) : []);
+export function kyoho(b: Ban, a: Piece, d: Piece): string {
+  if (!kyohoTargets(b, a).includes(d)) return '';
+  a.kyoho--; a.acted = true; a.moved = true;
+  const p = kyohoChance(a, d);
+  let t: string;
+  if (rnd(b) < p) { d.confused = 1 + (rnd(b) < 0.5 ? 1 : 0); t = `${a.name}の虚報に${d.name}が惑わされた（${d.confused}手のあいだ乱れる）。`; }
+  else t = `${a.name}は虚報を流したが、${d.name}は乗らなかった（見込み${Math.round(p * 100)}%）。`;
+  b.log.push(t); return t;
+}
+// 惑った駒: 勝手に動き、近くの駒を敵味方構わず攻めることがある
+function confusedStep(b: Ban, p: Piece): string | null {
+  const tiles = reach(b, p); const t = tiles[Math.floor(rnd(b) * tiles.length)] ?? p;
+  p.x = t.x; p.y = t.y; p.moved = true;
+  const near = b.pieces.filter((o) => o.alive && o !== p && dist(p, o) >= p.rmin && dist(p, o) <= p.rmax);
+  let out: string | null = null;
+  if (near.length && canShoot(b, p) && rnd(b) < 0.7) { const d = near[Math.floor(rnd(b) * near.length)]; out = `（乱れて）${attack(b, p, d)}`; }
+  p.acted = true;
+  if (p.alive && p.confused) { p.confused--; if (!p.confused) b.log.push(`${p.name}は我に返った。`); }
+  return out;
+}
+// 自分の手番のはじめ: 惑っている味方の駒は勝手に動く
+export function runConfused(b: Ban, side: BSide): string[] {
+  const out: string[] = [];
+  for (const p of b.pieces.filter((q) => q.side === side && q.alive && q.confused)) { const t = confusedStep(b, p); if (t) out.push(t); if (b.over) break; }
+  return out;
+}
+// 逃げる駒（追い討ち）: 上の端へ。端に着けば盤から去る
+function fleeStep(b: Ban, p: Piece): string | null {
+  const tiles = reach(b, p); let best = tiles[0] ?? p;
+  for (const t of tiles) if (t.y < best.y) best = t;
+  p.x = best.x; p.y = best.y; p.moved = true; p.acted = true;
+  if (p.y === 0) { p.alive = false; p.gone = true; const t = `${p.name}は逃げ去った。`; b.log.push(t); judge(b); return t; }
+  return null;
 }
 
 // ───────── 動かし方（敵の手番と、オート） ─────────
 // 一つの駒の一手: 攻められる所へ動いて攻める。攻められなければ、いちばん近い敵へ寄る
 export function aiStep(b: Ban, p: Piece): string | null {
   if (!p.alive || p.acted || b.over) return null;
+  if (p.confused) return confusedStep(b, p);
+  if (p.flee) return fleeStep(b, p);
   const foes = b.pieces.filter((o) => o.alive && o.side !== p.side);
   if (!foes.length) return null;
+  // 虚報: 見込みが半分ほどあり、強い相手（主人公・名のある将・攻めの高い駒）が射程にいれば、六割ほどで使う
+  if (p.kyoho > 0 && !p.moved) {
+    const ks = kyohoTargets(b, p).filter((d) => !d.confused && kyohoChance(p, d) >= 0.45).sort((a, c) => (c.hero || c.sho ? 20 : 0) + c.atk - ((a.hero || a.sho ? 20 : 0) + a.atk));
+    if (ks.length && (ks[0].hero || ks[0].sho || ks[0].atk >= 10) && rnd(b) < 0.6) return kyoho(b, p, ks[0]);
+  }
   const tiles = p.moved ? [{ x: p.x, y: p.y }] : reach(b, p);
+  // 主人公・名のある将は、体が三分の一を切ったら、討ち取れる相手がいない限り退がる
+  if ((p.hero || p.sho) && p.hp / p.maxhp < 0.35 && !tiles.some((t) => canShoot(b, p) && targets(b, p, t).some((d) => baseDmg(b, { ...p, x: t.x, y: t.y }, d) >= d.hp))) {
+    let far = { t: { x: p.x, y: p.y }, v: -1 };
+    for (const t of tiles) { const v = Math.min(...foes.map((o) => dist(t, o))); if (v > far.v) far = { t, v }; }
+    p.x = far.t.x; p.y = far.t.y; wait(p); return null;
+  }
   let best: { t: { x: number; y: number }; d: Piece; score: number } | null = null;
   if (canShoot(b, p)) for (const t of tiles) for (const d of targets(b, p, t)) {
     const dmg = baseDmg(b, { ...p, x: t.x, y: t.y }, d), kill = dmg >= d.hp ? 30 : 0;
@@ -170,5 +254,9 @@ export function runSide(b: Ban, side: BSide): string[] {
 }
 // オート: 終わるまで両方を動かす
 export function autoAll(b: Ban) {
-  for (let g = 0; g < 100 && !b.over; g++) { runSide(b, b.phase); endPhase(b); }
+  for (let g = 0; g < 100 && !b.over; g++) {
+    const h = hero(b);
+    if (b.phase === 'me' && h?.alive && h.hp / h.maxhp < 0.25) { retreat(b); break; } // 主人公が危うければ、手柄を確かめて退く
+    runSide(b, b.phase); endPhase(b);
+  }
 }

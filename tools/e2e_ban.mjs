@@ -28,10 +28,26 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.click(`#ban .bc[data-x="${front[0]}"][data-y="${front[1]}"]`); await p.waitForTimeout(100);
   await p.screenshot({ path: `${out}/ban-1-${vp.tag}.png` });
   const tg = await p.$('#ban .bc.tgt'); if (tg) { await tg.click(); await p.waitForTimeout(100); console.log(vp.tag, '攻めた:', await p.$eval('#ban .ban-last', (e) => e.textContent)); } else { await p.click('#ban [data-b="wait"]'); }
-  await p.click('#ban [data-b="end"]'); await p.waitForTimeout(2200);
-  console.log(vp.tag, '一手後:', await head(), '|', await p.$eval('#ban .ban-last', (e) => e.textContent).catch(() => ''));
+  // 手番を進めながら、虚報が使えれば使う。局面の知らせを拾う
+  let shotKyo = false;
+  for (let k = 0; k < 8; k++) {
+    if (await p.$('#ban .ban-over')) break;
+    await p.click('#ban .pc.hero').catch(() => {}); await p.waitForTimeout(80);
+    const kb = await p.$('#ban [data-b="kyoho"]:not([disabled])');
+    if (kb) {
+      await kb.click(); await p.waitForTimeout(80);
+      if (!shotKyo) { await p.screenshot({ path: `${out}/ban-kyo-${vp.tag}.png` }); shotKyo = true; console.log(vp.tag, '虚報の的:', await p.$eval('#ban .ban-kyo', (e) => e.textContent)); }
+      await p.click('#ban .bc.kyo'); await p.waitForTimeout(80);
+      console.log(vp.tag, '虚報:', await p.$eval('#ban .ban-last', (e) => e.textContent));
+    }
+    await p.click('#ban [data-b="end"]'); await p.waitForTimeout(150);
+    await p.waitForFunction(() => !document.querySelector('#ban [data-b="end"][disabled]'), null, { timeout: 20000 }).catch(() => {});
+    const last = await p.$eval('#ban .ban-last', (e) => e.textContent).catch(() => '');
+    console.log(vp.tag, (await head()).replace(/.*盤の稽古/, ''), '|', last.slice(0, 70));
+    if (/中盤:|終盤:/.test(last)) await p.screenshot({ path: `${out}/ban-ev${k}-${vp.tag}.png` });
+  }
   await p.screenshot({ path: `${out}/ban-2-${vp.tag}.png` });
-  await p.click('#ban [data-b="auto"]'); await p.waitForTimeout(300);
+  if (!(await p.$('#ban .ban-over'))) { await p.click('#ban [data-b="auto"]'); await p.waitForTimeout(300); }
   console.log(vp.tag, 'オート:', await p.$eval('#ban .ban-over', (e) => e.textContent.replace(/\s+/g, ' ')));
   await p.screenshot({ path: `${out}/ban-3-${vp.tag}.png` });
   await p.click('#ban [data-b="close"]'); await p.waitForTimeout(200);

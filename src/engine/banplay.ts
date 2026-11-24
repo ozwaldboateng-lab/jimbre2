@@ -19,6 +19,12 @@ export function myPieces(s: GameState): BanSetup['me'] {
   return out;
 }
 // 道場での稽古（盤を試す。手柄も傷も残らない）
+// 中盤には名のある将（師範代）が新手として現れ、終盤は追い討ちか殿のどちらか
 export function keikoBan(s: GameState): Ban {
-  return newBan({ me: myPieces(s), foe: (['ashi', 'ashi', 'yumi', 'teppo', 'kiba'] as BKind[]).map((kind) => ({ kind, who: null })), seed: Math.floor(rand(s) * 1e9) });
+  const mob = (k: BKind) => ({ kind: k, who: null });
+  const sho: Who = { name: '師範代', bra: 72, int: 64, lea: 66, sho: true };
+  return newBan({
+    me: myPieces(s), foe: (['ashi', 'ashi', 'yumi', 'teppo'] as BKind[]).map(mob), seed: Math.floor(rand(s) * 1e9),
+    mid: [{ kind: 'kiba', who: sho }, mob('ashi')], end: rand(s) < 0.5 ? 'oiuchi' : 'shingari', late: [mob('kiba'), mob('ashi'), mob('ashi')],
+  });
 }
