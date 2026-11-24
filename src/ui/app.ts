@@ -3,6 +3,8 @@ import { openHero, openHeroWith, setDaimyo, setRyoshu } from './hero';
 import * as RY from '../engine/ryoshu';
 import * as KS from '../engine/kashin';
 import * as RH from '../engine/ryohyojo';
+import * as NE from '../engine/ryoplot';
+import * as CR from '../engine/career';
 import { runClanAI } from '../engine/ai';
 import { openStory } from './story';
 import { coalitionAgainst, GEKI, gekiBlock, gekiCandidates, gekiChance, issueGeki, leaveCoalition, sameCoalition, setGekiHook } from '../engine/coalition';
@@ -305,6 +307,16 @@ function hyojoResult(st: GameState, r: { text: string; line: string }) {
   openModal(`<h2 id="modal-title">評定 ― ${esc(C.name)}家</h2>${r.line ? `<div style="display:flex;gap:12px;align-items:center">${L ? face(L.id, 72) : ''}<div><b>${esc(L?.name ?? '')}</b><p style="margin:4px 0 0">「${esc(r.line)}」</p></div></div>` : ''}<p>${esc(r.text)}</p><div class="actions"><button class="act primary" data-act="rh-close">退出する</button></div>`, false);
   refresh();
 }
+// 主家との縁: 寝返りの誘いへの返事・寝返りを持ちかける・謀反・出奔（謀反と出奔は二度押して決める）
+let ryoArm: string | null = null;
+function shukeEn(st: GameState) {
+  const off = NE.offerOf(st), cands = NE.defectCands(st), rb = CR.canRebel(st);
+  const offer = off ? `<dt>寝返りの誘い</dt><dd><b>${esc(clanName(st, off))}家</b>から、領ごと寝返れば本領安堵と金${NE.NE.OFFER_GOLD}貫と。<br><button class="act primary" data-act="ryo-offer" data-id="yes">${ryoArm === 'offer' ? 'まことに寝返る' : '誘いに乗る'}</button> <button class="act" data-act="ryo-offer" data-id="no">断る（覚え+2）</button></dd>` : '';
+  const ne = cands.length ? `<dt>寝返りを持ちかける</dt><dd>${cands.map((c) => `<button class="mini" data-act="ryo-ne" data-id="${c}">${ryoArm === 'ne:' + c ? 'まことに持ちかける' : `${esc(clanName(st, c))}家（見込み${Math.round(NE.defectChance(st, c) * 100)}%）`}</button>`).join(' ')}<span class="hint" style="margin:0">　領（城・部隊・家臣）ごと。しくじると主君の耳に入ることがある</span></dd>` : '';
+  const rebel = `<dt>謀反</dt><dd><button class="mini" data-act="ryo-rebel" ${rb ? `disabled title="${esc(rb)}"` : ''}>${ryoArm === 'rebel' ? 'まことに旗を翻す' : '謀反を起こす（領ごと独立して大名に）'}</button>${rb ? `<span class="hint" style="margin:0">（${esc(rb)}）</span>` : ''}</dd>`;
+  const leave = `<dt>出奔</dt><dd><button class="mini" data-act="ryo-leave">${ryoArm === 'leave' ? 'まことに出奔する' : '出奔する（城を返し、家臣を連れて浪人に）'}</button></dd>`;
+  return `${offer}${ne}${rebel}${leave}`;
+}
 // 主家の欄: 主君と覚え、主家の構えと狙う家、領の上納、軍役（兵を差し出す）
 function openShuke(st: GameState) {
   const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null, H0 = st.hero!, g = RY.gunyakuOf(st);
@@ -316,7 +328,7 @@ function openShuke(st: GameState) {
     <dt>承っている命</dt><dd>${RH.currentOrder(st) ? esc(RH.orderText(st, RH.currentOrder(st)!)) : 'なし（月のはじめの評定で受ける）'}</dd>
     ${C.kensaku && st.turn <= C.kensaku.until ? `<dt>通った献策</dt><dd>${[C.kensaku.target !== undefined && st.turn <= (C.kensaku.tUntil ?? C.kensaku.until) ? `${C.kensaku.target ? `${esc(clanName(st, C.kensaku.target))}家を攻める` : '守りを固める'}（${turnDate(st, C.kensaku.tUntil ?? C.kensaku.until)}まで）` : '', C.kensaku.stance && st.turn <= (C.kensaku.sUntil ?? C.kensaku.until) ? `${C.kensaku.stance}に構える（${turnDate(st, C.kensaku.sUntil ?? C.kensaku.until)}まで。攻められて危うい時は守りを優先）` : ''].filter(Boolean).join('・')}</dd>` : ''}
     <dt>上納</dt><dd>領の商いから月${fmt(tr.gold)}貫ほど（年貢・商いの${Math.round(R.FIEF_TRIBUTE * 100)}%。十月の収穫からも同じ割合）</dd>
-    <dt>軍役</dt><dd>${g ? (g.done ? `${esc(clanName(st, g.clan))}家攻めの軍役は果たした（来月、覚えに）` : `${esc(clanName(st, g.clan))}家攻めに兵${fmt(g.troops)}（${turnDate(st, g.until)}まで）。その家との合戦に領の部隊を出すか、兵を差し出す。<br><button class="act" data-act="ryo-send">兵${fmt(g.troops)}を差し出す</button>`) : '申し付けられていない'}</dd>${KS.azukeOf(st).length ? `<dt>預けている者</dt><dd>${KS.azukeOf(st).map((g) => { const why = KS.recallBlock(st, g); return `${esc(g.name)} <button class="mini" data-act="ryo-recall" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>呼び戻す</button>${why ? `<span class="hint" style="margin:0">（${esc(why)}）</span>` : ''}`; }).join('<br>')}</dd>` : ''}</dl>`);
+    <dt>軍役</dt><dd>${g ? (g.done ? `${esc(clanName(st, g.clan))}家攻めの軍役は果たした（来月、覚えに）` : `${esc(clanName(st, g.clan))}家攻めに兵${fmt(g.troops)}（${turnDate(st, g.until)}まで）。その家との合戦に領の部隊を出すか、兵を差し出す。<br><button class="act" data-act="ryo-send">兵${fmt(g.troops)}を差し出す</button>`) : '申し付けられていない'}</dd>${shukeEn(st)}${KS.azukeOf(st).length ? `<dt>預けている者</dt><dd>${KS.azukeOf(st).map((g) => { const why = KS.recallBlock(st, g); return `${esc(g.name)} <button class="mini" data-act="ryo-recall" data-id="${g.id}" ${why ? `disabled title="${esc(why)}"` : ''}>呼び戻す</button>${why ? `<span class="hint" style="margin:0">（${esc(why)}）</span>` : ''}`; }).join('<br>')}</dd>` : ''}</dl>`);
 }
 // 領主の画面で、遊び手が触れない操作（主家のこと）を止める。止める時は理由を返す
 const RYO_MONEY = ['inv-agri', 'inv-com', 'shinden', 'fort', 'rakuichi'];
@@ -2953,6 +2965,20 @@ function onModalClick(e: Event) {
   if (act === 'rh-decline') { hyojoResult(st, RH.declineOrder(st)); return; }
   if (act === 'rh-ken') { hyojoResult(st, RH.kensaku(st, id)); return; }
   if (act === 'rh-close') { closeModal(); store(AUTO_KEY, JSON.stringify(st)); const n = hyojoNext; hyojoNext = null; n?.(); return; }
+  if (act === 'ryo-offer' || act === 'ryo-ne' || act === 'ryo-rebel' || act === 'ryo-leave') {
+    const key = act === 'ryo-offer' ? 'offer' : act === 'ryo-ne' ? 'ne:' + id : act === 'ryo-rebel' ? 'rebel' : 'leave';
+    if (!(act === 'ryo-offer' && id === 'no') && ryoArm !== key) { ryoArm = key; openShuke(st); return; } // 二度押して決める
+    ryoArm = null;
+    if (act === 'ryo-rebel') {
+      const r = CR.rebel(st);
+      if (!r.ok || !r.clan) { toast(r.text); openShuke(st); return; }
+      st.player = r.clan; st.hero = undefined; st.clans[r.clan].delegate = undefined; closeModal(); startWith(st); store(AUTO_KEY, JSON.stringify(st));
+      openModal(`<h2 id="modal-title">謀反</h2><p>${esc(r.text)}</p><p>${esc(st.clans[r.clan].name)}家の当主として、大名プレイを始める。</p>`); return;
+    }
+    if (act === 'ryo-leave') { RY.toHero(st); const t2 = CR.leaveLord(st); closeModal(); store(AUTO_KEY, null); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: t2 }); return; }
+    const r = act === 'ryo-offer' ? NE.answerOffer(st, id === 'yes') : NE.offerDefect(st, id);
+    toast(r.text); closeModal(); startWith(st); store(AUTO_KEY, JSON.stringify(st)); openShuke(st); return;
+  }
   if (act === 'ryo-recall') { toast(KS.recall(st, id).text); refresh(); openShuke(st); return; }
   if (act === 'ryo-send') { toast(RY.sendTroops(st).text); refresh(); openShuke(st); return; }
   if (act === 'offer-hire' || act === 'offer-refuse') {
