@@ -678,7 +678,7 @@ function armyPanel(a: Army | undefined) {
 }
 
 function freeGenerals(): General[] {
-  if (RY.isRyoshu(s!)) { const hid = s!.hero!.id; return Object.values(s!.generals).filter((g) => g.clan === s!.player && ((g.status === 'free' && g.liege === hid) || (g.id === hid && (g.status === 'hero' || g.status === 'free') && !g.sick))).sort((a, b) => capOf(b) - capOf(a) || b.lea + b.bra - (a.lea + a.bra)); } // 領主: 主人公と自分の家臣
+  if (RY.isRyoshu(s!)) { const hid = s!.hero!.id; return Object.values(s!.generals).filter((g) => g.clan === s!.player && ((g.status === 'free' && (g.liege === hid || g.yoriki === hid)) || (g.id === hid && (g.status === 'hero' || g.status === 'free') && !g.sick))).sort((a, b) => capOf(b) - capOf(a) || b.lea + b.bra - (a.lea + a.bra)); } // 領主: 主人公と自分の家臣
   return Object.values(s!.generals).filter((g) => g.clan === s!.player && g.status === 'free' && !g.liege).sort((a, b) => capOf(b) - capOf(a) || b.lea + b.bra - (a.lea + a.bra));
 }
 // 身分を含めた兵数の上限

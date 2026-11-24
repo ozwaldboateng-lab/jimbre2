@@ -49,6 +49,7 @@ export interface General {
   boss?: string; // 軍団での直属の上役
   kan?: number; // 主君の推挙で得た官位（R.COURT の段）
   shugodai?: string; // 守護代を務める国
+  yoriki?: string; // 与力: 方面軍団長（武将で遊ぶの主人公）に付けられた主家の武将。方面の部隊を率い、城主になる（主人公の家臣ではない）
   tozama?: string; // 降って本領を安堵された旧大名（元の家）。宿老の枠を使わない
   liege?: string; // 陪臣: 仕える城持ち（領主）の武将。恩賞は領主が払い、当家は直接は使えない
   kiri?: boolean; // 洗礼を受けた

@@ -246,7 +246,7 @@ export function cleanFronts(s: GameState) {
     if (a.heroLed) { a.front = undefined; continue; }
     if (frontById(s, a.front)?.manual) continue; // 領主の領で編成した部隊は、その領のまま // 武将で遊ぶの主人公が率いる軍勢は、方面にも直轄にも入れない
     const m = s.generals[a.main];
-    const f = m ? frontsOf(s).find((x) => x.leader === a.main || x.leader === m.liege) : undefined;
+    const f = m ? frontsOf(s).find((x) => x.leader === a.main || x.leader === m.liege || (x.manual && x.leader === m.yoriki)) : undefined; // 与力の部隊は方面軍団長（主人公）の領に
     a.front = f?.id;
   }
   // 領の部隊が落とした城: 枠があればその領に（なければ直轄）
@@ -307,7 +307,7 @@ const targetClanOf = (s: GameState, t: Target) => (t.kind === 'army' ? t.army.cl
 // 方面の人事・編成・配備・足軽（軍団長に任せる）
 function organizeFront(s: GameState, f: Front, castles: Castle[], fid: number | undefined) {
   const clan = s.player, C = s.clans[clan];
-  const inFront = (g: General) => castles.some((c) => c.i === g.loc) && (fid === undefined ? !g.liege : g.id === f.leader || g.liege === f.leader);
+  const inFront = (g: General) => castles.some((c) => c.i === g.loc) && !g.yoriki && (fid === undefined ? !g.liege : g.id === f.leader || g.liege === f.leader); // 与力は主人公が使う
   const isMine = (a: Army) => a.front === fid && !a.ikki;
   const free = () => Object.values(s.generals).filter((g) => g.clan === clan && (g.status === 'free' || (g.status === 'kashin' && fid !== undefined && g.liege === f.leader)) && C.leader !== g.id && inFront(g)).sort((a, b) => troopMult(s, b) - troopMult(s, a) || b.lea - a.lea);
   // 新しい部隊（一月に一つまで）: 動員の余力と兵糧があれば

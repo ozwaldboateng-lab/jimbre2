@@ -61,7 +61,7 @@ function organize(s: GameState, clan: string) {
   for (;;) {
     const capLeft = mobilizeCap(s, clan) - farmTroops(s, clan);
     if (capLeft < 4000 || c.food < clanTroops(s, clan) * R.FOOD_PER_SOLDIER * 4) break;
-    const govs = clanCastles(s, clan).filter((k) => k.governor).map((k) => s.generals[k.governor!]).filter((x) => x.status === 'governor'); // 武将で遊ぶの主人公（城主でも status 'hero'）は野戦の大将に回さない
+    const govs = clanCastles(s, clan).filter((k) => k.governor).map((k) => s.generals[k.governor!]).filter((x) => x.status === 'governor' && !x.yoriki); // 与力も、武将で遊ぶの主人公（城主でも status 'hero'）は野戦の大将に回さない
     if (!govs.length) break;
     const sc = (x: General) => (x.lea + x.bra) * troopMult(s, x);
     const g = govs.reduce((b, x) => (sc(x) > sc(b) ? x : b));
@@ -74,7 +74,7 @@ function organize(s: GameState, clan: string) {
   aiFillTsukai(s, clan);
   aiFillCorps(s, clan, (a) => castleAt(s, a.hex)?.owner === a.clan || NEIGHBORS[a.hex].some((j) => castleAt(s, j)?.owner === a.clan));
   // 身分の高い者から隊を率い、残りが補佐・城主に回る
-  const free = Object.values(s.generals).filter((g) => g.clan === clan && g.status === 'free').sort((a, b) => troopMult(s, b) - troopMult(s, a) || b.lea - a.lea);
+  const free = Object.values(s.generals).filter((g) => g.clan === clan && g.status === 'free' && !g.yoriki).sort((a, b) => troopMult(s, b) - troopMult(s, a) || b.lea - a.lea);
   const occ = occupancy(s);
   for (const g of free) {
     const castle = s.castles[g.loc];

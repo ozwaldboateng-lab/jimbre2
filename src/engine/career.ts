@@ -124,7 +124,7 @@ export function careerMonth(s: GameState): CareerEvent | null {
         ...(lord ? [{ head: '広間', who: lord.id, bg: 'zashiki_day', text: `${me.name}。そなたに、この方面を任せる。城も兵も、そなたの采配で動かせ。……わしの顔を見に来るのは、勝ってからでよい` }] : []),
         { who: me.id, bg: 'zashiki_day', text: '承りました' },
         { bg: 'jinmaku', text: `${f.castles.map((i) => s.castles[i].name).join('・')}。いくつもの城と、そこに詰める兵が、${me.name}の一言で動くようになった。家臣たちが、それぞれの軍勢を率いる。` },
-      ], lines: [`方面軍団長に任じられた（${f.castles.length}城）。城下の「方面の差配」で方針と攻略の目標を決める。家臣が方面の軍勢を率いる`] };
+      ], lines: [H.mode === 'ryoshu' ? `方面軍団長に任じられた（${f.castles.length}城）。方面の城が領に加わり、そこにいる主家の武将（${Object.values(s.generals).filter((g) => g.yoriki === me.id).map((g) => g.name).join('・') || 'なし'}）が与力として付いた。攻め先は、方面の近くの主家の敵なら自分で選べる` : `方面軍団長に任じられた（${f.castles.length}城）。城下の「方面の差配」で方針と攻略の目標を決める。家臣が方面の軍勢を率いる`] };
     }
   }
   if (hasStep(s, 'homen') && !hasStep(s, 'hitto') && s.turn - (car.kuniAt ?? s.turn) >= CAREER.HITTO_MONTHS && H.favor >= CAREER.HITTO_FAVOR && me.merit >= CAREER.HITTO_MERIT) {
@@ -304,13 +304,21 @@ export function syncGovernor(s: GameState) {
 export const homenOf = (s: GameState): Front | undefined => (s.fronts ?? []).find((f) => f.leader === s.hero?.id && !f.vacant);
 function makeHomen(s: GameState): Front | null {
   const H = s.hero!, me = s.generals[H.id], clan = me.clan!;
-  if (homenOf(s) || clan !== s.player) return homenOf(s) ?? null;
+  const ex = homenOf(s);
+  if (ex && !ex.manual) return ex;
+  if (clan !== s.player) return ex ?? null;
   const lordLoc = s.clans[clan].leader ? s.generals[s.clans[clan].leader!].loc : -1;
   const dom = domain(s).filter((c) => c.owner === clan);
   if (!dom.length) return null;
   const taken = new Set((s.fronts ?? []).flatMap((f) => f.castles));
   const near = clanCastles(s, clan).filter((c) => !dom.includes(c) && c.i !== lordLoc && !taken.has(c.i) && dom.some((d) => hexDist(d.hex, c.hex) <= R.hx(4))).sort((a, b) => Math.min(...dom.map((d) => hexDist(d.hex, a.hex))) - Math.min(...dom.map((d) => hexDist(d.hex, b.hex))));
   const castles = [...dom, ...near].slice(0, CAREER.HOMEN_CASTLES);
+  if (ex) { // 領主の領を方面に広げる
+    for (const c of castles) { for (const o of s.fronts ?? []) if (o !== ex) o.castles = o.castles.filter((i) => i !== c.i); if (!ex.castles.includes(c.i)) ex.castles.push(c.i); }
+    giveYoriki(s, ex);
+    addLog(s, `${me.name}が方面軍団長に任じられた（${ex.castles.map((i) => s.castles[i].name).join('・')}）。`, 'info', true);
+    return ex;
+  }
   const f: Front = { id: (s.nextFrontId = (s.nextFrontId ?? 0) + 1), leader: me.id, castles: castles.map((c) => c.i), policy: 'defend', target: null, seat: dom[0].i, gold: 0, food: 0 };
   for (const c of castles) for (const o of s.fronts ?? []) o.castles = o.castles.filter((i) => i !== c.i);
   (s.fronts ??= []).push(f);
@@ -318,6 +326,12 @@ function makeHomen(s: GameState): Front | null {
   for (const g of Object.values(s.generals)) if ((H.retainers ?? []).includes(g.id)) g.liege = me.id;
   addLog(s, `${me.name}が方面軍団長に任じられた（${castles.map((c) => c.name).join('・')}）。`, 'info', true);
   return f;
+}
+// 与力: 方面の城にいる主家の武将（主人公の家臣・当主・一門を除く）を方面軍団長に付ける
+export function giveYoriki(s: GameState, f: Front): string[] {
+  const H = s.hero!, me = s.generals[H.id], L = s.clans[me.clan!].leader, out: string[] = [];
+  for (const g of Object.values(s.generals)) if (g.clan === me.clan && g.id !== me.id && g.id !== L && !g.kin && !g.liege && !g.yoriki && f.castles.includes(g.loc) && ['free', 'governor', 'camp', 'army'].includes(g.status)) { g.yoriki = me.id; out.push(g.name); }
+  return out;
 }
 export function setHomenPolicy(s: GameState, p: FrontPolicy, target: string | null): string {
   const f = homenOf(s);

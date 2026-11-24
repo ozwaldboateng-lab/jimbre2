@@ -8,7 +8,7 @@ import { familyYear } from './family';
 import { hpMonth } from './skill';
 import { orderMonth } from './ryohyojo';
 import { KASHIN, capOf, retainersOf, take } from './kashin';
-import { addLog, clanCastles, clanName, rand } from './state';
+import { addLog, clanCastles, clanName, hostile, rand } from './state';
 import { NEIGHBORS, hexDist } from './map';
 import { castleCom } from './money';
 import { taxDef } from './invest';
@@ -25,7 +25,7 @@ export const isRyoshu = (s: GameState) => !!ryoshuOf(s);
 // その城を遊び手が治められるか（領主なら自分の領の城だけ。大名なら自家の城）
 export const canRule = (s: GameState, c: Castle) => { const f = ryoshuOf(s); return c.owner === s.player && (!f && !X(s)?.mode ? true : !!f && f.castles.includes(c.i)); };
 // その武将を遊び手が使えるか（領主なら主人公と、主人公の家臣・陪臣だけ）
-export const canUse = (s: GameState, g: General) => { const H = X(s); return !H?.mode ? g.clan === s.player : g.id === H.id || g.liege === H.id; };
+export const canUse = (s: GameState, g: General) => { const H = X(s); return !H?.mode ? g.clan === s.player : g.id === H.id || g.liege === H.id || (g.yoriki === H.id && g.clan === s.player); }; // 主人公・家臣・与力
 
 // 城を預かった時: 領（方面軍団）を作り、領主の画面へ。方面軍団長の方面があればそれを使う
 export function toRyoshu(s: GameState): Front | null {
@@ -54,6 +54,7 @@ export function toHero(s: GameState, why = '') {
   const H = X(s); if (!H) return;
   const me = s.generals[H.id];
   for (const f of frontsOf(s)) if (f.leader === H.id) f.manual = false;
+  for (const g of Object.values(s.generals)) if (g.yoriki === H.id) g.yoriki = undefined; // 与力を解く
   s.fronts = frontsOf(s).filter((f) => f.leader !== H.id || f.castles.length > 0 && f.manual);
   for (const id of H.retainers ?? []) { const g = s.generals[id]; if (g && g.status === 'free' && g.clan === me.clan) { g.status = 'kashin'; g.liege = me.id; } }
   H.mode = undefined;
@@ -116,11 +117,13 @@ export function attackBlock(s: GameState, targetClan: string | null, hex: number
   if (!f || !targetClan) return null;
   const C = s.clans[s.player], gy = gunyakuOf(s);
   if (targetClan === C.target || (gy && gy.clan === targetClan)) return null;
+  const homen = (s.hero!.career?.steps ?? []).includes('homen'); // 方面軍団長: 方面の近く（hx(6)以内）の主家の敵なら、自分で攻め先を選べる
+  if (homen && hostile(s, s.player, targetClan) && f.castles.some((i) => hexDist(s.castles[i].hex, hex) <= R.hx(6))) return null;
   const nearFief = f.castles.some((i) => { const c = s.castles[i]; return c.hex === hex || NEIGHBORS[c.hex].includes(hex) || hexDist(c.hex, hex) <= 1; });
   const isArmy = Object.values(s.armies).some((a) => a.hex === hex && a.clan === targetClan);
   if (isArmy && nearFief) return null;
   const tgt = C.target ? `${clanName(s, C.target)}家` : null;
-  return `主君の許しがない（攻めてよいのは${[tgt, gy ? `軍役の${clanName(s, gy.clan)}家` : null].filter(Boolean).join('と') || 'いまはない'}。領に寄せてきた敵の軍勢は討てる）`;
+  return homen ? '方面から遠すぎる（方面の城から6マスほどまでの、主家の敵の城・軍勢なら攻められる）' : `主君の許しがない（攻めてよいのは${[tgt, gy ? `軍役の${clanName(s, gy.clan)}家` : null].filter(Boolean).join('と') || 'いまはない'}。領に寄せてきた敵の軍勢は討てる）`;
 }
 // 上納: 領の商い（毎月）と収穫（十月）のうち、主家へ納める分
 export function tributeOf(s: GameState): { gold: number } {
