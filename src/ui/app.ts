@@ -74,7 +74,7 @@ import { OFFICES, type OfficeId } from '../data/bakufu';
 import { answerKan, answerReturn, bondsOf, exile, giverName, initBonds, judgeQuarrel, usurp } from '../engine/bushi';
 import { BOND_NAME } from '../data/bonds';
 import { heirCands, heirOf, regentCands, regentOf } from '../engine/katoku';
-import { dueOf, goodwill, kanjo, kanjoBlock, kazo, kazoCost, migrateOn, onLabel, onOf, vassalsOf } from '../engine/on';
+import { dueOf, giveGold, GOLD_GIFT, goldGiftBlock, goldGiftGain, goodwill, kanjo, kanjoBlock, kazo, kazoCost, migrateOn, onLabel, onOf, vassalsOf } from '../engine/on';
 import { promoteBlockOf, promoteOne } from '../engine/ranks';
 import { envoyLine, lineFor, type Scene, type SceneLine } from '../engine/lines';
 import { PERSONAS, personaActive, type EnvoyScene } from '../data/envoys';
@@ -1579,12 +1579,15 @@ function willBlock(st: GameState) {
   if (!L || st.willAsked !== st.turn - 1 || !L.sick) return '';
   return `<h3 style="margin-top:4px">当主、病に倒れる</h3><p class="hint" style="margin-top:0">${esc(L.name)}（${ageOf(st, L)}歳）が病に倒れた。もしもの時に備え、跡継ぎと後見役を定め、遺言を残しておけば家督が乱れにくい（「人事」の家督でも変えられる）。</p>${willForm(st)}`;
 }
+// 金を与える（手柄に関わらない褒美。同じ者には月に一度）
+const goldBtn = (st: GameState, g: General, amt: number) => { const w = goldGiftBlock(st, g, amt); return `<button class="mini" data-act="rw-gold" data-id="${g.id}:${amt}" ${w ? `disabled title="${esc(w)}"` : `title="恩+${goldGiftGain(g, amt)}"`}>金${fmt(amt)}貫</button>`; };
 // 恩賞の沙汰の一行（人事の恩賞と月の報告で使う）
 function rewardRow(st: GameState, g: General, compact = false) {
   const due = dueOf(g), kb = kanjoBlock(st, g), pb = promoteBlockOf(st, g), cost = kazoCost(g), gold = st.clans[st.player].gold;
   const btns = `<button class="mini" data-act="rw-kanjo" data-id="${g.id}" ${kb ? `disabled title="${esc(kb)}"` : ''}>感状</button>
     <button class="mini" data-act="rw-kazo" data-id="${g.id}" ${due <= 0 || gold < cost ? `disabled title="${due <= 0 ? '報いる功がない' : '金が足りない'}"` : ''}>加増（${fmt(cost)}貫）</button>
-    <button class="mini" data-act="rw-promote" data-id="${g.id}" ${pb ? `disabled title="${esc(pb)}"` : ''}>${pb ? '取り立て' : `${R.RANK_NAME[g.rank - 1]}に取り立て`}</button>`;
+    <button class="mini" data-act="rw-promote" data-id="${g.id}" ${pb ? `disabled title="${esc(pb)}"` : ''}>${pb ? '取り立て' : `${R.RANK_NAME[g.rank - 1]}に取り立て`}</button>
+    ${goldBtn(st, g, GOLD_GIFT.AMOUNTS[1])}`;
   return `<tr><td class="gname">${face(g.id, 32, 'face face-sm')}${nameLink(g)}</td><td>${rankName(st, g)}</td><td class="n">${onCell(g)}<span class="hint" style="margin:0">（${onLabel(onOf(g))}）</span></td><td class="n">${due >= R.ON_DUE_FREE ? `<b>${due}</b>` : due}</td>${compact ? '' : `<td>${g.home !== undefined ? esc(st.castles[g.home].name) + (g.homeLost ? '<span class="pill bad">敵の手</span>' : '') : '—'}</td>`}<td>${btns}</td></tr>`;
 }
 const rewardHead = (compact = false) => `<thead><tr><th>武将</th><th>身分</th><th class="n">恩</th><th class="n">未払いの功</th>${compact ? '' : '<th>本領</th>'}<th></th></tr></thead>`;
@@ -1666,6 +1669,7 @@ function genActions(st: GameState, g: General) {
   }
   const myFief = fiefOf(st, g);
   rows.push(`<dt>恩賞</dt><dd><button class="mini" data-act="rw-kanjo" data-id="${g.id}" ${kb ? `disabled title="${esc(kb)}"` : ''}>感状</button> <button class="mini" data-act="rw-kazo" data-id="${g.id}" ${due <= 0 || C.gold < cost ? 'disabled' : ''}>加増（${fmt(cost)}貫）</button> <button class="mini" data-act="rw-promote" data-id="${g.id}" ${pb ? `disabled title="${esc(pb)}"` : ''}>${pb ? '取り立て' : `${R.RANK_NAME[g.rank - 1]}に取り立て`}</button></dd>`);
+  rows.push(`<dt>金を与える</dt><dd>${GOLD_GIFT.AMOUNTS.map((a) => goldBtn(st, g, a)).join(' ')}<span class="hint" style="margin:0">　手柄に関わらない褒美（月に一度。身分が高いほど効きが薄い）</span></dd>`);
   const role: string[] = [];
   if (g.status === 'free') {
     const why = canBugyo(st, g), whyT = canTsukai(st, g);
@@ -3087,6 +3091,11 @@ function onModalClick(e: Event) {
   if (act === 'fief-heir') { const f = frontById(st, +id), v = ($('modal-body').querySelector(`#sel-heir-${id}`) as HTMLSelectElement | null)?.value; const g = v ? st.generals[v] : undefined; if (f && g && setHeir(st, f, g)) { toast(`${g.name}に領を継がせた`); cutin(st, g, 'chigyo', { castle: st.castles[f.seat ?? f.castles[0]].name }); } refresh(); reopen(); return; }
   if (act === 'open-fiefs') { openMenu('jinji', 'fronts'); return; }
   if (act === 'front-off') { const f = frontById(st, +id); if (f) { if (f.vacant) dissolveFront(st, f, '（召し上げて直轄に）'); else { const n = frontName(st, f); for (const i of [...f.castles]) removeCastle(st, f, st.castles[i], true); toast(`${n}をすべて召し上げた`); } } refresh(); reopen(); return; }
+  if (act === 'rw-gold') {
+    const [gid, amt] = id.split(':'), g = st.generals[gid];
+    if (g && g.clan === st.player) { const v = giveGold(st, g, +amt); if (v) { toast(`${g.name}に金${fmt(+amt)}貫を与えた（恩+${v}）`); } }
+    refresh(); reopen(); return;
+  }
   if (act === 'rw-kanjo' || act === 'rw-kazo' || act === 'rw-promote') {
     const g = st.generals[id];
     if (g) {

@@ -45,6 +45,24 @@ export function kazo(s: GameState, g: General): boolean {
   C.gold -= cost; g.paid = g.merit; bump(g, R.ON_KAZO(due));
   return true;
 }
+// 金を与える: 手柄に関わらない褒美。多いほど恩が上がるが、額の平方根でしか効かず、身分が高いほど効きが薄い。同じ者には月に一度
+export const GOLD_GIFT = { AMOUNTS: [100, 300, 1000], K: [0.25, 0.4, 0.55, 0.65] as number[] };
+export const goldGiftGain = (g: General, amount: number) => Math.max(1, Math.round(Math.sqrt(amount) * (GOLD_GIFT.K[g.rank] ?? 0.65)));
+export function goldGiftBlock(s: GameState, g: General, amount: number): string | null {
+  const C = g.clan ? s.clans[g.clan] : null;
+  if (!C) return '家中の者ではない';
+  if ((g as General & { goldTurn?: number }).goldTurn === s.turn) return '今月はもう与えた';
+  if (onOf(g) >= 100) return '恩はもう満ちている';
+  if (C.gold < amount) return '金が足りない';
+  return null;
+}
+export function giveGold(s: GameState, g: General, amount: number): number {
+  if (goldGiftBlock(s, g, amount)) return 0;
+  const v = goldGiftGain(g, amount);
+  s.clans[g.clan!].gold -= amount; (g as General & { goldTurn?: number }).goldTurn = s.turn; bump(g, v);
+  if (g.clan === s.player) addLog(s, `${g.name}に金${amount.toLocaleString()}貫を与えた（恩+${v}）。`, 'info', true);
+  return v;
+}
 // 昇進できるか（功績が足り、宿老の枠があるか）
 export function promoteBlock(s: GameState, g: General, karoFull: boolean): string | null {
   if (g.rank <= 0 || g.status === 'young') return 'これ以上は上がらない';
