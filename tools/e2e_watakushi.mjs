@@ -12,6 +12,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   p.on('pageerror', (e) => errors.push(vp.tag + ' ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(vp.tag + ' ' + m.text()); });
   // 領主
+  await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 大名の場面（家中の揉め事など）は e2e_daimyo_kake で試す
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
   await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200);
@@ -31,8 +32,10 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   }
   await p.screenshot({ path: `${out}/wk-ryo2-${vp.tag}.png` });
   // 大名
+  await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 大名の場面（家中の揉め事など）は e2e_daimyo_kake で試す
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.evaluate(() => { try { localStorage.clear(); } catch {} });
+  await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 大名の場面（家中の揉め事など）は e2e_daimyo_kake で試す
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-new"]'); await p.click('[data-act="pick-scen"][data-id="1560"]'); await p.click('[data-act="pick-clan"][data-id="oda"]');
   await p.click('[data-act="start"]'); await p.waitForTimeout(400);

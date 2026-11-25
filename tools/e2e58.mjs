@@ -7,6 +7,7 @@ const b = await chromium.launch();
 const p = await b.newPage(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1360, height: 820 } });
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror ' + e.message));
+await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 大名の場面（家中の揉め事など）は e2e_daimyo_kake で試す
 await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.evaluate(() => localStorage.setItem('sengoku-events', 'on')); await p.reload(); await p.waitForTimeout(400);
 await p.click('[data-act="t-new"]'); await p.click('[data-act="pick-scen"][data-id="1560"]'); await p.click('[data-act="pick-clan"][data-id="oda"]');
 await p.click('[data-act="start"]'); await p.waitForTimeout(300);

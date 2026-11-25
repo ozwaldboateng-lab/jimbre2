@@ -15,6 +15,7 @@ import { clanName } from './state';
 import type { GameState, General } from './types';
 import { judgeQuarrel, rivalOf, yoriOf, yorikoOf } from './yorioya';
 import * as RYK from './ryokake';
+import * as TK from './tosyukake';
 import * as GG from './gungi';
 import { leading } from './heroArmy';
 
@@ -139,9 +140,10 @@ function mochiBeats(s: GameState): Beat[] {
 }
 function kashinMochi(s: GameState, m: string, k: string): Beat[] { const g = retainersOf(s)[0]; return g ? [{ who: g.id, text: pick(K.KASHIN_MOCHI[m], k) }] : []; }
 let last: string | null = null;
-export const takeLast = () => { const t = last; last = null; return t ?? RYK.takeLast(); };
+export const takeLast = () => { const t = last; last = null; return t ?? RYK.takeLast() ?? TK.takeLast(); };
 export function choose(s: GameState, key: string, id: string): Beat[] {
   if (key.startsWith('k_r_')) return RYK.choose(s, key, id); // 城主・国持ちの場面
+  if (key.startsWith('k_t_')) return TK.choose(s, key, id); // 大名の場面
   const k = `${s.turn}|${key}|${id}`;
   if (key === 'k_mochi') {
     const P = banPendOf(s); if (!P?.mochi) return [];

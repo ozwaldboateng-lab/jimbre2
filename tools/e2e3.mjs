@@ -8,6 +8,7 @@ const p = await b.newPage({ viewport: mobile ? { width: 400, height: 860 } : { w
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror ' + e.message));
 p.on('console', (m) => { if (m.type() === 'error') errors.push('console ' + m.text()); });
+await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 大名の場面（家中の揉め事など）は e2e_daimyo_kake で試す
 await p.goto('file://' + process.cwd() + '/dist/index.html');
 await p.waitForTimeout(400);
 await p.click('[data-act="t-new"]'); await p.click('[data-act="pick-scen"][data-id="1560"]'); await p.click('[data-act="pick-clan"][data-id="oda"]');
@@ -42,15 +43,19 @@ async function playPhase(shot) {
     const w = await p.$('[data-bact="wait"]'); if (w) { await w.click(); await p.waitForTimeout(40); } else break;
   }
 }
+// 本陣の盤（当主の本陣に敵が迫ると開く）: オートで済ませて閉じる
+const banClose = async () => { if (await p.$('#ban:not([hidden])')) { await p.click('#ban [data-b="auto"]').catch(() => {}); await p.waitForTimeout(300); await p.click('#ban [data-b="close"]').catch(() => {}); await p.waitForTimeout(300); } };
 async function fight(label) {
   await p.screenshot({ path: `${out}/${pre}20-${label}-start.png`, fullPage: mobile });
   for (let ph = 0; ph < 25; ph++) {
+    await banClose();
     if (await p.$('[data-bact="leave"]')) break;
     const mine = await p.evaluate(() => document.getElementById('bt-phase').classList.contains('mine'));
     if (mine) { await playPhase(ph === 0); if (await p.$('[data-bact="leave"]')) break; await p.click('#bt-end'); }
     await p.waitForTimeout(500);
   }
   await p.waitForTimeout(400);
+  await banClose();
   if (!(await p.$('[data-bact="leave"]'))) { await p.click('#bt-auto'); await p.waitForTimeout(200); }
   await p.screenshot({ path: `${out}/${pre}22-${label}-result.png`, fullPage: mobile });
   await p.click('[data-bact="leave"]');

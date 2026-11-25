@@ -17,6 +17,7 @@ import { runClanAI } from '../engine/ai';
 import { openStory, playTheater } from './story';
 import * as KK from '../engine/kumikake';
 import * as RYK from '../engine/ryokake';
+import * as TK from '../engine/tosyukake';
 import { CAST as RONIN_CAST } from '../engine/roninkake';
 import { coalitionAgainst, GEKI, gekiBlock, gekiCandidates, gekiChance, issueGeki, leaveCoalition, sameCoalition, setGekiHook } from '../engine/coalition';
 import { defenderSupports, estimate, supportArmies } from '../engine/combat';
@@ -291,7 +292,7 @@ function mapMood(st: GameState) {
   mood(fighting ? 'war' : 'peace');
 }
 // 武将で遊ぶで旗揚げしたら、その家の当主として大名プレイへ
-setDaimyo((st) => { startWith(st); store(AUTO_KEY, JSON.stringify(st)); toast(`${st.clans[st.player].name}家の当主として、大名プレイを始める`); });
+setDaimyo((st) => { startWith(st); store(AUTO_KEY, JSON.stringify(st)); toast(`${st.clans[st.player].name}家の当主として、大名プレイを始める`); openRyoScenes(st, () => {}); }); // 家を立てた日の場面
 // 武将で遊ぶで城を預かったら、領主として大名の画面へ（自分の領だけを動かす）
 setRyoshu((st) => { startWith(st); store(AUTO_KEY, JSON.stringify(st)); const f = RY.ryoshuOf(st); toast(`${st.generals[st.hero!.id].name}、${f ? f.castles.map((i) => st.castles[i].name).join('・') : ''}の領主として領を治める`); });
 // その月（ターン）の年月: 期日の表示に
@@ -351,7 +352,9 @@ function openWatakushi(st: GameState) {
 function ryoRebel(st: GameState): boolean {
   const r = CR.rebel(st);
   if (!r.ok || !r.clan) { toast(r.text); return false; }
+  TK.carryHero(st, r.clan, 'rebel'); // 家を立てた日の場面と、権六・与吉の様子を家へ
   st.player = r.clan; st.hero = undefined; st.clans[r.clan].delegate = undefined; closeModal(); startWith(st); store(AUTO_KEY, JSON.stringify(st));
+  if (kakeOn()) { openRyoScenes(st, () => {}); return true; }
   openModal(`<h2 id="modal-title">謀反</h2><p>${esc(r.text)}</p><p>${esc(st.clans[r.clan].name)}家の当主として、大名プレイを始める。</p>`); return true;
 }
 function ryoLeave(st: GameState, pre = '') { RY.toHero(st); const t2 = CR.leaveLord(st); closeModal(); store(AUTO_KEY, null); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: pre + t2 }); }
@@ -361,6 +364,7 @@ function openTosyu(st: GameState, next: () => void) {
   const m = !st.hero ? TS.momegotoOf(st) : null;
   if (!m) { next(); return; }
   tosyuNext = next;
+  if (kakeOn()) { const bs = TK.momegotoBeats(st); if (bs.length) { playTheater(bs, () => { const t = KK.takeLast(); if (t) st.log.push({ turn: st.turn, text: t, kind: 'info', mine: true } as GameState['log'][number]); store(AUTO_KEY, JSON.stringify(st)); refresh(); const n = tosyuNext; tosyuNext = null; n?.(); }, (key, id) => KK.choose(st, key, id), ryoOpt(st)); return; } } // 二人の言い分を聞いて裁く
   const a = st.generals[m.a], b = st.generals[m.b], C = st.clans[st.player];
   const card = (g: General, line: string) => `<div style="display:flex;gap:10px;align-items:center;margin:6px 0">${face(g.id, 64)}<div><b>${esc(g.name)}</b>（${rankName(st, g)}・恩${Math.round(onOf(g))}）<p style="margin:4px 0 0">「${esc(line)}」</p></div></div>`;
   const la = m.kind === 'fuwa' ? `${b.name}の振る舞い、目に余りまする。お裁きを。` : `あの城を落としたのは、それがしの組にござる。`;
@@ -371,7 +375,7 @@ function openTosyu(st: GameState, next: () => void) {
 const kakeOn = () => { try { return localStorage.getItem('sengoku-kake') !== 'off'; } catch { return true; } };
 const ryoOpt = (st: GameState) => ({ label: `${st.clans[st.player]?.name ?? ''}家`, cast: { ...RONIN_CAST, ...Object.fromEntries(Object.values(st.generals).map((g) => [g.id, g.name])) } });
 function openRyoScenes(st: GameState, next: () => void) {
-  const bs = RY.isRyoshu(st) ? KK.pendingBeats(st, kakeOn()) : [];
+  const bs = RY.isRyoshu(st) ? KK.pendingBeats(st, kakeOn()) : !st.hero ? TK.pendingBeats(st, kakeOn()) : []; // 大名: 家を立てた日・旧主・権六
   if (!bs.length) { next(); return; }
   playTheater(bs, () => { const t = KK.takeLast(); if (t) { st.log.push({ turn: st.turn - 1, text: t, kind: 'info', mine: true } as GameState['log'][number]); toast(t); } store(AUTO_KEY, JSON.stringify(st)); refresh(); next(); }, (key, id) => KK.choose(st, key, id), ryoOpt(st));
 }
@@ -3087,6 +3091,7 @@ function onModalClick(e: Event) {
   if (act === 'rh-close') { closeModal(); store(AUTO_KEY, JSON.stringify(st)); const n = hyojoNext; hyojoNext = null; n?.(); return; }
   if (act === 'tm-a' || act === 'tm-b' || act === 'tm-both' || act === 'tm-chusai') { const t2 = TS.judgeMomegoto(st, act.slice(3) as 'a' | 'b' | 'both' | 'chusai'); st.log.push({ turn: st.turn, text: t2, kind: 'info', mine: true } as GameState['log'][number]); openModal(`<h2 id="modal-title">裁き</h2><p>${esc(t2)}</p><div class="actions"><button class="act primary" data-act="tm-close">閉じる</button></div>`, false); store(AUTO_KEY, JSON.stringify(st)); refresh(); return; }
   if (act === 'tm-close') { closeModal(); const n = tosyuNext; tosyuNext = null; n?.(); return; }
+  if (act === 'rw-kitsu' && kakeOn()) { const g = st.generals[id], r = TS.kitsumonVassal(st, id); if (!r.ok || !g) { toast(r.text); return; } st.log.push({ turn: st.turn, text: r.text, kind: 'info', mine: true } as GameState['log'][number]); closeModal(); playTheater(TK.kitsuBeats(st, g, r.text), () => { store(AUTO_KEY, JSON.stringify(st)); refresh(); }, undefined, ryoOpt(st)); return; } // 詰問: 弁明を聞く場面
   if (act === 'rw-kitsu') { const r = TS.kitsumonVassal(st, id); toast(r.text); st.log.push({ turn: st.turn, text: r.text, kind: 'info', mine: true } as GameState['log'][number]); refresh(); reopen(); return; }
   if (act.startsWith('rv-')) {
     if (act === 'rv-close') { closeModal(); const n = shinNext; shinNext = null; if (SH.shinEvOf(st)) openRyoShin(st, n ?? (() => {})); else n?.(); return; }

@@ -11,6 +11,7 @@ const p = await ctx.newPage();
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror ' + e.message));
 p.on('console', (m) => { if (m.type() === 'error' && !/fonts/.test(m.text())) errors.push('console ' + m.text()); });
+await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 大名の場面（家中の揉め事など）は e2e_daimyo_kake で試す
 await p.goto('file://' + process.cwd() + '/dist/index.html');
 await p.waitForTimeout(600);
 const top = await p.evaluate(() => ({ screen: document.getElementById('title').dataset.screen, items: [...document.querySelectorAll('.ttl-item b')].map((x) => x.textContent), name: document.getElementById('ttl-name').textContent, doc: document.title }));

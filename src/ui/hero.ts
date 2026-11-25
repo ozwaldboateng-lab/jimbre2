@@ -34,6 +34,7 @@ import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
 import * as RK from '../engine/roninkake';
 import * as KK from '../engine/kumikake';
+import * as TK from '../engine/tosyukake';
 import { PORTRAITS } from '../data/portraits';
 import { STORY_PORTRAITS } from '../data/portraits_story';
 import * as R from '../engine/rules';
@@ -645,7 +646,8 @@ function maybeRyoshu(st: GameState, force = false): boolean {
   toRyoshuUI(st);
   return true;
 }
-function toDaimyoPlay(st: GameState, clan: string) {
+function toDaimyoPlay(st: GameState, clan: string, how: 'rebel' | 'inherit' | 'rise' = 'rebel') {
+  TK.carryHero(st, clan, how); // 家を立てた日の場面と、権六・与吉の様子を家へ（主人公の記録を消す前に）
   const C2 = st.clans[clan]; C2.delegate = undefined;
   st.player = clan; st.hero = undefined; st.over = null;
   try { localStorage.removeItem(KEY); } catch { /* 続ける */ }
@@ -665,7 +667,7 @@ function inherit(st: GameState, lines: string[]) {
     { kind: 'chapter', head: `${C.name}家`, text: '継ぐ', sub: '大名として' },
   ];
   void lines;
-  const go = () => toDaimyoPlay(st, clan);
+  const go = () => toDaimyoPlay(st, clan, 'inherit');
   if (theater) theater(beats, go, undefined, opt(st)); else go();
 }
 // 謀反: 主家に背いて家を立て、大名プレイへ
@@ -708,7 +710,7 @@ function riseUp(how: 'youchi' | 'naio') {
   ];
   const go = () => {
     // 武将で遊ぶを終え、この家の当主として大名プレイへ（家の政は自分で行う）
-    toDaimyoPlay(st, r.clan!);
+    toDaimyoPlay(st, r.clan!, 'rise');
   };
   if (theater) theater(beats, go, undefined, opt(st)); else go();
 }

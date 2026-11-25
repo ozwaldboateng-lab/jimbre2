@@ -4,6 +4,7 @@
 // 家中の揉め事: 月に6%で、家臣二人が不和になる。片方に付けば付いた側の恩+6・もう一方−8、両成敗は二人とも−4（ほかの家臣は+1）、仲裁（金200貫）は二人とも+3。
 // 詰問: 恩40未満の家臣を問いただす（同じ者は半年に一度）。改心すれば恩+15、白を切れば恩−5、三割は出奔する（恩が低いほど出奔しやすい）
 import { hexDist } from './map';
+import { pushT, tosyuKakeMonth } from './tosyukake';
 import { onOf, vassalsOf } from './on';
 import { desert } from './ops';
 import { addLog, bumpAmity, clanName, rand } from './state';
@@ -11,14 +12,14 @@ import type { Clan, GameState, General } from './types';
 
 export const TOSYU = { KYU_MONTHS: 24, KYU_P: 1, KYU_AMITY: -5, KYUYU_P: 0.2, KYUYU_ON: 70, FRIEND: 60, FUWA_P: 0.06, SIDE_UP: 6, SIDE_DOWN: 8, BOTH: 4, BOTH_OTHERS: 1, CHUSAI_GOLD: 200, CHUSAI: 3, KITSU_ON: 40, KITSU_EVERY: 6, KITSU_UP: 15, KITSU_DOWN: 5 };
 type Momegoto = { a: string; b: string; kind: 'fuwa' | 'tegara'; turn: number };
-type CX = Clan & { kyuushu?: { clan: string; turn: number; told?: boolean }; kyuyu?: string[]; momegoto?: Momegoto; kitsu?: Record<string, number> };
+type CX = Clan & { kyuushu?: { clan: string; turn: number; told?: boolean; lord?: string | null }; kyuyu?: string[]; momegoto?: Momegoto; kitsu?: Record<string, number> };
 const C = (s: GameState) => s.clans[s.player] as CX;
 const bump = (g: General, v: number) => { g.on = Math.max(0, Math.min(100, onOf(g) + v)); };
 
 // 謀反で家を立てた時（career.ts の rebel から）: 元の主家と、残してきた親しい者を覚える
 export function recordRebel(s: GameState, newClan: string, oldClan: string, rel: Record<string, number>) {
   const X = s.clans[newClan] as CX;
-  X.kyuushu = { clan: oldClan, turn: s.turn };
+  X.kyuushu = { clan: oldClan, turn: s.turn, lord: s.clans[oldClan]?.leader ?? null }; // 旧主の名（旧主との対面で）
   X.kyuyu = Object.values(s.generals).filter((g) => g.clan === oldClan && (rel[g.id] ?? 0) >= TOSYU.FRIEND && s.clans[oldClan].leader !== g.id && !g.kin && g.status !== 'dead' && g.status !== 'captive').map((g) => g.id);
 }
 // 毎月（大名の画面で、遊び手の家）
@@ -28,7 +29,7 @@ export function tosyuMonth(s: GameState): string[] {
   // 旧主との因縁
   const k = X.kyuushu, old = k ? s.clans[k.clan] : null;
   if (k && old?.alive && s.turn - k.turn <= TOSYU.KYU_MONTHS) {
-    if (!k.told) { k.told = true; out.push(`旧主の${old.name}家は、${X.name}家を仇と見て討手を向けてくる（二年ほど）。`); }
+    if (!k.told) { k.told = true; pushT(s, { k: 'kyuTe' }); out.push(`旧主の${old.name}家は、${X.name}家を仇と見て討手を向けてくる（二年ほど）。`); }
     if (rand(s) < TOSYU.KYU_P) { old.target = s.player; bumpAmity(s, old.id, s.player, TOSYU.KYU_AMITY); }
   }
   // 旧友が馳せ参じる
@@ -38,10 +39,11 @@ export function tosyuMonth(s: GameState): string[] {
     if (!['free', 'governor', 'ronin'].includes(g.status) || rand(s) >= TOSYU.KYUYU_P) continue;
     for (const c of s.castles) if (c.governor === g.id) c.governor = null;
     g.clan = s.player; g.status = 'free'; g.loc = L.loc; g.army = null; g.on = TOSYU.KYUYU_ON; g.liege = undefined; g.yoriki = undefined;
-    out.push(`旧知の${g.name}が、${old?.name ?? '旧主の'}家を捨てて馳せ参じた。`);
+    out.push(`旧知の${g.name}が、${old?.name ?? '旧主の'}家を捨てて馳せ参じた。`); pushT(s, { k: 'kyuYu', id: g.id });
     addLog(s, `${g.name}が${X.name}家に馳せ参じた。`, 'info', true);
   }
   X.kyuyu = (X.kyuyu ?? []).filter((id) => s.generals[id]?.clan !== s.player);
+  tosyuKakeMonth(s); // 旧主の城を落とした・旧主の家が滅んだ・権六の最期の場面
   // 家中の揉め事
   if (!X.momegoto && rand(s) < TOSYU.FUWA_P) {
     const vs = vassalsOf(s, s.player).filter((g) => !g.liege);

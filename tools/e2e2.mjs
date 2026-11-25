@@ -7,6 +7,7 @@ const p = await b.newPage({ viewport: mobile ? { width: 400, height: 860 } : { w
 const errors = [];
 p.on('pageerror', (e) => errors.push('pageerror ' + e.message));
 p.on('console', (m) => { if (m.type() === 'error') errors.push('console ' + m.text()); });
+await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 大名の場面（家中の揉め事など）は e2e_daimyo_kake で試す
 await p.goto('file://' + process.cwd() + '/dist/index.html');
 await p.waitForTimeout(500);
 if (mobile) await p.screenshot({ path: `${out}/m-01-title.png`, fullPage: true });
