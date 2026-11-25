@@ -1,11 +1,11 @@
 # 槍働きの盤の駒の絵: assets/ban/<番号>_<名前>_<正面|背面>.png（透明背景）を WebP にして src/data/banArt.ts へ埋め込む（注文書は ART_ORDER_BAN.txt）
-# 正面（こちらを向く）は敵の駒、背面（向こうを向く）は味方の駒。向きのない絵（柵など）は両方に使う
+# 正面（こちらを向く）は敵の駒、背面（向こうを向く）は味方の駒。向きのない絵（柵など）は両方に使う。板の間は床のテクスチャー（切り詰めない）
 # 薄い透明のむら（アルファ16未満）は消し、絵のある所まで切り詰めて、高さ320pxに縮める（足もとは下の端）
 import base64, glob, io, os, re
 from PIL import Image
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KEYS = [('名のある将', 'sho'), ('主人公', 'hero'), ('騎馬', 'kiba'), ('足軽', 'ashi'), ('弓', 'yumi'), ('鉄砲', 'teppo'), ('柵', 'saku'), ('矢盾', 'tate')]
+KEYS = [('板の間', 'ita'), ('武芸者', 'bugei'), ('木刀', 'bokuto'), ('名のある将', 'sho'), ('主人公', 'hero'), ('騎馬', 'kiba'), ('足軽', 'ashi'), ('弓', 'yumi'), ('鉄砲', 'teppo'), ('柵', 'saku'), ('矢盾', 'tate')]
 H = 320
 out = {}
 for f in sorted(glob.glob(os.path.join(root, 'assets/ban/*.png'))):
@@ -14,6 +14,11 @@ for f in sorted(glob.glob(os.path.join(root, 'assets/ban/*.png'))):
     if not key:
         print('skip', name); continue
     sides = ['f'] if '正面' in name else ['b'] if '背面' in name else ['f', 'b']
+    if key == 'ita':  # 床のテクスチャー（道場の板の間）: 切り詰めず、512px の正方形のまま（盤の床に敷き詰める）
+        im = Image.open(f).convert('RGB').resize((512, 512), Image.LANCZOS)
+        buf = io.BytesIO(); im.save(buf, 'WEBP', quality=80, method=6)
+        out.setdefault('ita_f', []).append('data:image/webp;base64,' + base64.b64encode(buf.getvalue()).decode())
+        print(name, '->', key, 'floor', im.size, len(buf.getvalue()) // 1024, 'KB'); continue
     im = Image.open(f).convert('RGBA')
     a = im.getchannel('A').point(lambda v: 0 if v < 16 else v)
     im.putalpha(a)

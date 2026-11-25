@@ -48,8 +48,8 @@ function terrHtml(x: number, y: number) {
 }
 // 駒の絵（assets/ban。なければ文字の駒）。味方は背面、敵は正面の絵。足もとに家の色の輪（主人公は金、名のある将は朱）
 // 人の大きさをそろえる: 騎馬は少し大きく、膝をついた鉄砲は少し小さく
-const ART_SCALE: Record<string, number> = { kiba: 1.65, sho: 1.65, hero: 1.65, ashi: 1, yumi: 1, teppo: 0.82 };
-const artKey = (p: Piece) => { const d = p.side === 'me' ? 'b' : 'f'; for (const k of [p.sho ? 'sho' : p.hero ? 'hero' : '', p.kind]) if (k && BAN_ART[`${k}_${d}`]?.length) return k; return null; };
+const ART_SCALE: Record<string, number> = { bugei: 1.2, bokuto: 1.2, kiba: 1.65, sho: 1.65, hero: 1.65, ashi: 1, yumi: 1, teppo: 0.82 };
+const artKey = (p: Piece) => { const d = p.side === 'me' ? 'b' : 'f'; for (const k of [p.art ?? '', p.sho ? 'sho' : p.hero ? 'hero' : '', p.kind]) if (k && BAN_ART[`${k}_${d}`]?.length) return k; return null; };
 // 騎馬は足もとを下げ、下のマス（馬の尻の側）にもはみ出す（マスの高さに対する割合）
 const ART_DROP: Record<string, number> = { kiba: 30, sho: 30, hero: 30 };
 const artOf = (p: Piece) => { const k = artKey(p); return k ? { src: BAN_ART[`${k}_${p.side === 'me' ? 'b' : 'f'}`][0], sc: ART_SCALE[k] ?? 1, dy: ART_DROP[k] ?? 0 } : null; };
@@ -65,11 +65,12 @@ function tagsHtml() {
   let h = '';
   for (const p of b!.pieces) {
     if (!p.alive || !artOf(p)) continue;
-    h += `<span class="tg ${pcls(p)}" style="grid-column:${p.x + 1};grid-row:${p.y + 1}">${p.hero || p.sho || p.gid ? `<em>${p.rival ? '同輩・' : p.npc ? '同僚・' : ''}${esc(p.name.slice(-3))}</em>` : ''}${p.confused ? '<u>乱</u>' : p.flee ? '<u class="fl">逃</u>' : ''}<i class="hpb" style="width:${Math.round((p.hp / p.maxhp) * 100)}%"></i></span>`;
+    h += `<span class="tg ${pcls(p)}" style="grid-column:${p.x + 1};grid-row:${p.y + 1}">${p.hero || p.sho || p.gid || p.art ? `<em>${p.rival ? '同輩・' : p.npc ? '同僚・' : ''}${esc(p.art && p.side === 'foe' ? '師範' : p.name.slice(-3))}</em>` : ''}${p.confused ? '<u>乱</u>' : p.flee ? '<u class="fl">逃</u>' : ''}<i class="hpb" style="width:${Math.round((p.hp / p.maxhp) * 100)}%"></i></span>`;
   }
   return `<div class="ban-tags" aria-hidden="true" style="grid-template-columns:repeat(${b!.w},1fr);grid-template-rows:repeat(${b!.h},1fr)">${h}</div>`;
 }
 function infoHtml(p: Piece | null) {
+  if (!p && b!.dojo) return '<p class="ban-hint">一本勝負。自分の駒を押して選び、青いマスへ動き、赤い師範を押して打つ（打たれた方は打ち返す）。二マスずつしか動けない。先に三マスの間合いへ踏み込むと、先に打たれる。八手で決まらなければ、残りの体力で判定。</p>';
   if (!p) return '<p class="ban-hint">自分の駒を押して選ぶ。青いマスへ動き、赤い敵を押して攻める。攻めずに終える駒は「待機」。武将の駒は「虚報」で、3マス以内の敵を惑わせられる（知略で見込みが決まる）。</p>';
   const K = B.KIND[p.kind], t = B.terrAt(b!, p.x, p.y);
   return `<div class="ban-info"><b>${esc(p.name)}</b><span>${K.name}${p.hero ? '（あなた）' : p.sho ? '（名のある将）' : p.rival ? '（同輩。自分では動かせない。討ち取りは同輩の手柄）' : p.npc ? '（同僚。自分では動かせない。討ち取りはあなたの手柄にならない）' : p.gid ? '（配下）' : ''}・${B.TERR_NAME[t]}</span>
@@ -87,17 +88,17 @@ function render() {
   for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) { const p = B.at(b, x, y), cl = cellCls(x, y, reach, tg); cells += `<button class="${cl}" style="z-index:${(/\bfront\b/.test(cl) ? 100 : 10) + y}" data-x="${x}" data-y="${y}" aria-label="${x + 1}列${y + 1}行・${B.TERR_NAME[B.terrAt(b, x, y)]}${p ? ' ' + esc(p.name) : ''}">${terrHtml(x, y)}${p ? pieceHtml(p) : ''}</button>`; }
   const foes = b.pieces.filter((p) => p.side === 'foe' && p.alive).length, ours = b.pieces.filter((p) => p.side === 'me' && p.alive).length;
   const phase = `${b.mochi ? `持ち場 ${B.MOCHI_NAME[b.mochi]}・` : ''}${B.stageName(b)}・${b.over ? '終わり' : b.phase === 'me' ? 'あなたの手番' : '敵の手番'}`;
-  const over = b.over ? `<div class="ban-over"><b>${duelOnly ? (b.over === 'win' ? '師範を打ち負かした' : '師範に敗れた') : b.breached ? '砦を破られた' : b.goal === 'reach' && b.over === 'win' ? '敵陣の端まで見届けた' : b.goal === 'hold' && b.over === 'time' ? '砦を持ちこたえた' : b.goal && b.over === 'time' ? '時が尽きた' : { win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: b.honjin ? '本陣を下げた' : '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}${b.pieces.some((q) => q.rival) ? `（同輩${b.rivalTegara}）` : ''}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
+  const over = b.over ? `<div class="ban-over"><b>${duelOnly ? (b.over === 'win' ? '師範を打ち負かした' : '師範に敗れた') : b.dojo && b.over !== 'retreat' ? (b.over === 'win' ? '一本！ 師範を打ち負かした' : '一本取られた') : b.breached ? '砦を破られた' : b.goal === 'reach' && b.over === 'win' ? '敵陣の端まで見届けた' : b.goal === 'hold' && b.over === 'time' ? '砦を持ちこたえた' : b.goal && b.over === 'time' ? '時が尽きた' : { win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: b.dojo ? '参ったと告げた' : b.honjin ? '本陣を下げた' : '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>${b.dojo ? (() => { const h = B.hero(b!), f = b!.pieces.find((q) => q.side === 'foe'); return `残りの体力 あなた${h ? Math.round(Math.max(0, h.hp) / h.maxhp * 100) : 0}%・師範${f ? Math.round(Math.max(0, f.hp) / f.maxhp * 100) : 0}%`; })() : `討ち取り${b.kills}・手柄${b.tegara}`}${b.pieces.some((q) => q.rival) ? `（同輩${b.rivalTegara}）` : ''}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
   const btns = b.over ? '' : `<div class="ban-acts">
     <button class="ban-btn" data-b="wait" ${mine && !s!.acted ? '' : 'disabled'}>待機</button>
     ${B.duelFoes(b).length && s && s.hero ? `<button class="ban-btn duel" data-b="nanori" data-id="${B.duelFoes(b)[0].id}">名乗る（${esc(B.duelFoes(b)[0].name)}と一騎討ち）</button>` : ''}
-    <button class="ban-btn kyo" data-b="kyoho" ${mine && B.kyohoTargets(b, s!).length ? '' : 'disabled'}>${aim ? 'やめる' : `虚報${mine && s!.kyoho ? `（あと${s!.kyoho}）` : ''}`}</button>
+    ${b.dojo ? '' : `<button class="ban-btn kyo" data-b="kyoho" ${mine && B.kyohoTargets(b, s!).length ? '' : 'disabled'}>${aim ? 'やめる' : `虚報${mine && s!.kyoho ? `（あと${s!.kyoho}）` : ''}`}</button>`}
     <button class="ban-btn main" data-b="end" ${b.phase === 'me' && !busy ? '' : 'disabled'}>手番を終える</button>
     <button class="ban-btn" data-b="auto" ${busy ? 'disabled' : ''}>オート</button>
-    <button class="ban-btn dim" data-b="retreat" ${busy ? 'disabled' : ''}>${b.honjin ? '本陣を下げる' : '持ち場へ退く'}</button></div>`;
+    <button class="ban-btn dim" data-b="retreat" ${busy ? 'disabled' : ''}>${b.dojo ? '参った（降参する）' : b.honjin ? '本陣を下げる' : '持ち場へ退く'}</button></div>`;
   const D = b.duel, duel = D ? duelHtml(D) : '';
-  root.innerHTML = `${duel}<div class="ban-wrap"><div class="ban-head"><b>${esc(title)}</b><span>第${Math.min(b.turn, b.maxTurn)}手／${b.maxTurn}・${phase}・味方${ours}・敵${foes}・手柄${b.tegara}</span></div>
-    <div class="ban-body"><div class="ban-grid${b.night ? ' night' : ''}" style="grid-template-columns:repeat(${b.w},1fr);grid-template-rows:repeat(${b.h},1fr)">${cells}${tagsHtml()}</div>
+  root.innerHTML = `${duel}<div class="ban-wrap"><div class="ban-head"><b>${esc(title)}</b><span>第${Math.min(b.turn, b.maxTurn)}手／${b.maxTurn}・${phase}${b.dojo ? '' : `・味方${ours}・敵${foes}・手柄${b.tegara}`}</span></div>
+    <div class="ban-body"><div class="ban-grid${b.night ? ' night' : ''}" style="grid-template-columns:repeat(${b.w},1fr);grid-template-rows:repeat(${b.h},1fr);aspect-ratio:${b.w}/${b.h}${b.dojo ? ';width:min(400px,100%);margin-top:34px' : ''}">${cells}${tagsHtml()}</div>
     <div class="ban-side">${over}${b.over ? '' : infoHtml(s)}${kyoList}${last && !b.over ? `<p class="ban-last">${esc(last)}</p>` : ''}${btns}<div class="ban-log">${b.log.slice(-6).reverse().map((t) => `<p>${esc(t)}</p>`).join('')}</div></div></div></div>`;
   drawGround();
 }
@@ -169,13 +170,22 @@ function drawGround(force = false) {
   if (!ground) { ground = document.createElement('canvas'); ground.className = 'ban-bg'; }
   if (ground.parentElement !== grid) grid.prepend(ground);
   const W = grid.clientWidth, H = grid.clientHeight; if (!W || !H) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1), key = `${b.terr.join('')}:${W}x${H}:${dpr}`;
+  const dpr = Math.min(2, window.devicePixelRatio || 1), key = `${b.floor ?? ''}${b.terr.join('')}:${W}x${H}:${dpr}`;
   if (!force && key === groundKey) return;
   groundKey = key;
   ground.width = Math.round(W * dpr); ground.height = Math.round(H * dpr);
   const c = ground.getContext('2d')!; c.setTransform(dpr, 0, 0, dpr, 0, 0);
   const C = W / b.w, ctr = (x: number, y: number): [number, number] => [(x + 0.5) * C, (y + 0.5) * C];
   const pat = (im: HTMLImageElement, size: number, dx = 0, dy = 0) => { const p = c.createPattern(im, 'repeat'); p?.setTransform(new DOMMatrix().translate(dx, dy).scale(size / im.naturalWidth)); return p; };
+  // 道場の板の間: 床の絵を敷き詰め、少し落ち着いた色に。奥（上）を暗く、手前を明るく（武者窓の光）
+  if (b.floor === 'ita') {
+    const fs = BAN_ART.ita_f?.[0];
+    c.fillStyle = '#5a3a1c'; c.fillRect(0, 0, W, H);
+    if (fs) { let im = IMG['ban-ita']; if (!im) { im = new Image(); im.onload = () => drawGround(true); im.src = fs; IMG['ban-ita'] = im; } if (ok(im)) { c.fillStyle = pat(im, W)!; c.fillRect(0, 0, W, H); } } // 盤の幅いっぱいに一枚（継ぎ目を見せない）
+    c.globalCompositeOperation = 'saturation'; c.fillStyle = 'rgba(128,128,128,0.3)'; c.fillRect(0, 0, W, H); c.globalCompositeOperation = 'source-over';
+    const sh = c.createLinearGradient(0, 0, 0, H); sh.addColorStop(0, 'rgba(10,6,2,0.45)'); sh.addColorStop(0.5, 'rgba(10,6,2,0.08)'); sh.addColorStop(1, 'rgba(255,230,180,0.06)'); c.fillStyle = sh; c.fillRect(0, 0, W, H);
+    return;
+  }
   // 草地
   const g1 = img('grass1'), g2 = img('grass2'), wt = img('water');
   c.fillStyle = '#7d8a52'; c.fillRect(0, 0, W, H);

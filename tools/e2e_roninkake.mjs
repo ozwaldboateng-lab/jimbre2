@@ -55,10 +55,12 @@ for (const vp of [{ width: 390, height: 844, tag: 'sp' }, { width: 1360, height:
   await p.screenshot({ path: `${out}/rk-${vp.tag}-2-dojo.png` });
   console.log(vp.tag, '道場の前:', (await lines()).join(' ／ '));
   for (let k = 0; k < 40 && !(await p.$('#ban:not([hidden])')); k++) await p.waitForTimeout(100);
-  await p.evaluate(() => { const bn = window.__ban.b; const f = bn.pieces.find((q) => q.side === 'foe'); if (f) f.bra = 1; });
-  if (await p.$('#ban [data-b="nanori"]')) { await p.click('#ban [data-b="nanori"]'); await p.waitForTimeout(200); }
-  for (let k = 0; k < 6 && !(await p.$('#ban [data-b="duel-end"]')); k++) { await p.click('#ban [data-b="duel"][data-id="seme"]'); await p.waitForTimeout(120); }
-  await p.click('#ban [data-b="duel-end"]').catch(() => {}); await p.waitForTimeout(200);
+  await p.waitForTimeout(500);
+  console.log(vp.tag, '道場の盤:', await p.$eval('#ban .ban-head', (e) => e.textContent.replace(/\s+/g, ' ')), JSON.stringify(await p.evaluate(() => { const bn = window.__ban.b; return { w: bn.w, h: bn.h, floor: bn.floor, pieces: bn.pieces.map((q) => `${q.name}(${q.x},${q.y}) 体${q.hp} 足${q.mov} 絵${q.art}`) }; })));
+  await p.screenshot({ path: `${out}/rk-${vp.tag}-2b-dojo-ban.png` });
+  await p.evaluate(() => { const bn = window.__ban.b; const f = bn.pieces.find((q) => q.side === 'foe'); if (f) { f.hp = 1; f.atk = 1; } });
+  await p.click('#ban [data-b="auto"]'); await p.waitForTimeout(300);
+  console.log(vp.tag, '盤の終わり:', await p.$eval('#ban .ban-over', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => ''));
   await p.click('#ban [data-b="close"]').catch(() => {}); await p.waitForTimeout(400);
   console.log(vp.tag, '道場の結び:', (await kake()).join(' ／ '), '|', await said());
   await p.screenshot({ path: `${out}/rk-${vp.tag}-3-dojo-after.png` });

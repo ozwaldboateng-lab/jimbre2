@@ -8,7 +8,7 @@ export type BSide = 'me' | 'foe';
 export type Terr = '.' | 'saku' | 'tate' | 'mori' | 'kawa' | 'oka'; // saku: 柵（砦・鉄砲備え）、tate: 矢盾（野の障害物）。どちらも通れず、越えて撃てる
 export const isWall = (t: Terr) => t === 'saku' || t === 'tate';
 export interface Piece {
-  id: number; side: BSide; kind: BKind; name: string; gid?: string; hero?: boolean; sho?: boolean; // sho: 名のある将
+  id: number; side: BSide; kind: BKind; name: string; gid?: string; hero?: boolean; sho?: boolean; art?: string; // sho: 名のある将。art: 駒の絵を替える（道場の木刀の主人公・武芸者）
   hp: number; maxhp: number; atk: number; def: number; int: number; mov: number; rmin: number; rmax: number; crit: number;
   x: number; y: number; moved: boolean; acted: boolean; noShootUntil?: number; alive: boolean;
   kyoho: number; confused?: number; flee?: boolean; gone?: boolean; // 虚報の残り回数・混乱の残り手番・逃げる（追い討ち）・盤から去った
@@ -20,6 +20,7 @@ export interface Piece {
 export interface Ban {
   w: number; h: number; terr: Terr[]; pieces: Piece[]; turn: number; maxTurn: number; phase: BSide;
   log: string[]; tegara: number; kills: number; rivalTegara: number; over?: 'win' | 'lose' | 'retreat' | 'time'; seed: number;
+  floor?: 'ita'; dojo?: boolean; // 道場破り: 板の間の一対一（局面の変わり目なし。時切れは体力の割合で判定）
   end: 'oiuchi' | 'shingari'; ichiban?: boolean; event?: string; // 終盤の形（勝ち戦なら追い討ち、負け戦なら殿）・一番槍が出たか・局面の変わり目の知らせ
   mid: BanSetup['foe']; late: BanSetup['foe']; // 中盤に現れる敵・殿で迫る敵
   duel?: Duel; duelWon?: string[]; duelLost?: number; // 一騎討ち（いま戦っている・勝った相手の名・負けた数）
@@ -47,13 +48,13 @@ export const TERR_NAME: Record<Terr, string> = { '.': '野', saku: '柵', mori: 
 export const DUEL = { YARI_SEEN: 2, HABIT: 0.5, READ: 0.25, BRA_K: 60, TEGARA: 3, LOSE_HP: 0.5 };
 export const BAN = { W: 8, H: 10, TURNS: 8, OKA: 2, CRIT_BASE: 0.05, CRIT_YARI: 0.03, CRIT_MULT: 1.5, TEGARA_MOB: 1, TEGARA_SHO: 5, ICHIBAN: 3, OIUCHI: 1, SHINGARI: 6, NAKA: 4, SHU: 7, KYOHO_PER: 30, KYOHO_RANGE: 3, LOSE_KEEP: 0.5 };
 export const stageOf = (b: Ban) => (b.turn >= BAN.SHU ? 'shu' : b.turn >= BAN.NAKA ? 'naka' : 'jo');
-export const stageName = (b: Ban) => b.goal ? b.goalLabel ?? GOAL_NAME[b.goal] : ({ jo: '序盤', naka: '中盤', shu: b.end === 'oiuchi' ? '終盤・追い討ち' : '終盤・殿' })[stageOf(b)];
+export const stageName = (b: Ban) => b.dojo ? '一本勝負' : b.goal ? b.goalLabel ?? GOAL_NAME[b.goal] : ({ jo: '序盤', naka: '中盤', shu: b.end === 'oiuchi' ? '終盤・追い討ち' : '終盤・殿' })[stageOf(b)];
 
 // ───────── 乱数（盤ごとの種） ─────────
 export function rnd(b: Ban): number { let t = (b.seed = (b.seed + 0x6d2b79f5) | 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
 
 // ───────── 駒を作る ─────────
-export interface Who { name: string; bra: number; int: number; lea: number; gid?: string; hero?: boolean; sho?: boolean; rival?: boolean; npc?: boolean; yari?: number; hpRate?: number }
+export interface Who { name: string; bra: number; int: number; lea: number; gid?: string; hero?: boolean; sho?: boolean; rival?: boolean; npc?: boolean; yari?: number; hpRate?: number; art?: string; mov?: number }
 // 武将の型で駒を決める: 武勇が知略より10以上高ければ足軽、知略が10以上高ければ弓、それ以外は鉄砲
 export const kindOf = (w: { bra: number; int: number }): BKind => (w.bra - w.int >= 10 ? 'ashi' : w.int - w.bra >= 10 ? 'yumi' : 'teppo');
 const atkStat = (k: BKind, w: Who) => (k === 'yumi' ? w.int : k === 'teppo' ? (w.bra + w.int) / 2 : w.bra);
@@ -65,8 +66,8 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
   const maxhp = w ? K.hp + Math.round(w.lea / 10) : K.hp - 4;
   const hp = Math.max(1, Math.round(maxhp * (w?.hpRate ?? 1)));
   return {
-    id, side, kind, name: w?.name ?? `${side === 'me' ? '味方' : '敵'}の${K.name}`, gid: w?.gid, hero: w?.hero, sho: w?.sho, rival: w?.rival, npc: w?.npc || w?.rival,
-    hp, maxhp, atk, def, int: w?.int ?? 30, mov: K.mov, rmin: K.rmin, rmax: K.rmax, crit: BAN.CRIT_BASE + (w?.yari ?? 0) * BAN.CRIT_YARI,
+    id, side, kind, name: w?.name ?? `${side === 'me' ? '味方' : '敵'}の${K.name}`, gid: w?.gid, hero: w?.hero, sho: w?.sho, rival: w?.rival, npc: w?.npc || w?.rival, art: w?.art,
+    hp, maxhp, atk, def, int: w?.int ?? 30, mov: w?.mov ?? K.mov, rmin: K.rmin, rmax: K.rmax, crit: BAN.CRIT_BASE + (w?.yari ?? 0) * BAN.CRIT_YARI,
     x, y, moved: false, acted: false, alive: true, kyoho: w ? Math.floor(w.int / BAN.KYOHO_PER) : 0, // 虚報は武将だけ（知略30ごとに一回）
     bra: w ? w.bra + (w.yari ?? 0) * 4 : 40, // 一騎討ちに使う武勇（武芸一段で+4）
   };
@@ -168,11 +169,15 @@ export function move(b: Ban, p: Piece, x: number, y: number): boolean {
 }
 export function wait(p: Piece) { p.moved = true; p.acted = true; }
 export const hero = (b: Ban) => b.pieces.find((p) => p.hero) ?? null;
+// 道場の判定: 残りの体力の割合が師範より多ければ勝ち（同じなら負け。看板は簡単には渡らない）
+export function dojoJudge(b: Ban): boolean { const h = hero(b), f = b.pieces.find((p) => p.side === 'foe'); return !!h && !!f && h.hp / h.maxhp > Math.max(0, f.hp) / f.maxhp; }
 function judge(b: Ban) {
   if (b.over) return;
   const h = hero(b);
   if (b.goal === 'reach' && h?.alive && h.y === 0) { b.over = 'win'; b.log.push('敵陣の端まで見届けた。'); return; }
   if (b.goal === 'hold' && b.pieces.some((p) => p.alive && p.side === 'foe' && p.y >= b.h - 2)) { b.over = 'lose'; b.breached = true; b.log.push('敵に砦の内へ踏み込まれた。砦は破られた。'); return; } // 砦の守り: 下の二行（砦の内）に敵が入れば破られる
+  if (b.dojo && h && !h.alive) { b.over = 'lose'; b.log.push('一本取られた。'); return; }
+  if (b.dojo && !b.pieces.some((p) => p.alive && p.side === 'foe')) { b.over = 'win'; b.log.push('一本！ 師範を打ち負かした。'); return; }
   if (h && !h.alive) { b.over = 'lose'; b.tegara = Math.floor(b.tegara * BAN.LOSE_KEEP); b.log.push(`${h.name}は手傷を負い、後ろへ運ばれた（手柄の半ばを失った）。`); return; }
   if (!b.pieces.some((p) => p.alive && p.side === 'foe')) { b.over = 'win'; b.log.push('目の前の敵を討ち払った。'); countRescue(b); }
 }
@@ -188,6 +193,7 @@ export function endPhase(b: Ban) {
   if (b.over) return;
   if (b.phase === 'me') { b.phase = 'foe'; for (const p of b.pieces) if (p.side === 'foe') { p.moved = false; p.acted = false; } return; }
   b.phase = 'me'; b.turn++; b.event = undefined;
+  if (b.turn > b.maxTurn && b.dojo) { const r = dojoJudge(b); b.over = r ? 'win' : 'lose'; b.log.push(`時が尽きた。判定で${r ? '勝ち（師範の方が深く打たれていた）' : '負け（打たれた深さで及ばなかった）'}。`); return; }
   if (b.turn > b.maxTurn) {
     b.over = 'time'; countRescue(b);
     const h = hero(b);
@@ -198,7 +204,7 @@ export function endPhase(b: Ban) {
   }
   for (const p of b.pieces) if (p.side === 'me') { p.moved = false; p.acted = false; }
   if (b.turn === BAN.NAKA && b.mid.length) { const n = spawn(b, b.mid); b.event = `中盤: 敵の新手が現れた（${n.join('・')}）。${b.mochi === 'waki' ? '脇備えから敵の横が開いた。いまから攻めは傷+2。' : ''}`; b.log.push(b.event); }
-  if (b.turn === BAN.SHU) {
+  if (b.turn === BAN.SHU && !b.dojo) {
     if (b.end === 'oiuchi') { for (const p of b.pieces) if (p.side === 'foe' && p.alive) p.flee = true; b.event = '終盤: 味方の勝ち戦。敵が崩れて逃げ出した。追い討ちで討つほど手柄になる。'; }
     else { const n = spawn(b, b.late); b.event = `終盤: 味方の負け戦。殿を命じられた。${b.maxTurn}手目の終わりまで、あなたが持ちこたえれば手柄（敵の追手: ${n.join('・') || 'なし'}）。`; }
     b.log.push(b.event);

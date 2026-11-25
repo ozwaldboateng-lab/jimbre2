@@ -43,11 +43,16 @@ export function dojoFoe(s: GameState): Who {
   return { name: `${c.name.replace(/城$/, '')}の道場の師範`, bra: Math.round(Math.min(88, 56 + k * 1.2)), int: 50, lea: 55, sho: true };
 }
 export const dojoBlock = (s: GameState) => { const t = X(s).dojoWon?.[s.hero!.town]; return t !== undefined && s.turn - t < 12 ? 'この道場はもう破った（一年は看板が戻らない）' : null; };
+// 道場の盤: 板の間（6×6）で師範と一対一。どちらも木刀で、二マスずつ動き、隣を打つ（打たれれば打ち返す）。虚報はなし。
+// 向き合って五マス離れて始まる（先に三マスの間合いへ入った方が、先に打たれる）。八手で決まらなければ、残りの体力の割合で判定
+export const DOJO = { W: 6, H: 6, TURNS: 8, MOV: 2, HP: 1.6 };
 export function dojoBan(s: GameState): Ban {
-  const H = s.hero!, g = me(s);
-  const b = newBan({ me: [{ kind: 'kiba', who: { name: g.name, bra: g.bra, int: g.int, lea: g.lea, gid: g.id, hero: true, yari: lv(s, 'yari'), hpRate: 1 } }], foe: [{ kind: 'kiba', who: dojoFoe(s) }], seed: Math.floor(rand(s) * 1e9) });
-  b.terr = b.terr.map(() => '.'); const [h, f] = b.pieces; h.x = 3; h.y = 5; f.x = 3; f.y = 4;
-  void H; return b;
+  const g = me(s), f = dojoFoe(s);
+  const b = newBan({ me: [{ kind: 'ashi', who: { name: g.name, bra: g.bra, int: g.int, lea: g.lea, gid: g.id, hero: true, yari: lv(s, 'yari'), hpRate: 1, art: 'bokuto', mov: DOJO.MOV } }], foe: [{ kind: 'ashi', who: { ...f, sho: false, art: 'bugei', mov: DOJO.MOV } }], seed: Math.floor(rand(s) * 1e9), maxTurn: DOJO.TURNS, goalLabel: '道場破り（一本勝負）' });
+  b.w = DOJO.W; b.h = DOJO.H; b.terr = Array(DOJO.W * DOJO.H).fill('.'); b.floor = 'ita'; b.dojo = true;
+  const [h, e] = b.pieces; h.x = 3; h.y = DOJO.H - 1; e.x = 3; e.y = 0;
+  for (const p of b.pieces) { p.kyoho = 0; p.maxhp = Math.round(p.maxhp * DOJO.HP); p.hp = p.maxhp; } // 道場で計略は使わない。木刀の打ち合いは数合続くよう、体力を多めに
+  return b;
 }
 export function applyDojo(s: GameState, won: boolean): Act {
   used(s);

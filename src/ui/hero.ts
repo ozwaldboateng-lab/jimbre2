@@ -273,7 +273,7 @@ function roninSpots(st: GameState): string | null {
     out.push(btn('rise', '旗揚げ（内応）', need.length ? `足りない: ${need.join('・')}` : pn ? `金500貫で城の中の者に門を開けさせる（見込み${Math.round(pn * 100)}%）` : '先に城を探っておく', '', 'naio', !!need.length || !pn));
   }
   const c0 = st.castles[Hh.town], sp0 = H.spotsOf(st, c0);
-  if (sp0.includes('dojo')) { const w = MS.dojoBlock(st), f = MS.dojoFoe(st); out.push(btn('dojoyaburi', '道場破り', w ?? `道場の師範（武勇${f.bra}）に他流試合を挑む。一騎討ちで勝てば看板料${MS.MEI.DOJO_GOLD}貫と武の名（1旬）`, '', '', !!w)); }
+  if (sp0.includes('dojo')) { const w = MS.dojoBlock(st), f = MS.dojoFoe(st); out.push(btn('dojoyaburi', '道場破り', w ?? `道場の師範（武勇${f.bra}）に他流試合を挑む。板の間で木刀の一本勝負、勝てば看板料${MS.MEI.DOJO_GOLD}貫と武の名（1旬）`, '', '', !!w)); }
   if (MS.nozokuHere(st)) { const w = MS.nozokuBlock(st); out.push(btn('nozoku', '野盗退治', w ?? `治安の悪い村から頼まれる。配下と牢人衆を連れ、槍働きの盤で野盗を討ち払う（礼金${MS.MEI.NOZOKU_GOLD}貫・治安の名・1旬）`, '', '', !!w)); }
   if (MS.fushinHere(st)) { const w = MS.fushinBlock(st); out.push(btn('fuuke', '普請を請け負う', w ?? `国衆の城の石垣と堀を差配する（築城の段で稼ぎと名が増える・1旬）`, '', '', !!w)); }
   if (MS.rengaHere(st)) { const w = MS.rengaBlock(st); out.push(btn('renga', `連歌会に出る（${MS.MEI.RENGA_COST}貫）`, w ?? '魅力・茶道・弁舌で句を競い、文の名を上げる。城下の武将とも親しくなる（1旬・月に一度）', '', '', !!w)); }
@@ -797,7 +797,7 @@ function onClick(e: Event) {
     if (SK.isSick(st)) { say = { text: '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
     dlg = null;
     const intro = (beats: Beat[], go: () => void) => { if (kakeOn() && theater) theater(beats, go, undefined, opt(st)); else go(); }; // 盤の前の掛け合い（省く設定なら、すぐ盤へ）
-    if (h === 'dojoyaburi') { const w = MS.dojoBlock(st); if (w) { say = { text: w }; render(); return; } intro(RK.dojoIntro(st), () => void openBan(MS.dojoBan(st), `${st.castles[st.hero!.town].name}の道場 ― 道場破り`, banColors(st), { duelOnly: true }).then(async (r) => { const won = r.over === 'win', res = MS.applyDojo(st, won); H.note(st, res.text); say = { text: res.text, hold: true, kake: kakeOn() ? RK.dojoOutro(st, won) : undefined }; save(); render(); await advance(); })); return; }
+    if (h === 'dojoyaburi') { const w = MS.dojoBlock(st); if (w) { say = { text: w }; render(); return; } intro(RK.dojoIntro(st), () => void openBan(MS.dojoBan(st), `${st.castles[st.hero!.town].name}の道場 ― 道場破り`, banColors(st)).then(async (r) => { const won = r.over === 'win', res = MS.applyDojo(st, won); H.note(st, res.text); say = { text: res.text, hold: true, kake: kakeOn() ? RK.dojoOutro(st, won) : undefined }; save(); render(); await advance(); })); return; }
     const w = MS.nozokuBlock(st); if (w) { say = { text: w }; render(); return; }
     intro(RK.nozokuIntro(st), () => void openBan(MS.nozokuBan(st), `${st.castles[st.hero!.town].name}の村 ― 野盗退治`, banColors(st)).then(async (r) => { const res = MS.applyNozoku(st, r); H.note(st, res.text); say = { text: res.text, hold: true, kake: kakeOn() ? RK.nozokuOutro(st, r.over === 'win') : undefined }; save(); render(); await advance(); }));
     return;
