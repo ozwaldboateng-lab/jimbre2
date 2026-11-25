@@ -102,12 +102,13 @@ export function fushinUke(s: GameState): Act {
 // ───────── 文: 連歌会（大きな城下で。魅力・茶道・弁舌が効く。月に一度・50貫） ─────────
 export const rengaHere = (s: GameState) => { const c = town(s); return isRonin(s) && !s.hero!.field && castleKoku(c) >= 12; };
 export const rengaBlock = (s: GameState) => (X(s).renga === s.turn ? '今月はもう連歌会に出た' : s.hero!.gold < MEI.RENGA_COST ? `金が足りない（${MEI.RENGA_COST}貫）` : null);
-export function renga(s: GameState, guests: General[]): Act {
+// bonus: 連歌会の場面で選んだ下の句の出来（よい+0.25・並0・まずい−0.25。roninkake.ts）
+export function renga(s: GameState, guests: General[], bonus = 0): Act {
   const why = rengaBlock(s); if (why) return { ok: false, text: why };
   used(s);
   const H = X(s), g = me(s);
   H.renga = s.turn; s.hero!.gold -= MEI.RENGA_COST;
-  const p = clamp(0.3 + g.cha / 200 + lv(s, 'sado') * 0.08 + lv(s, 'bensetsu') * 0.05, 0.1, 0.95);
+  const p = clamp(0.3 + g.cha / 200 + lv(s, 'sado') * 0.08 + lv(s, 'bensetsu') * 0.05 + bonus, 0.05, 0.95);
   if (rand(s) < p) {
     const gs = guests.slice(0, 2);
     for (const x of gs) s.hero!.rel[x.id] = clamp((s.hero!.rel[x.id] ?? 0) + MEI.RENGA_REL);

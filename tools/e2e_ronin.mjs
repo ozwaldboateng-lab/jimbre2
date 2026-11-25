@@ -12,12 +12,14 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   const p = await b.newPage({ viewport: { width: vp.width, height: vp.height } });
   p.on('pageerror', (e) => errors.push(vp.tag + ' pageerror ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(vp.tag + ' console ' + m.text()); });
-  await p.addInitScript((j) => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
+  await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'off'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
   await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
   const idle = () => p.waitForFunction(() => !document.querySelector('#hero .hr-busy'), null, { timeout: 120000 });
-  const ok = async () => { if (await p.$('#story:not([hidden]) .st-scene')) return; for (const sel of ['#hero [data-h="q-pick"]', '#hero [data-h="q-accept"]', '#hero [data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } const r = await p.$('#hero [data-h="report-ok"]'); if (r) { await r.click(); await p.waitForTimeout(80); } };
+  // 浪人の場面（誘いの使者・目通りなど。問いの鍵が r_）は、待つか最初の答えで片づけてから
+  const drainR = async () => { for (let n = 0; n < 60; n++) { const head = await p.$eval('#story:not([hidden]) .hr-town b', (e) => e.textContent).catch(() => null); if (head === null || !/使者|目通り|連歌会|城下の噂|道場破り|野盗退治/.test(head)) return; const w = await p.$('#story [data-s="ask"][data-id="wait"]') ?? await p.$('#story [data-s="ask"]') ?? await p.$('#story .hr-say[data-s="next"]'); if (!w) return; await w.click(); await p.waitForTimeout(60); } };
+  const ok = async () => { for (let r0 = 0; r0 < 3; r0++) { await p.waitForFunction(() => !document.querySelector("#hero .hr-busy"), null, { timeout: 120000 }); await p.waitForTimeout(250); await drainR(); if (await p.$('#story:not([hidden]) .st-scene')) return; for (const sel of ['#hero [data-h="q-pick"]', '#hero [data-h="q-accept"]', '#hero [data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } const r = await p.$('#hero [data-h="report-ok"]'); if (r) { await r.click(); await p.waitForTimeout(80); } } };
   const say = () => p.$eval('#hero .hr-text', (e) => e.textContent).catch(() => '');
   await p.screenshot({ path: `${out}/rn-${vp.tag}-1-spots.png` });
   console.log(vp.tag, 'spots', (await p.$$eval('#hero .hr-pane .hr-spot b', (es) => es.map((e) => e.textContent))).join(' | '));

@@ -124,7 +124,7 @@ function goalText(s: S.StoryState) {
 function beatHtml(b: Beat) {
   const who = b.who;
   const thought = b.text.startsWith('（'); // 心の声・人物の描き添えは括弧のまま
-  return `<div class="hr-say" data-s="next" style="cursor:pointer">${who ? `<div class="hr-who">${faceOf(who, 128)}<div><b>${esc(nameOf(who))}</b><p class="st-line">${thought ? esc(b.text) : `「${esc(b.text)}」`}</p></div></div>` : `<p class="st-narr">${narr(b.text)}</p>`}
+  return `<div class="hr-say" data-s="next" style="cursor:pointer">${who ? `<div class="hr-who">${faceOf(who, 128)}<div><b>${esc(b.name ?? nameOf(who))}</b><p class="st-line">${thought ? esc(b.text) : `「${esc(b.text)}」`}</p></div></div>` : `<p class="st-narr">${narr(b.text)}</p>`}
     <div style="text-align:right;margin-top:8px"><button class="hr-btn" data-s="next">次へ ▸</button> <button class="hr-btn ghost sm" data-s="skip">場面をとばす</button></div></div>`;
 }
 // 場面転換: 節の扉（墨のにじみ・縦書きの題と年月）・月日の流れ（白い霞と一行）・章の扉（大きな章題）。押すと次へ
@@ -174,8 +174,8 @@ export function playTheater(beats: Beat[], done: () => void, choose?: (key: stri
 }
 // 場面の中の問い: 地の文（またはセリフ）に続けて、答えを並べる
 function askHtml(b: Beat) {
-  const n = NODES[b.ask!];
-  const head = b.who ? `<div class="hr-who">${faceOf(b.who, 128)}<div><b>${esc(nameOf(b.who))}</b><p class="st-line">「${esc(b.text)}」</p></div></div>` : `<p class="st-narr" style="margin-bottom:12px">${narr(b.text)}</p>`;
+  const n = b.choices ? { text: '', choices: b.choices } : NODES[b.ask!]; // 浪人の場面などは、問いの答えを場面に持たせる
+  const head = b.who ? `<div class="hr-who">${faceOf(b.who, 128)}<div><b>${esc(b.name ?? nameOf(b.who))}</b><p class="st-line">「${esc(b.text)}」</p></div></div>` : `<p class="st-narr" style="margin-bottom:12px">${narr(b.text)}</p>`;
   return `<div class="hr-say">${head}${b.who && n.text ? `<p class="st-narr" style="margin:10px 0">${esc(tx(n.text))}。</p>` : ''}${n.choices.map((c) => `<button class="hr-spot" data-s="ask" data-k="${b.ask}" data-id="${c.id}"><b>${esc(tx(c.label))}</b>${c.note ? `<span>${esc(tx(c.note))}</span>` : ''}</button>`).join('')}</div>`;
 }
 function renderTheater() {

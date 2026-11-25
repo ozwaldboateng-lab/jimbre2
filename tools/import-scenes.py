@@ -1,9 +1,9 @@
-# 汎用の場面絵（SCENES_ORDER_GENERIC.txt の16枚）を取り込む: 番号で名前を決め、960×540 の WebP に縮めて assets/scenes/ に置き、src/data/sceneArt.ts を作り直す
+# 汎用の場面絵（SCENES_ORDER_GENERIC.txt の16枚と、ART_ORDER_RONIN.txt の17・18）を取り込む: 番号で名前を決め、960×540 の WebP に縮めて assets/scenes/ に置き、src/data/sceneArt.ts を作り直す
 # 使い方: python3 tools/import-scenes.py <絵のあるフォルダ>   （ファイル名の先頭が「01_」〜「16_」）
 import base64, os, re, sys
 from PIL import Image
 KEYS = {1: 'fire_castle', 2: 'night_fire', 3: 'zashiki_day', 4: 'zashiki_night', 5: 'chashitsu', 6: 'hondo', 7: 'senjo', 8: 'yukimichi',
-        9: 'minato', 10: 'ichi', 11: 'ishigaki', 12: 'tsukiyo', 13: 'gosho', 14: 'mura', 15: 'jinmaku', 16: 'amemichi',
+        9: 'minato', 10: 'ichi', 11: 'ishigaki', 12: 'tsukiyo', 13: 'gosho', 14: 'mura', 15: 'jinmaku', 16: 'amemichi', 17: 'dojo', 18: 'chaya',  # 17・18: 浪人の演出（ART_ORDER_RONIN.txt）
         101: 'kaijo', 102: 'tenshu_dawn', 103: 'utage', 104: 'kuyo',  # 101〜: エンディングの場面（tools/import-ending.py が置く）
         201: 'story_arako', 202: 'story_ta_yoru', 203: 'story_sakaya', 204: 'story_kiyosu_tsuji', 205: 'story_kiyosu_niwa', 206: 'story_denchu', 207: 'story_moribe', 208: 'story_okehazama', 209: 'story_kayazu', 210: 'story_ino', 211: 'story_okehazama_sen', 212: 'story_moribe_sen',
         213: 'story_zashiki_arako', 214: 'story_kanegasaki', 215: 'story_anegawa', 216: 'story_kita_michi', 217: 'story_fuchu', 218: 'story_kieta_mura', 219: 'story_hyojo', 220: 'story_fuyu_echizen',

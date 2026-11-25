@@ -263,7 +263,8 @@ export function joinClan(s: GameState, clan: string, rank: number): { kept: stri
   addLog(s, `${me.name}が${C.name}家に仕官した。`, 'info', true);
   return { kept, az };
 }
-export function askService(s: GameState): { ok: boolean; text: string; who?: string; line?: string } {
+// bonus: 目通りの問答で、家の欲しい働きを答えれば上がる（roninkake.ts）
+export function askService(s: GameState, bonus = 0): { ok: boolean; text: string; who?: string; line?: string; hired?: boolean } {
   const H = s.hero!, me = s.generals[H.id], clan = lordHere(s);
   if (!clan) return { ok: false, text: 'この城下には仕官を願える大名がいない' };
   const C = s.clans[clan], L = s.generals[C.leader!];
@@ -273,10 +274,10 @@ export function askService(s: GameState): { ok: boolean; text: string; who?: str
   const tried = (H.career ??= { steps: [] }).tried ??= {};
   if (tried[clan] === s.turn) return { ok: true, who: L.id, line: '今日は会わぬ。', text: '門前で待たされたまま、日が暮れた。' };
   tried[clan] = s.turn;
-  const p = serviceChance(s, clan);
+  const p = Math.max(0.05, Math.min(0.95, serviceChance(s, clan) + bonus));
   if (rand(s) < p) {
     const { kept, az } = joinClan(s, clan, serviceRank(s));
-    return { ok: true, who: L.id, line: fameOf(s) >= 40 ? `${me.name}か。名は聞いておる。……わが家で働け。` : `よかろう。働きしだいで取り立ててやる。`, text: `${C.name}家に仕官した（${R.RANK_NAME[me.rank]}）。主君は${L.name}。${kept.length ? `配下の${kept.join('・')}は家臣に。` : ''}${az.length ? `家臣の枠を超えた${az.join('・')}は${C.name}家に預けた（直臣として仕え、枠が空けば屋敷から呼び戻せる）。` : ''}${kept.length + az.length >= 2 ? '一党を率いての仕官として迎えられた。' : ''}` };
+    return { ok: true, hired: true, who: L.id, line: fameOf(s) >= 40 ? `${me.name}か。名は聞いておる。……わが家で働け。` : `よかろう。働きしだいで取り立ててやる。`, text: `${C.name}家に仕官した（${R.RANK_NAME[me.rank]}）。主君は${L.name}。${kept.length ? `配下の${kept.join('・')}は家臣に。` : ''}${az.length ? `家臣の枠を超えた${az.join('・')}は${C.name}家に預けた（直臣として仕え、枠が空けば屋敷から呼び戻せる）。` : ''}${kept.length + az.length >= 2 ? '一党を率いての仕官として迎えられた。' : ''}` };
   }
   return { ok: true, who: L.id, line: fameOf(s) < 20 ? '聞かぬ名だな。……名を上げてから参れ。' : '今は浪人を抱える余裕はない。……また参れ。', text: `${C.name}家への仕官はかなわなかった（見込み${Math.round(p * 100)}%）。月を改めて、また願い出ることができる。` };
 }

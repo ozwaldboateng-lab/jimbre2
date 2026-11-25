@@ -17,7 +17,7 @@ for (const variant of ['kunishu', 'daimyo']) {
   const p = await b.newPage({ viewport: { width: 390, height: 844 } });
   p.on('pageerror', (e) => errors.push(variant + ' ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(variant + ' ' + m.text()); });
-  await p.addInitScript((j) => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
+  await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'off'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(500);
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
   await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(500);
@@ -28,6 +28,8 @@ for (const variant of ['kunishu', 'daimyo']) {
   console.log(variant, 'できること:', spots.join(' / '));
   await p.screenshot({ path: `${out}/mei-${variant}.png` });
   const press = async (h) => { const x = await p.$(`#hero [data-h="${h}"]:not([disabled])`); if (!x) { console.log(variant, h, '押せない', await p.$eval(`#hero [data-h="${h}"] span`, (e) => e.textContent).catch(() => 'なし')); return false; } await x.click(); await p.waitForTimeout(400); return true; };
+  // 場面（連歌会の句選び・誘いの使者など）: 問いは最初の答えを選び、あとは送る
+  const theater = async () => { for (let n = 0; n < 40 && await p.$('#story:not([hidden]) .st-scene'); n++) { const ask = await p.$('#story [data-s="ask"]'); const nx = ask ?? await p.$('#story [data-s="next"]'); if (!nx) break; await nx.click(); await p.waitForTimeout(60); } };
   const said = async () => (await p.$eval('#hero .hr-text', (e) => e.textContent).catch(() => '')).slice(0, 140);
   if (variant === 'kunishu') {
     if (await press('nozoku')) { console.log(variant, '野盗の盤:', await p.$eval('#ban .ban-head', (e) => e.textContent.replace(/\s+/g, ' '))); await p.screenshot({ path: `${out}/mei-nozoku.png` }); await p.click('#ban [data-b="auto"]'); await p.waitForTimeout(300); await p.click('#ban [data-b="close"]'); await p.waitForTimeout(600); console.log(variant, '野盗退治:', await said()); await closeAll(); }
@@ -37,7 +39,7 @@ for (const variant of ['kunishu', 'daimyo']) {
   } else {
     if (await press('dojoyaburi')) { console.log(variant, '道場破り:', (await p.$eval('#ban .ban-dbox', (e) => e.textContent.replace(/\s+/g, ' '))).slice(0, 90)); await p.screenshot({ path: `${out}/mei-dojo.png` }); for (let k = 0; k < 3 && !(await p.$('#ban [data-b="duel-end"]')); k++) { await p.click('#ban [data-b="duel"][data-id="seme"]'); await p.waitForTimeout(100); } await p.click('#ban [data-b="duel-end"]'); await p.waitForTimeout(150); console.log(variant, '盤の終わり:', await p.$eval('#ban .ban-over', (e) => e.textContent.replace(/\s+/g, ' '))); await p.click('#ban [data-b="close"]'); await p.waitForTimeout(600); console.log(variant, '道場破りの首尾:', await said()); await closeAll(); }
     await p.waitForFunction(() => !document.querySelector('.hr-busy'), null, { timeout: 60000 }).catch(() => {}); await closeAll();
-    if (await press('renga')) { console.log(variant, '連歌会:', await said()); await closeAll(); }
+    if (await press('renga')) { await theater(); await p.waitForTimeout(200); console.log(variant, '連歌会:', await said()); await closeAll(); }
     await p.waitForFunction(() => !document.querySelector('.hr-busy'), null, { timeout: 60000 }).catch(() => {}); await closeAll();
     if (await press('info')) { console.log(variant, '報せ:', await said()); await closeAll(); }
   }

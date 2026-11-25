@@ -32,6 +32,7 @@ import * as GG from '../engine/gungi';
 import { openBan } from './ban';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
+import * as RK from '../engine/roninkake';
 import { PORTRAITS } from '../data/portraits';
 import { STORY_PORTRAITS } from '../data/portraits_story';
 import * as R from '../engine/rules';
@@ -54,7 +55,7 @@ let onQuit: () => void = () => {};
 let root: HTMLElement | null = null;
 let pane: 'spots' | 'yashiki' | 'tabi' | 'diary' | 'akinai' | 'shiro' | 'homen' = 'spots';
 let bg = 'town';
-let say: { who?: string; line?: string; text: string; hold?: boolean; offer?: boolean } | null = null; // hold: セリフの窓（押すと閉じる）。offer: 主命を承るか断るか
+let say: { who?: string; line?: string; text: string; hold?: boolean; offer?: boolean; kake?: RK.Kake } | null = null; // hold: セリフの窓（押すと閉じる）。offer: 主命を承るか断るか
 let offerMsg = ''; // 誘いの窓に出す、さっきの返事の首尾
 let dlg: { kind: 'person'; id: string } | { kind: 'dojo' | 'tera' | 'offers' | 'ronko' | 'gungi' } | null = null;
 let ronkoAlloc: Record<string, number> = {}; // 論功行賞で配る手柄 // 画面に立ち上げる窓（会う相手・道場・寺）
@@ -168,7 +169,7 @@ function render() {
         ${mapMode(st) ? '<div id="hr-mapslot"></div>' : ''}
         <div class="hr-town">${H.inArmy(st) ? (() => { const a = H.inArmy(st)!; return `<b>${esc(st.generals[a.main]?.name ?? '')}の陣中</b><span>${esc(castleAt(st, a.hex)?.name ?? PROVINCES[HEXES[a.hex].p].name + 'の野')}・兵${a.troops.toLocaleString('ja-JP')}・士気${a.morale.toFixed(2)}</span>`; })() : Hh.field ? `<b>${esc(PROVINCES[HEXES[Hh.hex].p].name)}の野</b><span>旅の途中</span>` : `<b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span>`}</div>
         ${dlg && !report ? dlgHtml(st) : ''}
-        ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
+        ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.kake?.length ? kakeHtml(st, say.kake) : ''}${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
@@ -285,7 +286,7 @@ function roninSpots(st: GameState): string | null {
   if (T.canTrade(st, c)) out.push(btn('pane', '商い', '特産を仕入れ、荷を売る', '', 'akinai'));
   out.push(btn('rest', '休む', '1旬を過ごす', ' dim'));
   const fd = MS.fudaOf(st);
-  return `<p class="hr-note"><b>名声${Hh.fame ?? 0}</b>${fd.length ? `・評判の札: ${fd.map((x) => `「${x.name}」`).join('')}` : '・評判の札はまだない（同じ系統で名を8上げると付く）'}</p><p class="hr-note">浪人の身。主命も俸禄もない。毎月、自分と配下・牢人衆の扶持がかかる。近くの国衆の城: ${RP.nearKunishu(st).map((x) => esc(x.name)).join('・')}</p>` + out.join('');
+  return `<p class="hr-note"><button class="hr-btn ghost sm" data-h="kake" style="float:right">${kakeOn() ? '掛け合いを省く' : '掛け合いを見る'}</button><b>名声${Hh.fame ?? 0}</b>${fd.length ? `・評判の札: ${fd.map((x) => `「${x.name}」`).join('')}` : '・評判の札はまだない（同じ系統で名を8上げると付く）'}</p><p class="hr-note">浪人の身。主命も俸禄もない。毎月、自分と配下・牢人衆の扶持がかかる。近くの国衆の城: ${RP.nearKunishu(st).map((x) => esc(x.name)).join('・')}</p>` + out.join('');
 }
 function peopleHtml(st: GameState) {
   const me = H.heroOf(st)!;
@@ -483,6 +484,31 @@ function hyojoHtml(st: GameState) {
   if (!hy || hy.turn !== st.turn) return '<div class="hr-offer"><button class="hr-btn primary" data-h="q-accept">承る</button><button class="hr-btn" data-h="q-decline">断る</button></div>';
   return `<div class="hr-cands">${hy.cands.map((q, i) => `<button class="hr-cand" data-h="q-pick" data-id="${i}"><b>${esc(H.QUEST_NAME[q.kind])}</b><span>${esc(H.questText(st, q))}</span></button>`).join('')}</div><div class="hr-offer"><button class="hr-btn" data-h="q-decline">どれも断る</button></div>`;
 }
+// ───────── 浪人の演出（engine/roninkake.ts） ─────────
+// 掛け合いを省く設定（選ぶところのある場面 ― 誘いの使者・目通り・連歌会 ― は省かない）
+const KAKE_KEY = 'sengoku-kake';
+function kakeOn() { try { return localStorage.getItem(KAKE_KEY) !== 'off'; } catch { return true; } }
+function kakeSet(on: boolean) { try { localStorage.setItem(KAKE_KEY, on ? 'on' : 'off'); } catch { /* 続ける */ } }
+function kakeHtml(st: GameState, k: RK.Kake) {
+  return `<div class="hr-kake">${k.map((x) => x.who ? `<div class="hr-who sm">${face(x.who, 56) || `<span class="hr-noface" style="width:56px;height:70px;font-size:13px">${esc((x.name ?? RK.CAST[x.who] ?? st.generals[x.who]?.name ?? '').slice(0, 3))}</span>`}<div><b>${esc(x.name ?? st.generals[x.who]?.name ?? RK.CAST[x.who] ?? '')}</b><p>「${esc(x.line)}」</p></div></div>` : `<p class="hr-knarr">${esc(x.line)}</p>`).join('')}</div>`;
+}
+// 誘いの使者（来たばかり）と城下の噂（掛け合いを省く設定なら噂は出さない）
+function ronBeats(st: GameState): Beat[] { return [...RK.newOfferBeats(st), ...(kakeOn() ? RK.rumorBeats(st) : [])]; }
+// 場面で選んだ答えの結び: 城下に出して、旬を進める
+function ronAfter(st: GameState): boolean {
+  const t = RK.takeLast(); if (!t) return false;
+  H.note(st, t); say = { text: t }; save(); render(); void advance(); return true;
+}
+// 選ぶところのある場面を、行いとして始める（病・月の報告・忙しい時は始めない）
+function ronScene(beats: Beat[], scene: string) {
+  if (!s || busy || !theater) return;
+  dlg = null;
+  if (SK.isSick(s)) { say = { text: '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
+  if (heldReport) { report = heldReport; heldReport = null; render(); return; }
+  if (!beats.length) return;
+  const st = s; bg = scene;
+  theater(beats, () => { save(); if (!ronAfter(st)) render(); }, chooser(st), opt(st));
+}
 function closeSay() {
   if (!say) return;
   say = { text: say.text };
@@ -492,10 +518,10 @@ function closeSay() {
 }
 function playHeld() {
   const b = heldBeats; heldBeats = null;
-  if (b && b.length && theater && s) { const st = s; theater(b, () => { save(); render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, undefined, opt(st)); }
+  if (b && b.length && theater && s) { const st = s; theater(b, () => { save(); if (ronAfter(st)) return; render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, chooser(st), opt(st)); }
   else if (s && !report && pendRyo) { pendRyo = false; maybeRyoshu(s); }
 }
-async function act(fn: () => H.Act, scene?: string, allowSick = false) {
+async function act(fn: () => H.Act, scene?: string, allowSick = false, kk?: (r: H.Act) => RK.Kake) {
   if (!s || busy) return;
   dlg = null;
   if (!allowSick && SK.isSick(s)) { say = { text: H.inArmy(s) || HA.leading(s) ? '病に伏していて、動けない。陣中で過ごすか、陣を離れて（軍勢を解いて）城へ下がる。' : '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
@@ -503,8 +529,9 @@ async function act(fn: () => H.Act, scene?: string, allowSick = false) {
   const r = fn();
   if (!r.ok) { say = { text: r.text }; render(); return; }
   if (scene) bg = scene;
-  const hold = !!(r.who && r.line) && !mapMode(s);
-  say = { who: r.who, line: r.line, text: r.text, hold, offer: hold && r.offer };
+  const kake = kk && kakeOn() ? kk(r) : undefined; // 浪人の掛け合い（顔とセリフを二、三行）
+  const hold = (!!(r.who && r.line) || !!kake?.length) && !mapMode(s);
+  say = kake?.length ? { text: r.text, hold, kake } : { who: r.who, line: r.line, text: r.text, hold, offer: hold && r.offer };
   await advance();
 }
 // 3旬が過ぎたら1か月を進める。月をまたぐ旅は続ける
@@ -551,6 +578,8 @@ async function advance() {
   // 城下に着いたら、城下の画面へ戻る
   if (bg === 'tabi' && !st.hero!.field && (st.hero!.dest === null || st.hero!.dest === undefined)) { bg = 'town'; pane = 'spots'; }
   save(); render();
+  const rb = cev && cev.beats.length ? [] : ronBeats(st); // 浪人: 来たばかりの誘いの使者・城下の噂
+  if (rb.length && theater) { if (held || report) { heldBeats = [...(heldBeats ?? []), ...rb]; return; } theater(rb, () => { save(); if (!ronAfter(st)) render(); }, chooser(st), opt(st)); return; }
   if (cev && cev.beats.length && theater) { if (held || report) { heldBeats = cev.beats; return; } theater(cev.beats, () => { save(); render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, undefined, opt(st)); return; } // 出世の節目の場面（セリフの窓・月の報告を閉じてから）
   runStory();
 }
@@ -558,9 +587,9 @@ async function advance() {
 type Theater = (beats: Beat[], done: () => void, choose?: (key: string, id: string) => Beat[], opt?: { part2?: boolean; label?: string; cast?: Record<string, string>; tx?: (x: string) => string }) => void;
 let theater: Theater | null = null;
 export function setTheater(f: Theater) { theater = f; }
-const chooser = (st: GameState) => (key: string, id: string) => M.storyChoose(st, key, id).beats; // 結果の数値は物語の画面に出さず、場面のあとで城下に
+const chooser = (st: GameState) => (key: string, id: string) => (key.startsWith('r_') ? RK.choose(st, key, id) : M.storyChoose(st, key, id).beats); // r_: 浪人の場面（誘い・目通り・連歌会） // 結果の数値は物語の画面に出さず、場面のあとで城下に
 const opt0 = (st: GameState) => { const d = st.hero!.storyDone ?? []; return { part2: d.includes('katoku'), label: d.includes('ryo4') ? '残り火　第五部' : d.includes('ryo3') ? '残り火　第四部' : d.includes('ryo') ? '残り火　第三部' : d.includes('katoku') ? '残り火　第二部' : '残り火　第二幕' }; };
-const opt = (st: GameState) => CR.freeHero(st) ? { part2: false, label: CR.houseName(st), cast: Object.fromEntries(Object.values(st.generals).map((g) => [g.id, g.name])), tx: (x: string) => M.genText(x, st) } : opt0(st);
+const opt = (st: GameState) => CR.freeHero(st) ? { part2: false, label: CR.houseName(st), cast: { ...RK.CAST, ...Object.fromEntries(Object.values(st.generals).map((g) => [g.id, g.name])) }, tx: (x: string) => M.genText(x, st) } : opt0(st);
 function runStory() {
   if (!s || !theater || busy) return;
   const ev = storyDue(s);
@@ -740,8 +769,8 @@ function onClick(e: Event) {
   if (h === 'kakae') { void act(() => KS.recruit(s!, id), 'yashiki'); return; }
   if (h === 'proxy') { void act(() => KS.proxy(s!), 'town'); return; }
   if (h === 'daikan') { pane = 'shiro'; const ci = +id, rs = KS.retainersOf(s), cur = s.hero!.daikan?.[ci]; const i = cur ? rs.findIndex((g) => g.id === cur) : -1; const nx = rs[i + 1]; KS.setDaikan(s, ci, nx ? nx.id : null); say = { text: nx ? `${s.castles[ci].name}の城代に${nx.name}を置いた。` : `${s.castles[ci].name}の城代を外した。` }; save(); render(); return; }
-  if (h === 'shikan') { void act(() => CR.askService(s!), 'tojo'); return; }
-  if (h === 'jingari') { void act(() => RP.jingari(s!, +id), 'town'); return; }
+  if (h === 'shikan') { if (RK.meetPlain(s)) void act(() => CR.askService(s!), 'tojo'); else ronScene(RK.meetBeats(s), 'tojo'); return; } // 目通り: 当主との問答（家の欲しい働きを答えれば見込みが上がる）
+  if (h === 'jingari') { void act(() => RP.jingari(s!, +id), 'town', false, (r) => RK.jingariKake(s!, r.who, r.line)); return; }
   if (h === 'leavemerc') { void act(() => RP.leaveMerc(s!), 'town', true); return; }
   if (h === 'gungi-open') { dlg = { kind: 'gungi' }; say = null; render(); showDlg(); return; }
   if (h === 'gg') {
@@ -759,20 +788,22 @@ function onClick(e: Event) {
   if (h === 'of-acc') { void act(() => SA.acceptOffer(s!, id), 'tojo'); return; }
   if (h === 'of-raise' || h === 'of-no') { const r = h === 'of-raise' ? SA.raiseOffer(s, id) : SA.declineOffer(s, id); H.note(s, r.text); offerMsg = r.text; if (!SA.offersOf(s).length) { dlg = null; say = { text: r.text }; } save(); render(); return; }
   if (h === 'kensaku') { void act(() => MS.gunKensaku(s!), 'jinmaku'); return; }
-  if (h === 'fuuke') { void act(() => MS.fushinUke(s!), 'town'); return; }
-  if (h === 'renga') { const st = s; void act(() => MS.renga(st, H.townsfolk(st, st.hero!.town).filter((g) => g.clan)), 'yashiki'); return; }
-  if (h === 'info') { void act(() => MS.sellInfo(s!), 'tojo'); return; }
+  if (h === 'fuuke') { void act(() => MS.fushinUke(s!), 'town', false, () => RK.fushinKake(s!, SK.lv(s!, 'chikujo'))); return; }
+  if (h === 'renga') { const w = MS.rengaBlock(s); if (w) { say = { text: w }; render(); return; } ronScene(RK.rengaBeats(s), 'yashiki'); return; } // 連歌会: 宗匠の上の句に、下の句を選んで付ける
+  if (h === 'info') { void act(() => MS.sellInfo(s!), 'tojo', false, (r) => RK.infoKake(s!, r.who, r.line)); return; }
   if (h === 'dojoyaburi' || h === 'nozoku') {
     if (busy) return;
     const st = s;
     if (SK.isSick(st)) { say = { text: '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
     dlg = null;
-    if (h === 'dojoyaburi') { const w = MS.dojoBlock(st); if (w) { say = { text: w }; render(); return; } void openBan(MS.dojoBan(st), `${st.castles[st.hero!.town].name}の道場 ― 道場破り`, banColors(st), { duelOnly: true }).then(async (r) => { const res = MS.applyDojo(st, r.over === 'win'); H.note(st, res.text); say = { text: res.text, hold: true }; save(); render(); await advance(); }); return; }
+    const intro = (beats: Beat[], go: () => void) => { if (kakeOn() && theater) theater(beats, go, undefined, opt(st)); else go(); }; // 盤の前の掛け合い（省く設定なら、すぐ盤へ）
+    if (h === 'dojoyaburi') { const w = MS.dojoBlock(st); if (w) { say = { text: w }; render(); return; } intro(RK.dojoIntro(st), () => void openBan(MS.dojoBan(st), `${st.castles[st.hero!.town].name}の道場 ― 道場破り`, banColors(st), { duelOnly: true }).then(async (r) => { const won = r.over === 'win', res = MS.applyDojo(st, won); H.note(st, res.text); say = { text: res.text, hold: true, kake: kakeOn() ? RK.dojoOutro(st, won) : undefined }; save(); render(); await advance(); })); return; }
     const w = MS.nozokuBlock(st); if (w) { say = { text: w }; render(); return; }
-    void openBan(MS.nozokuBan(st), `${st.castles[st.hero!.town].name}の村 ― 野盗退治`, banColors(st)).then(async (r) => { const res = MS.applyNozoku(st, r); H.note(st, res.text); say = { text: res.text, hold: true }; save(); render(); await advance(); });
+    intro(RK.nozokuIntro(st), () => void openBan(MS.nozokuBan(st), `${st.castles[st.hero!.town].name}の村 ― 野盗退治`, banColors(st)).then(async (r) => { const res = MS.applyNozoku(st, r); H.note(st, res.text); say = { text: res.text, hold: true, kake: kakeOn() ? RK.nozokuOutro(st, r.over === 'win') : undefined }; save(); render(); await advance(); }));
     return;
   }
-  if (h === 'yojinbo') { void act(() => RP.yojinbo(s!), 'ichi'); return; }
+  if (h === 'yojinbo') { void act(() => RP.yojinbo(s!), 'ichi', false, (r) => RK.yojinboKake(s!, r.text.includes('手傷'))); return; }
+  if (h === 'kake') { kakeSet(!kakeOn()); render(); return; } // 掛け合いを省く／見る
   if (h === 'teach') { void act(() => RP.teach(s!), 'dojo'); return; }
   if (h === 'hire') { void act(() => RP.hire(s!), 'town'); return; }
   if (h === 'invite') { void act(() => RP.invite(s!, id), 'yashiki'); return; }
@@ -892,6 +923,7 @@ export const CSS = `
 .hr-offer{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}.hr-mochi{flex-wrap:wrap;justify-content:flex-start;gap:6px}.hr-mochi .hr-rel{flex-basis:100%;color:#cfa95e}.hr-mochi .hr-btn{flex:1 1 auto;padding:6px 8px;font-size:12.5px}.hr-offer .hr-btn{min-width:96px}
 .hr-say.mini{position:relative;z-index:1;margin:auto 12px 12px;width:auto;align-self:stretch;padding:10px 14px;pointer-events:none}
 .hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}
+.hr-kake{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}.hr-kake .hr-who{margin:0;gap:12px}.hr-kake .hr-who img{width:56px;height:70px}.hr-kake .hr-who p{font-size:16px;line-height:1.6;margin-top:2px}.hr-kake .hr-who b{font-size:13px}.hr-knarr{margin:0;font-size:14px;color:#cfc3a8;font-style:italic}.hr-say.mini .hr-kake{display:none}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}
 .hr-tabs{display:flex;border-bottom:1px solid rgba(207,169,94,.2)}
 .hr-tabs button{flex:1;background:none;border:0;padding:10px 0;color:#b8ab92;font-family:var(--font-ui,sans-serif);font-size:13px;border-bottom:2px solid transparent}

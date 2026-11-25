@@ -11,7 +11,7 @@ import { clanCastles, clanName, rand } from './state';
 import type { GameState } from './types';
 
 export const SASOI = { FAME_MIN: 25, P_BASE: 0.08, P_FAME: 1 / 220, RANGE: 10, KEEP: 3, MAX: 3, RAISE_P: 0.35, RAISE_RIVAL: 0.15, RAISE_FAME: 1 / 300, RAISE_MATCH: 0.1, RAISE_PAY: 1.3, RAISE_SHITAKU: 1.5, DECLINE_REL: 2, LOST_REL: 5, AGE_FROM: 35, AGE_K: 0.03, AGE_MIN: 0.5 };
-export type Offer = { clan: string; rank: number; pay: number; shitaku: number; yaku: string; follow: string; until: number; match: boolean; raised?: boolean };
+export type Offer = { clan: string; rank: number; pay: number; shitaku: number; yaku: string; follow: string; until: number; match: boolean; raised?: boolean; told?: boolean }; // told: 使者の場面を見せた
 type SX = { offers?: Offer[]; career?: { left?: { clan: string; turn: number } } };
 const X = (s: GameState) => s.hero! as NonNullable<GameState['hero']> & SX;
 const WAR_KEI: Kei[] = ['bu', 'sen', 'gun'], PEACE_KEI: Kei[] = ['fu', 'chi', 'bun', 'cho'];
@@ -19,7 +19,7 @@ const YAKU: Record<Kei, string> = { bu: '先手の侍', sen: '先手の足軽大
 const ageOf = (s: GameState) => { const g = s.generals[s.hero!.id]; return s.year - (g.born ?? s.year - 30); };
 export const ageFactor = (s: GameState) => Math.max(SASOI.AGE_MIN, 1 - Math.max(0, ageOf(s) - SASOI.AGE_FROM) * SASOI.AGE_K);
 // 家の欲しい札: 狙う家があるか、強い敵と境を接していれば戦の札、そうでなければ治めの札
-const wants = (s: GameState, clan: string): Kei[] => (s.clans[clan].target ? WAR_KEI : PEACE_KEI);
+export const wants = (s: GameState, clan: string): Kei[] => (s.clans[clan].target ? WAR_KEI : PEACE_KEI);
 export const offersOf = (s: GameState): Offer[] => (X(s).offers ?? []).filter((o) => o.until >= s.turn && s.clans[o.clan]?.alive && s.clans[o.clan].leader);
 
 // 条件を作る

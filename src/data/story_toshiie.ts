@@ -1,6 +1,6 @@
 // 武将で遊ぶ「前田利家 ― 残り火」第一部の筋書き。場面の語り・セリフは小説『残り火』（第一章〜第三章）から縮めて使う
 // who は話し手（武将の id か、この物語だけの人物 STORY_CAST の id）。bg は場面の絵（SCENE_ART の名か、届いた物語の絵）
-export interface Beat { who?: string; text: string; bg?: string; head?: string; kind?: 'door' | 'time' | 'chapter'; sub?: string; ask?: string } // kind: 節の扉（墨）・月日の流れ（白）・章の扉。ask: この場面で選ばせる（story_toshiie2.ts の NODES の鍵）
+export interface Beat { who?: string; name?: string; choices?: Choice[]; text: string; bg?: string; head?: string; kind?: 'door' | 'time' | 'chapter'; sub?: string; ask?: string } // kind: 節の扉（墨）・月日の流れ（白）・章の扉。ask: この場面で選ばせる（story_toshiie2.ts の NODES の鍵）
 export interface Choice { id: string; label: string; note?: string }
 
 // この物語だけの人物（顔の絵が届いたら PORTRAITS に同じ id で入れる）
