@@ -14,7 +14,10 @@ import { RELNAME } from '../engine/hero';
 import * as SKL from '../engine/skill';
 import * as CR from '../engine/career';
 import { runClanAI } from '../engine/ai';
-import { openStory } from './story';
+import { openStory, playTheater } from './story';
+import * as KK from '../engine/kumikake';
+import * as RYK from '../engine/ryokake';
+import { CAST as RONIN_CAST } from '../engine/roninkake';
 import { coalitionAgainst, GEKI, gekiBlock, gekiCandidates, gekiChance, issueGeki, leaveCoalition, sameCoalition, setGekiHook } from '../engine/coalition';
 import { defenderSupports, estimate, supportArmies } from '../engine/combat';
 import { endTurn } from '../engine/game';
@@ -364,12 +367,25 @@ function openTosyu(st: GameState, next: () => void) {
   const lb = m.kind === 'fuwa' ? `${a.name}こそ、殿のお名を笠に着ておる。` : `いや、先に乗り込んだのはこちらの手の者。`;
   openModal(`<h2 id="modal-title">${m.kind === 'fuwa' ? '家中の不和' : '手柄争い'} ― ${esc(C.name)}家</h2>${card(a, la)}${card(b, lb)}<p class="hint">片方に付けば、その者は恩+${TS.TOSYU.SIDE_UP}、もう一方は恩−${TS.TOSYU.SIDE_DOWN}。両成敗は二人とも恩−${TS.TOSYU.BOTH}（ほかの家臣は+${TS.TOSYU.BOTH_OTHERS}）。仲裁（金${TS.TOSYU.CHUSAI_GOLD}貫）は二人とも恩+${TS.TOSYU.CHUSAI}。</p><div class="actions" style="flex-wrap:wrap"><button class="act" data-act="tm-a">${esc(a.name)}に付く</button><button class="act" data-act="tm-b">${esc(b.name)}に付く</button><button class="act" data-act="tm-both">喧嘩両成敗</button><button class="act primary" data-act="tm-chusai" ${C.gold < TS.TOSYU.CHUSAI_GOLD ? 'disabled' : ''}>仲裁する（${TS.TOSYU.CHUSAI_GOLD}貫）</button></div>`, false);
 }
+// 城主・国持ちの演出の場面（engine/ryokake.ts）: 加増・減封・席次・讒言・寝返りの密使・入城・権六。月のはじめに一続きで（掛け合いを省く設定なら出さない）
+const kakeOn = () => { try { return localStorage.getItem('sengoku-kake') !== 'off'; } catch { return true; } };
+const ryoOpt = (st: GameState) => ({ label: `${st.clans[st.player]?.name ?? ''}家`, cast: { ...RONIN_CAST, ...Object.fromEntries(Object.values(st.generals).map((g) => [g.id, g.name])) } });
+function openRyoScenes(st: GameState, next: () => void) {
+  const bs = RY.isRyoshu(st) ? KK.pendingBeats(st, kakeOn()) : [];
+  if (!bs.length) { next(); return; }
+  playTheater(bs, () => { const t = KK.takeLast(); if (t) { st.log.push({ turn: st.turn - 1, text: t, kind: 'info', mine: true } as GameState['log'][number]); toast(t); } store(AUTO_KEY, JSON.stringify(st)); refresh(); next(); }, (key, id) => KK.choose(st, key, id), ryoOpt(st));
+}
 // 主君との出来事（月のはじめ）: 詰問・討手・国替え。閉じたら next
 let shinNext: (() => void) | null = null;
 function openRyoShin(st: GameState, next: () => void) {
   const ev = RY.isRyoshu(st) ? SH.shinEvOf(st) : null;
   if (!ev) { next(); return; }
   shinNext = next;
+  // 掛け合いを省く設定でなければ、詰問・討手・国替えは場面で（家臣の声を聞いて選ぶ）
+  if (kakeOn() && ev.kind !== 'hei') {
+    const bs = RYK.shinBeats(st, ev);
+    if (bs.length) { playTheater(bs, () => shinAfterScene(st), (key, id) => KK.choose(st, key, id), ryoOpt(st)); return; }
+  }
   const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null, me = st.generals[st.hero!.id];
   const who = (line: string) => `<div style="display:flex;gap:12px;align-items:center">${L ? face(L.id, 72) : ''}<div><b>${esc(L?.name ?? '')}</b><p style="margin:4px 0 0">「${esc(line)}」</p></div></div>`;
   const u = SH.utagaiOf(st), rb = CR.canRebel(st);
@@ -379,6 +395,18 @@ function openRyoShin(st: GameState, next: () => void) {
   else if (ev.kind === 'hei') body = `${who(`${me.name}。ほかの方面が危うい。そなたの方面から兵${ev.need}を回せ。`)}<p class="hint">従えば方面の城の城兵から兵${ev.need}を主君の城へ回す（主君の覚え+${HS.HOMEN.HEI_OK}。方面は手薄になる）。渋れば覚え−${HS.HOMEN.HEI_NG}・疑い+${HS.HOMEN.HEI_NG_UTA}。</p><div class="actions"><button class="act primary" data-act="rv-hei-ok">兵を回す</button><button class="act" data-act="rv-hei-no">渋る</button></div>`;
   else body = `${who(`${me.name}。家の都合じゃ。${(ev.to ?? []).map((i) => st.castles[i].name).join('・')}へ移れ。`)}<p class="hint">国替え: 育てた領（${RY.fiefCastles(st).map((c) => esc(c.name)).join('・')}）を手放し、${(ev.to ?? []).map((i) => esc(st.castles[i].name)).join('・')}へ移る。従えば覚え+10・疑い−20。背けば討手が来る。</p><div class="actions"><button class="act primary" data-act="rv-obey">従う</button><button class="act" data-act="rv-defy">背く</button></div>`;
   openModal(`<h2 id="modal-title">${ev.kind === 'kitsumon' ? '詰問' : ev.kind === 'uchite' ? '討手' : ev.kind === 'hei' ? '兵の取り合い' : '国替え'} ― ${esc(C.name)}家</h2>${body}`, false);
+}
+// 場面で選んだあと: 謀反・出奔・命がけの申し開き・国替えは、窓のボタンと同じことをする。詰問は場面の中で済んでいる
+function shinAfterScene(st: GameState) {
+  const p = RYK.takePend(), t = KK.takeLast();
+  if (p === 'rebel') { (st.hero as { shinEv?: unknown }).shinEv = undefined; ryoRebel(st); return; }
+  if (p === 'leave') { (st.hero as { shinEv?: unknown }).shinEv = undefined; ryoLeave(st, '討手を逃れ、'); return; }
+  if (p === 'benmei') { const r = SH.uchiteBenmei(st); if (r.lost) { closeModal(); store(AUTO_KEY, null); RY.toHero(st); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: r.text }); return; } shinResult(st, r.line, r.text); return; }
+  if (p === 'obey') { startWith(st); shinResult(st, '', SH.kunigaeObey(st)); return; }
+  if (p === 'defy') { shinResult(st, '', SH.kunigaeDefy(st)); return; }
+  if (t) st.log.push({ turn: st.turn - 1, text: t, kind: 'info', mine: true } as GameState['log'][number]);
+  store(AUTO_KEY, JSON.stringify(st)); refresh();
+  const n = shinNext; shinNext = null; if (SH.shinEvOf(st)) openRyoShin(st, n ?? (() => {})); else n?.(); // 詰問を拒めば、続けて討手
 }
 function shinResult(st: GameState, line: string, text: string) {
   const C = st.clans[st.player], L = C.leader ? st.generals[C.leader] : null;
@@ -1081,7 +1109,7 @@ function doEndTurn() {
     if (st.over) { showGameOver(); return; }
     mapMood(st);
     if (st.log.some((l) => l.turn === st.turn - 1 && l.kind === 'castle' && l.text.includes(`${st.clans[st.player].name}家が`) && l.text.includes('を攻略'))) sfx('castle');
-    playEvents(st, () => openRyoHyojo(st, () => openRyoShin(st, () => openTosyu(st, () => afterTurnReports(st)))));
+    playEvents(st, () => openRyoHyojo(st, () => openRyoScenes(st, () => openRyoShin(st, () => openTosyu(st, () => afterTurnReports(st))))));
   }, 30);
 }
 function afterTurnReports(st: GameState) {

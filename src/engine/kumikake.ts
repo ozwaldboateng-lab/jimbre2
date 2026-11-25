@@ -14,6 +14,7 @@ import * as R from './rules';
 import { clanName } from './state';
 import type { GameState, General } from './types';
 import { judgeQuarrel, rivalOf, yoriOf, yorikoOf } from './yorioya';
+import * as RYK from './ryokake';
 import * as GG from './gungi';
 import { leading } from './heroArmy';
 
@@ -29,6 +30,7 @@ function vars(s: GameState, extra: Record<string, string> = {}) {
 
 // ───────── 月の出来事 → 場面 ─────────
 function evBeats(s: GameState, e: KumiEv): Beat[] {
+  if (RYK.RYO_KINDS.includes(e.k)) return RYK.evBeats(s, e); // 城主・国持ちの出来事
   const me = heroOf(s)!, ht = temperOf(me), k = `${e.k}|${e.id ?? ''}|${s.turn}`;
   if (e.k === 'yori') {
     const y = gen(s, e.id); if (!y) return [];
@@ -137,8 +139,9 @@ function mochiBeats(s: GameState): Beat[] {
 }
 function kashinMochi(s: GameState, m: string, k: string): Beat[] { const g = retainersOf(s)[0]; return g ? [{ who: g.id, text: pick(K.KASHIN_MOCHI[m], k) }] : []; }
 let last: string | null = null;
-export const takeLast = () => { const t = last; last = null; return t; };
+export const takeLast = () => { const t = last; last = null; return t ?? RYK.takeLast(); };
 export function choose(s: GameState, key: string, id: string): Beat[] {
+  if (key.startsWith('k_r_')) return RYK.choose(s, key, id); // 城主・国持ちの場面
   const k = `${s.turn}|${key}|${id}`;
   if (key === 'k_mochi') {
     const P = banPendOf(s); if (!P?.mochi) return [];

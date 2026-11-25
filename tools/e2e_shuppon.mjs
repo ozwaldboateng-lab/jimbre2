@@ -28,7 +28,7 @@ const b = await chromium.launch(); const errors = [];
   for (let k = 0; k < 12 && !seen; k++) {
     const p = await b.newPage({ viewport: { width: 1360, height: 820 } });
     p.on('pageerror', (e) => errors.push(e.message));
-    await p.addInitScript((j) => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } }, json);
+    await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } }, json);
     await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
     await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
     await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);

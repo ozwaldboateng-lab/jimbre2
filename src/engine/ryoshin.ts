@@ -4,6 +4,8 @@
 // 加増: 覚え75以上・疑い30未満で、年に一度ほど、領の隣の自家の城を一つ加える。国替え: 三年に一度ほど、主君の都合で領を別の土地へ移す（従うか背くか）。
 // 家中の競争: 家中の城持ちのうち、領の石高と功績で席次を付ける。張り合う城主（親しくない者）が主君に讒言することがある（主君と懇意なら退けられる）
 import { hexDist } from './map';
+import { pushKumi } from './kumiev';
+import { gonMonth } from './ryokake';
 import { lv } from './skill';
 import * as R from './rules';
 import { addLog, castleKoku, clanCastles, clanName, hostile, rand } from './state';
@@ -46,6 +48,7 @@ export function ryoshinMonth(s: GameState): string[] {
   // 席次と張り合う城主
   const { seki, of } = sekiOf(s);
   if (H.seki && seki < H.seki) out.push(`評定の席次が上がった（家中の城持ち${of}人のうち${seki}番目）。`);
+  if (H.seki && seki !== H.seki) { const hs = holders(s), nb = hs[seki < H.seki ? seki : seki - 2]?.g; pushKumi(s, { k: 'seki', up: seki < H.seki, n: seki, id: nb?.id }); } // 席次の場面（隣の席の城主の一言）
   H.seki = seki;
   if (!rivalJoOf(s)) { const r = pickRival(s); if (r) { H.rivalJo = r.id; out.push(`${r.name}が、家中で張り合う城主になった。`); } }
   // 疑い
@@ -57,10 +60,12 @@ export function ryoshinMonth(s: GameState): string[] {
   // 讒言
   const r = rivalJoOf(s);
   if (r && L && (H.rel[r.id] ?? 0) < SHIN.ZAN_REL && rand(s) < SHIN.ZAN_P) {
+    pushKumi(s, { k: 'zan', id: r.id, ok: (H.rel[L.id] ?? 0) >= SHIN.ZAN_GUARD }); // 讒言の場面
     if ((H.rel[L.id] ?? 0) >= SHIN.ZAN_GUARD) out.push(`${r.name}が主君に讒言したが、${L.name}は取り合わなかった（主君と懇意だった）。`);
     else { d += SHIN.ZAN_UP; H.favor = Math.max(0, H.favor - SHIN.ZAN_FAVOR); out.push(`${r.name}が主君に讒言した。主君の覚え−${SHIN.ZAN_FAVOR}、疑いが募った。`); }
   }
   H.utagai = clamp((H.utagai ?? 0) + d);
+  for (const e of gonMonth(s)) pushKumi(s, e); // 権六の隠居の願い（もう一度）・便り
   const u = H.utagai;
   // 討手・減封・詰問
   if (u >= SHIN.UCHITE && H.shinEv?.kind !== 'uchite') { H.shinEv = { kind: 'uchite', turn: s.turn + 1 }; out.push(`${L?.name ?? '主君'}は謀反を確信し、討手を差し向けた。`); }
@@ -79,7 +84,7 @@ function genpo(s: GameState): string[] {
   const H = X(s); H.genpoTurn = s.turn; H.utagai = clamp((H.utagai ?? 0) - 20);
   const cs = (H.ryo ?? []).map((i) => s.castles[i]).filter((c) => c.owner === me(s).clan).sort((a, b) => castleKoku(a) - castleKoku(b));
   if (!cs.length) { H.favor = Math.max(0, H.favor - 10); return ['主君は疑いを深め、覚えを落とした（−10）。召し上げる城がないので、府中だけは残された。']; }
-  const c = cs[0]; release(s, c);
+  const c = cs[0]; release(s, c); pushKumi(s, { k: 'genpo', c: c.i });
   addLog(s, `${me(s).name}が${c.name}を召し上げられた（減封）。`, 'info', true);
   return [`疑いが極まり、減封となった。${c.name}を召し上げられた。`];
 }
@@ -96,7 +101,7 @@ function kazo(s: GameState): string[] {
   const H = X(s), clan = me(s).clan!, L = lordOf(s), fief = fiefIdx(s);
   const cs = clanCastles(s, clan).filter((c) => !fief.includes(c.i) && c.i !== L?.loc && fief.some((i) => hexDist(s.castles[i].hex, c.hex) <= R.hx(4))).sort((a, b) => castleKoku(a) - castleKoku(b));
   if (!cs.length) return [];
-  const c = cs[0]; H.kazoTurn = s.turn;
+  const c = cs[0]; H.kazoTurn = s.turn; pushKumi(s, { k: 'kazo', c: c.i });
   for (const f of s.fronts ?? []) if (!f.manual) f.castles = f.castles.filter((i) => i !== c.i);
   (H.ryo ??= []).push(c.i);
   const mf = (s.fronts ?? []).find((f) => f.manual); if (mf && !mf.castles.includes(c.i)) mf.castles.push(c.i);
@@ -116,8 +121,9 @@ function kunigaeTarget(s: GameState): Castle[] | null {
 export const shinEvOf = (s: GameState) => { const e = X(s)?.shinEv; return e && X(s).mode === 'ryoshu' ? e : null; };
 export const benmeiChance = (s: GameState, last = false) => { const L = lordOf(s), g = me(s); return Math.max(0.05, Math.min(0.9, (last ? 0.3 : 0.4) + g.cha / 300 + lv(s, 'bensetsu') * 0.05 + (L ? (X(s).rel[L.id] ?? 0) / 300 : 0) - utagaiOf(s) / 300)); };
 // 詰問に出向く（申し開き）
-export function kitsumonGo(s: GameState): { ok: boolean; text: string; line: string } {
-  const H = X(s), p = benmeiChance(s); H.shinEv = undefined;
+// bonus: 申し開きの言い方（ryokake.ts の場面で選ぶ。誓紙・働き・讒言だと訴える）
+export function kitsumonGo(s: GameState, bonus = 0): { ok: boolean; text: string; line: string } {
+  const H = X(s), p = Math.max(0.05, Math.min(0.95, benmeiChance(s) + bonus)); H.shinEv = undefined;
   if (rand(s) < p) { H.utagai = clamp((H.utagai ?? 0) - 30); H.favor = Math.min(100, H.favor + 3); return { ok: true, line: '……わかった。疑うたのは早計であったか。励め。', text: `申し開きが通った（見込み${Math.round(p * 100)}%）。疑いが薄れた（−30）。` }; }
   H.utagai = clamp((H.utagai ?? 0) + 10); H.favor = Math.max(0, H.favor - 10);
   return { ok: false, line: '言い訳は聞き飽きた。……下がれ。', text: `申し開きは通らなかった（見込み${Math.round(p * 100)}%）。覚え−10、疑い+10。` };

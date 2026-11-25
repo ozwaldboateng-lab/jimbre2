@@ -525,7 +525,7 @@ function closeSay() {
 }
 function playHeld() {
   const b = heldBeats; heldBeats = null;
-  if (b && b.length && theater && s) { const st = s; theater(b, () => { save(); if (ronAfter(st)) return; render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, chooser(st), opt(st)); }
+  if (b && b.length && theater && s) { const st = s; theater(b, () => { save(); if (!ronAfter(st)) render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, chooser(st), opt(st)); }
   else if (s && !report && pendRyo) { pendRyo = false; maybeRyoshu(s); }
 }
 async function act(fn: () => H.Act, scene?: string, allowSick = false, kk?: (r: H.Act) => RK.Kake) {
@@ -590,7 +590,7 @@ async function advance() {
   const rb = [...(cev && cev.beats.length ? cev.beats : []), ...ronBeats(st)];
   if (rb.length && theater) {
     if (report || (held && !say?.offer)) { heldBeats = [...(heldBeats ?? []), ...rb]; return; }
-    theater(rb, () => { save(); if (ronAfter(st)) return; render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, chooser(st), opt(st)); return;
+    theater(rb, () => { save(); if (!ronAfter(st)) render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, chooser(st), opt(st)); return; // 城を預かった月は、場面で答えたあとも領主の画面へ
   }
   runStory();
 }

@@ -8,6 +8,7 @@ const b = await chromium.launch(); const errors = [];
 for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height: 844, tag: 'sp' }]) {
   const p = await b.newPage({ viewport: { width: vp.width, height: vp.height } });
   p.on('pageerror', (e) => errors.push(vp.tag + ' ' + e.message));
+  await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 城主の場面は e2e_jo で試す
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
   await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200);

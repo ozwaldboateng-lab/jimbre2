@@ -2,6 +2,7 @@
 // 持ちかける: 近く（領から hx(8) 以内に城がある）の主家の敵の家に。見込みは名声・領の石高・弁舌・相手との縁・相手が主家より強いかで決まる。しくじると30%で主君の耳に入る（覚え−20）。
 // 受ける: 敵方から誘いの使者が来る（毎月3%、主君の覚えが40を切ると10%）。受ければ本領安堵に加えて領の蔵に1,000貫。
 // 寝返った先でも領主として続く（主君の覚えは50から。方面軍団長・家中第一の臣は主家ごとのものなので解ける）。与力は元の主家に残る
+import { pushKumi } from './kumiev';
 import { clanPower } from './diplomacy';
 import { hexDist } from './map';
 import { delegateOf } from './delegate';
@@ -79,7 +80,7 @@ export function defectOfferMonth(s: GameState): string[] {
   const cands = defectCands(s).filter((c) => clanPower(s, c) >= clanPower(s, s.player) * 0.6);
   if (!cands.length || rand(s) >= p) return [];
   const clan = cands[Math.floor(rand(s) * cands.length)];
-  H.neOffer = { clan, turn: s.turn };
+  H.neOffer = { clan, turn: s.turn }; pushKumi(s, { k: 'mitsushi', clan }); // 密使の場面（その場で返事・主君に知らせる）
   return [`${clanName(s, clan)}家から密かに使者が来た。領ごと寝返れば、本領を安堵し、領の蔵に${NE.OFFER_GOLD}貫を贈るという（「主家」の欄で返事をする。今月のうちに）。`];
 }
 export const offerOf = (s: GameState) => { const o = X(s)?.neOffer; return o && o.turn === s.turn && s.clans[o.clan]?.alive ? o.clan : null; };
