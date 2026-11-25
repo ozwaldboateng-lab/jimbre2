@@ -33,6 +33,7 @@ import { openBan } from './ban';
 import { attackTargets, reachable } from '../engine/move';
 import type { Beat } from '../data/story_toshiie';
 import * as RK from '../engine/roninkake';
+import * as KK from '../engine/kumikake';
 import { PORTRAITS } from '../data/portraits';
 import { STORY_PORTRAITS } from '../data/portraits_story';
 import * as R from '../engine/rules';
@@ -493,7 +494,7 @@ function kakeHtml(st: GameState, k: RK.Kake) {
   return `<div class="hr-kake">${k.map((x) => x.who ? `<div class="hr-who sm">${face(x.who, 56) || `<span class="hr-noface" style="width:56px;height:70px;font-size:13px">${esc((x.name ?? RK.CAST[x.who] ?? st.generals[x.who]?.name ?? '').slice(0, 3))}</span>`}<div><b>${esc(x.name ?? st.generals[x.who]?.name ?? RK.CAST[x.who] ?? '')}</b><p>「${esc(x.line)}」</p></div></div>` : `<p class="hr-knarr">${esc(x.line)}</p>`).join('')}</div>`;
 }
 // 誘いの使者（来たばかり）と城下の噂（掛け合いを省く設定なら噂は出さない）
-function ronBeats(st: GameState): Beat[] { return [...RK.newOfferBeats(st), ...(kakeOn() ? RK.rumorBeats(st) : [])]; }
+function ronBeats(st: GameState): Beat[] { return [...RK.newOfferBeats(st), ...(kakeOn() ? RK.rumorBeats(st) : []), ...KK.pendingBeats(st, kakeOn())]; } // 組頭・足軽大将: 寄親・同輩・取り立ての場面
 // 場面で選んだ答えの結び: 城下に出して、旬を進める
 function ronAfter(st: GameState): boolean {
   const t = RK.takeLast(); if (!t) return false;
@@ -831,10 +832,14 @@ function onClick(e: Event) {
   if (h === 'ban-mochi') { const r = BP.askMochi(s, id as import('../engine/ban').Mochi); H.note(s, r.text); if (say) say = { ...say, text: `${say.text.replace(/（持ち場の願い: .*?）$/, '')}（持ち場の願い: ${r.text}）` }; save(); render(); return; }
   if (h === 'ban-go' || h === 'ban-auto') {
     const st = s, P = YR.banPendOf(st); if (!P) { say = null; render(); return; }
-    const fin = (bn: import('../engine/ban').Ban) => { const t2 = BP.applyBan(st, bn); for (const x of t2) H.note(st, x); say = { text: t2.join(''), hold: true }; save(); render(); };
+    const seen = !!P.yori; // 寄親が同じ軍勢にいて、働きを見ている
+    const fin = (bn: import('../engine/ban').Ban) => { const kake = kakeOn() ? KK.battleOutro(st, bn, seen) : []; const t2 = BP.applyBan(st, bn); for (const x of t2) H.note(st, x); say = { text: t2.join(''), hold: true, kake: kake.length ? kake : undefined }; save(); render(); };
     if (h === 'ban-auto') { const bn = BP.autoBan(st); if (bn) fin(bn); return; }
     const bn = BP.battleBan(st); if (!bn) return;
-    void openBan(bn, `${P.foeName}との合戦 ― 槍働き`, banColors(st, P.foe)).then(fin); return;
+    const go = () => void openBan(bn, `${P.foeName}との合戦 ― 槍働き`, banColors(st, P.foe)).then(fin);
+    const ib = kakeOn() && theater ? KK.battleIntro(st, P.mochi, seen) : []; // 合戦の前: 寄親の一言・同輩の挑み
+    if (ib.length) { dlg = null; theater!(ib, go, undefined, opt(st)); } else go();
+    return;
   }
   if (h === 'rise') { riseUp(id as 'youchi' | 'naio'); return; }
   if (h === 'retire') { if (!retireArm) { retireArm = true; say = { text: '家督を譲れば、一生はそこで締めになる。もう一度押すと隠居する。' }; render(); return; } retireArm = false; const ls = CR.retire(s); for (const x of ls) H.note(s, x); report = [...ls, '一生を終えた。']; save(); render(); return; }

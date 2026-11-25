@@ -2,6 +2,7 @@
 import * as B from '../engine/ban';
 import type { Ban, Piece } from '../engine/ban';
 import { BAN_ART } from '../data/banArt';
+import * as KV from '../data/kumi_kake';
 
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -13,8 +14,28 @@ let aim = false; // 虚報の的を選んでいる
 export type BanColors = { me?: string; foe?: string }; // 駒の色（家の色）
 
 let duelOnly = false; // 道場破り: 一騎討ちだけ（終われば盤も終わる）
+// ───────── 盤の中の声（局面の変わり目の叫び・一番槍）。盤を描き直しても消えないよう、盤の外の札に出して、しばらくで消す ─────────
+let lastEvent: string | undefined, ichibanShown = false, fx: HTMLElement | null = null;
+function shout(text: string, big = false) {
+  if (!fx) { fx = document.createElement('div'); fx.className = 'ban-fx'; document.body.appendChild(fx); }
+  const el = document.createElement('div'); el.className = big ? 'ban-shout big' : 'ban-shout'; el.textContent = text;
+  fx.appendChild(el); setTimeout(() => el.remove(), reduced() ? 1200 : big ? 1700 : 2400);
+}
+const pickV = (arr: string[], key: string) => arr[Math.abs([...key].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)) % arr.length];
+function voices() {
+  if (!b || b.dojo) return;
+  if (b.ichiban && !ichibanShown) { ichibanShown = true; shout(KV.VOICE_ICHIBAN, true); }
+  if (b.event && b.event !== lastEvent) {
+    lastEvent = b.event;
+    const pool = b.event.startsWith('中盤') ? KV.VOICE_NAKA : /追い討ち|逃げ出した/.test(b.event) ? KV.VOICE_OIUCHI : /殿/.test(b.event) ? KV.VOICE_SHINGARI : null;
+    if (pool) shout(`「${pickV(pool, b.event + b.turn)}」`);
+  }
+}
+// 一騎討ちの名乗り: 駒の武勇と知略から気性を見る（豪胆・理知・実直。魅力・統率は駒にないので実直に寄せる）
+const temperP = (p: Piece): 'bold' | 'wise' | 'steady' => (p.bra - p.int >= 10 ? 'bold' : p.int - p.bra >= 10 ? 'wise' : 'steady');
+const noFoe = (arr: string[]) => arr.filter((x) => !x.includes('{foe}'));
 export function openBan(ban: Ban, heading: string, colors: BanColors = {}, opt: { duelOnly?: boolean } = {}): Promise<Ban> {
-  b = ban; sel = null; busy = false; title = heading; last = ''; aim = false; groundKey = ''; duelOnly = !!opt.duelOnly;
+  b = ban; sel = null; busy = false; title = heading; last = ''; aim = false; groundKey = ''; duelOnly = !!opt.duelOnly; lastEvent = undefined; ichibanShown = !!ban.ichiban;
   if (duelOnly) { const f = ban.pieces.find((p) => p.side === 'foe'); if (f) B.startDuel(ban, f); }
   if (!root) {
     root = document.createElement('div'); root.id = 'ban'; root.className = 'ban';
@@ -27,7 +48,7 @@ export function openBan(ban: Ban, heading: string, colors: BanColors = {}, opt: 
   const mc = colors.me ?? '#2d4a86'; let fc = colors.foe ?? '#c0483b';
   if (near(mc, fc)) fc = near(mc, '#c0483b') ? '#2b3f6e' : '#c0483b'; // 味方と敵の色が近ければ、敵を見分けやすい色に
   root.style.setProperty('--me', mc); root.style.setProperty('--foe', fc);
-  (window as unknown as { __ban: unknown }).__ban = { get b() { return b; }, render }; // 試験用
+  (window as unknown as { __ban: unknown }).__ban = { get b() { return b; }, render, duel: (id: number) => { if (b && B.startDuel(b, b.pieces[id])) render(); } }; // 試験用
   render();
   return new Promise((r) => { done = r; });
 }
@@ -101,12 +122,14 @@ function render() {
     <div class="ban-body"><div class="ban-grid${b.night ? ' night' : ''}" style="grid-template-columns:repeat(${b.w},1fr);grid-template-rows:repeat(${b.h},1fr);aspect-ratio:${b.w}/${b.h}${b.dojo ? ';width:min(400px,100%);margin-top:34px' : ''}">${cells}${tagsHtml()}</div>
     <div class="ban-side">${over}${b.over ? '' : infoHtml(s)}${kyoList}${last && !b.over ? `<p class="ban-last">${esc(last)}</p>` : ''}${btns}<div class="ban-log">${b.log.slice(-6).reverse().map((t) => `<p>${esc(t)}</p>`).join('')}</div></div></div></div>`;
   drawGround();
+  voices();
 }
 async function onClick(e: Event) {
   const el = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null;
   if (!el || !b || el.disabled) return;
   const act = el.dataset.b;
-  if (act === 'close') { root!.hidden = true; const r = done; done = null; r?.(b); return; }
+  if (act === 'close') { root!.hidden = true; if (fx) fx.innerHTML = ''; // 盤の中の声は盤と一緒に消す
+    const r = done; done = null; r?.(b); return; }
   if (busy) return;
   if (b.duel && !['duel', 'duel-end'].includes(act ?? '')) return;
   if (act === 'wait') { if (sel !== null) B.wait(b.pieces[sel]); aim = false; sel = nextIdle(); render(); return; }
@@ -129,7 +152,8 @@ function duelHtml(D: B.Duel) {
   const me = b!.pieces[D.me], f = b!.pieces[D.foe];
   const pct = (r: 0 | 1 | -1) => Math.round(B.duelChance(b!, r) * 100);
   const moves = (['seme', 'uke', 'kuzushi'] as B.Move[]).map((m) => `<button class="ban-btn main" data-b="duel" data-id="${m}">${B.MOVE_NAME[m]}</button>`).join('');
-  return `<div class="ban-duel"><div class="ban-dbox"><h3>一騎討ち ― ${esc(me.name)} 対 ${esc(f.name)}</h3>
+  const nanori = D.log.length ? '' : `<p class="ban-nanori"><b>${esc(f.name)}</b>「${esc(pickV(noFoe(KV.FOE_NANORI[temperP(f)]), f.name).replace('{name}', f.name))}」</p><p class="ban-nanori me"><b>${esc(me.name)}</b>「${esc(pickV(noFoe(KV.HERO_NANORI[temperP(me)]), me.name).replace('{me}', me.name))}」</p>`; // 名乗り（最初の一合の前だけ）
+  return `<div class="ban-duel"><div class="ban-dbox"><h3>一騎討ち ― ${esc(me.name)} 対 ${esc(f.name)}</h3>${nanori}
     <p class="ban-dsub">三合のうち二合を取れば勝ち。攻めるは崩すに、崩すは受けるに、受けるは攻めるに勝つ。読み勝てば一合を取る見込み${pct(1)}%、相打ちなら${pct(0)}%、読み負ければ${pct(-1)}%（武勇${me.bra}対${f.bra}）。</p>
     <p class="ban-dsub">${D.seen ? `${esc(f.name)}の癖: <b>${B.MOVE_NAME[D.habit]}</b>を好む（武芸の目で見抜いた）` : `${esc(f.name)}の癖は分からない（武芸二段から見抜ける）`}</p>
     <p class="ban-dscore">${esc(me.name)} ${'●'.repeat(D.myWins)}${'○'.repeat(2 - D.myWins)}　${'●'.repeat(D.foeWins)}${'○'.repeat(2 - D.foeWins)} ${esc(f.name)}</p>
@@ -284,6 +308,14 @@ const CSS = `
 .ban-side{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:8px}
 .ban-info{display:flex;flex-direction:column;gap:2px;border:1px solid rgba(207,169,94,.4);padding:8px 10px;border-radius:4px}.ban-info b{color:#cfa95e}.ban-info span{font-size:13px}.ban-info em{color:#e0a060;font-style:normal}
 .ban-hint{font-size:13px;opacity:.85;margin:0}
+.ban-fx{position:fixed;left:0;right:0;top:22%;z-index:200;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.ban-shout{font-family:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;font-size:22px;color:#f6e7c4;background:rgba(20,12,6,.82);border:1px solid rgba(207,169,94,.6);padding:8px 18px;border-radius:4px;letter-spacing:.06em;text-shadow:0 1px 2px #000;animation:banShout 2.4s ease forwards}
+.ban-shout.big{font-size:64px;font-weight:700;color:#ffe08a;background:none;border:0;letter-spacing:.2em;text-shadow:0 0 12px #b0301c,0 3px 6px #000,0 0 2px #000;animation:banBig 1.7s ease forwards}
+@keyframes banShout{0%{opacity:0;transform:translateY(8px)}12%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
+@keyframes banBig{0%{opacity:0;transform:scale(1.6)}15%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0;transform:scale(1.05)}}
+@media (prefers-reduced-motion: reduce){.ban-shout,.ban-shout.big{animation:none}}
+.ban-nanori{margin:6px 0;font-size:15px;line-height:1.6}.ban-nanori b{color:#ff9f7a;margin-right:6px;font-size:13px}.ban-nanori.me b{color:#cfa95e}
+@media (max-width:600px){.ban-shout.big{font-size:44px}.ban-shout{font-size:17px}}
 .ban-last{margin:0;padding:6px 10px;background:rgba(207,169,94,.1);border-left:3px solid #cfa95e;font-size:14px}
 .ban-acts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .ban-btn{font:inherit;color:#eadfc8;background:#2b2219;border:1px solid rgba(207,169,94,.55);padding:9px 8px;border-radius:4px;cursor:pointer;min-height:40px}.ban-btn.main{background:#5a3c1c;border-color:#cfa95e}.ban-btn.dim{opacity:.85}.ban-btn:disabled{opacity:.4;cursor:default}

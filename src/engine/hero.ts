@@ -1,6 +1,7 @@
 // 武将プレイ（試作）: 大名ではなく一人の武将として生きる。家は大名のAIが動かし、プレイヤーは城下を歩き、主命を果たし、人と交わる。
 // 時は旬（10日）で刻む。1か月は3旬。3旬が過ぎると、裏で大名たちの1か月が進む（ゲームの endTurn）。
 // 武将は status 'hero' にして、AIの編成・城主・奉行に使われないようにする（主命・合戦はこちらで扱う）。
+import { pushKumi } from './kumiev';
 import { HEXES, NEIGHBORS, PROVINCES, hexDist } from './map';
 import { pathTo, stepCost, type Reach } from './move';
 import { storeOf } from './supply';
@@ -648,9 +649,9 @@ export function heroMonth(s: GameState): string[] {
   out.push(...yoriMonth(s, () => H.favor >= 30 + (3 - me.rank) * 10));
   out.push(...yorikoMonth(s)); // 侍大将からは寄子が付く
   // 取り立て（功績が満ちて、主君の覚えがよく、寄親の推挙があれば）
-  { const sb = me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10 ? suisenBlock(s) : null; if (sb) out.push(`功績は満ちたが、取り立てられない: ${sb}。`); }
+  { const sb = me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10 ? suisenBlock(s) : null; if (sb) { out.push(`功績は満ちたが、取り立てられない: ${sb}。`); const KX = H as unknown as { kkSuisen?: number }; if (KX.kkSuisen !== me.rank) { KX.kkSuisen = me.rank; pushKumi(s, { k: 'suisen' }); } } } // 寄親の言い分は身分ごとに一度
   while (me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10 && !suisenBlock(s)) {
-    me.rank--; H.favor = clamp(H.favor - 10);
+    me.rank--; H.favor = clamp(H.favor - 10); if (me.rank >= 1) pushKumi(s, { k: 'promote', rank: me.rank }); // 取り立ての場面（侍大将まで。寄親・同輩のいる身分から）
     out.push(`${R.RANK_NAME[me.rank]}に取り立てられた！`); note(s, `${R.RANK_NAME[me.rank]}に取り立てられた。`);
     addLog(s, `${me.name}が${R.RANK_NAME[me.rank]}に取り立てられた。`, 'info', true);
   }

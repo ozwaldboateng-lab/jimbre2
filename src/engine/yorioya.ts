@@ -3,12 +3,13 @@
 //   寄親が出世すれば、功績が八割まで来ていれば一緒に引き上げられる。寄親が討たれる・家を離れると、新しい寄親が付く（親しさは初めから）。
 //   懇意（親しさ50）の侍大将以上には、屋敷で寄親の鞍替えを願い出られる（もとの寄親との親しさ−15）。寄親が同じ軍勢にいた合戦は、槍働きの功績が1.5倍（寄親が見ていた）。
 // 同輩: 同じ身分の家中の者を一人。槍働きの盤に味方の駒として出て（自分では動かせない）、首級・一番槍を奪い合う。勝ち負けで寄親の覚え（親しさ）が動く
+import { pushKumi } from './kumiev';
 import * as R from './rules';
 import { addLog, rand, surnameOf } from './state';
 import type { GameState, General } from './types';
 
 export const YORI = { NEED: { 3: 30, 2: 45 } as Record<number, number>, PULL: 0.8, SWITCH_REL: 50, SWITCH_LOSS: 15, SEEN: 1.5, SEEN_REL: 3, BEAT_REL: 2, LOST_REL: 1, RIVAL_REL: 2 };
-type YX = { yorioya?: string; yoriRank?: number; rival?: string; rivalAhead?: string; rel: Record<string, number>; story?: string; id: string; retainers?: string[] };
+type YX = { yorioya?: string; yoriRank?: number; rival?: string; rivalAhead?: string; rivalDead?: string; rel: Record<string, number>; story?: string; id: string; retainers?: string[] };
 const X = (s: GameState) => s.hero as unknown as YX;
 const ACTIVE = ['free', 'army', 'camp', 'governor', 'bugyo', 'tsukai'];
 const meOf = (s: GameState) => s.generals[X(s).id];
@@ -49,23 +50,24 @@ export function yoriMonth(s: GameState, canRise: () => boolean): string[] {
   if (!y) {
     const lost = H.yorioya ? s.generals[H.yorioya] : undefined;
     y = pickYori(s);
-    if (y) { H.yorioya = y.id; H.yoriRank = y.rank; out.push(lost ? `寄親の${lost.name}を失い、新たに${y.name}が寄親に付いた。推挙を得るには、改めて親しくならねばならない。` : `${y.name}が寄親に付いた。取り立てには寄親の推挙が要る（親しさ${suisenNeed(s)}から）。`); }
+    if (y) { H.yorioya = y.id; H.yoriRank = y.rank; pushKumi(s, { k: 'yori', id: y.id, old: lost?.id }); out.push(lost ? `寄親の${lost.name}を失い、新たに${y.name}が寄親に付いた。推挙を得るには、改めて親しくならねばならない。` : `${y.name}が寄親に付いた。取り立てには寄親の推挙が要る（親しさ${suisenNeed(s)}から）。`); }
     else H.yorioya = undefined;
   } else if (H.yoriRank !== undefined && y.rank < H.yoriRank) {
     // 寄親の出世: 功績が八割まで来ていれば一緒に引き上げられる
     const R = me.rank;
     H.yoriRank = y.rank;
     const at = MERIT_AT_OF(R);
-    if (at !== null && me.merit >= at * YORI.PULL && canRise()) { me.rank--; out.push(`寄親の${y.name}の出世に伴い、引き上げられて${RANK_OF(me.rank)}になった！`); addLog(s, `${me.name}が寄親の${y.name}に引き上げられ、${RANK_OF(me.rank)}になった。`, 'info', true); }
+    if (at !== null && me.merit >= at * YORI.PULL && canRise()) { me.rank--; pushKumi(s, { k: 'promote', rank: me.rank, pull: true }); out.push(`寄親の${y.name}の出世に伴い、引き上げられて${RANK_OF(me.rank)}になった！`); addLog(s, `${me.name}が寄親の${y.name}に引き上げられ、${RANK_OF(me.rank)}になった。`, 'info', true); }
     else out.push(`寄親の${y.name}が出世した。`);
   }
   if (y) H.yoriRank = Math.min(H.yoriRank ?? y.rank, y.rank);
+  { const old = H.rival ? s.generals[H.rival] : undefined; if (old && old.status === 'dead' && H.rivalDead !== old.id) { H.rivalDead = old.id; pushKumi(s, { k: 'rivalDead', id: old.id }); } } // 同輩が討ち死にした
   let r = rivalOf(s);
   if (!r || (r.rank !== me.rank && r.rank > me.rank)) { // 同輩が身分で遅れたら、新しい同輩に
     const n = pickRival(s);
-    if (n && n.id !== H.rival) { H.rival = n.id; out.push(`同じ寄親の下で、${n.name}が張り合う同輩になった。`); r = n; }
+    if (n && n.id !== H.rival) { H.rival = n.id; pushKumi(s, { k: 'rival', id: n.id }); out.push(`同じ寄親の下で、${n.name}が張り合う同輩になった。`); r = n; }
   }
-  if (r && r.rank < me.rank && H.rivalAhead !== `${r.id}:${r.rank}`) { H.rivalAhead = `${r.id}:${r.rank}`; out.push(`同輩の${r.name}が、先に${RANK_OF(r.rank)}に取り立てられた。`); }
+  if (r && r.rank < me.rank && H.rivalAhead !== `${r.id}:${r.rank}`) { H.rivalAhead = `${r.id}:${r.rank}`; pushKumi(s, { k: 'ahead', id: r.id }); out.push(`同輩の${r.name}が、先に${RANK_OF(r.rank)}に取り立てられた。`); }
   return out;
 }
 // 寄親の鞍替えを願い出る（懇意の侍大将以上に）
