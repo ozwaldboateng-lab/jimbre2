@@ -52,8 +52,8 @@ for (const vp of [{ width: 390, height: 844, tag: 'sp' }, { width: 1360, height:
   // 2. 道場破り（前の掛け合い → 一騎討ち → 結びの掛け合い → 札が付いて噂）
   await p.click('#hero [data-h="pane"][data-id="spots"]').catch(() => {});
   await p.click('#hero [data-h="dojoyaburi"]'); await p.waitForTimeout(300);
+  await p.screenshot({ path: `${out}/rk-${vp.tag}-2-dojo.png` });
   console.log(vp.tag, '道場の前:', (await lines()).join(' ／ '));
-  if (vp.tag === 'sp') await p.screenshot({ path: `${out}/rk-${vp.tag}-2-dojo.png` });
   for (let k = 0; k < 40 && !(await p.$('#ban:not([hidden])')); k++) await p.waitForTimeout(100);
   await p.evaluate(() => { const bn = window.__ban.b; const f = bn.pieces.find((q) => q.side === 'foe'); if (f) f.bra = 1; });
   if (await p.$('#ban [data-b="nanori"]')) { await p.click('#ban [data-b="nanori"]'); await p.waitForTimeout(200); }
@@ -63,6 +63,7 @@ for (const vp of [{ width: 390, height: 844, tag: 'sp' }, { width: 1360, height:
   console.log(vp.tag, '道場の結び:', (await kake()).join(' ／ '), '|', await said());
   await p.screenshot({ path: `${out}/rk-${vp.tag}-3-dojo-after.png` });
   await idle(); await closeAll(); await p.waitForTimeout(300);
+  if (await scene()) { const nx = await p.$('#story [data-s="next"]'); if (nx) { await nx.click(); await p.waitForTimeout(80); } await p.screenshot({ path: `${out}/rk-${vp.tag}-7-rumor.png` }); }
   const rumor = await lines();
   console.log(vp.tag, '噂:', rumor.join(' ／ '));
   if (!rumor.some((x) => x.includes('槍の名手'))) errors.push(vp.tag + ' 札の噂が出ない');
