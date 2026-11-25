@@ -382,7 +382,7 @@ function openRyoShin(st: GameState, next: () => void) {
   if (!ev) { next(); return; }
   shinNext = next;
   // 掛け合いを省く設定でなければ、詰問・討手・国替えは場面で（家臣の声を聞いて選ぶ）
-  if (kakeOn() && ev.kind !== 'hei') {
+  if (kakeOn()) { // 兵の取り合いも、使者と与力の意見を聞いて選ぶ
     const bs = RYK.shinBeats(st, ev);
     if (bs.length) { playTheater(bs, () => shinAfterScene(st), (key, id) => KK.choose(st, key, id), ryoOpt(st)); return; }
   }
@@ -404,6 +404,8 @@ function shinAfterScene(st: GameState) {
   if (p === 'benmei') { const r = SH.uchiteBenmei(st); if (r.lost) { closeModal(); store(AUTO_KEY, null); RY.toHero(st); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: r.text }); return; } shinResult(st, r.line, r.text); return; }
   if (p === 'obey') { startWith(st); shinResult(st, '', SH.kunigaeObey(st)); return; }
   if (p === 'defy') { shinResult(st, '', SH.kunigaeDefy(st)); return; }
+  if (p === 'hei-ok') { shinResult(st, '', HS.heiObey(st)); return; }
+  if (p === 'hei-no') { shinResult(st, '', HS.heiRefuse(st)); return; }
   if (t) st.log.push({ turn: st.turn - 1, text: t, kind: 'info', mine: true } as GameState['log'][number]);
   store(AUTO_KEY, JSON.stringify(st)); refresh();
   const n = shinNext; shinNext = null; if (SH.shinEvOf(st)) openRyoShin(st, n ?? (() => {})); else n?.(); // 詰問を拒めば、続けて討手
@@ -3097,6 +3099,11 @@ function onModalClick(e: Event) {
     if (act === 'rv-rebel') { (st.hero as { shinEv?: unknown }).shinEv = undefined; ryoRebel(st); return; }
     if (act === 'rv-leave') { (st.hero as { shinEv?: unknown }).shinEv = undefined; ryoLeave(st, '討手を逃れ、'); return; }
     if (act === 'rv-benmei') { const r = SH.uchiteBenmei(st); if (r.lost) { closeModal(); store(AUTO_KEY, null); RY.toHero(st); openHeroWith((g, w) => face(g, w), () => openTitle(), st, { text: r.text }); return; } shinResult(st, r.line, r.text); return; }
+  }
+  // 方面ごとの謀反の前夜: 与力が一人ずつ去就を言う場面を見てから決める（掛け合いを省く設定なら、これまでどおり二度押し）
+  if (act === 'ryo-rebel' && kakeOn() && HS.isHomen(st) && !CR.canRebel(st) && HS.yorikiOf(st).length) {
+    const bs = RYK.rebelEveBeats(st);
+    if (bs.length) { closeModal(); playTheater(bs, () => { const p = RYK.takePend(); if (p === 'go') { if (!ryoRebel(st)) openShuke(st); } else openShuke(st); }, (key, kid) => KK.choose(st, key, kid), ryoOpt(st)); return; }
   }
   if (act === 'ryo-offer' || act === 'ryo-ne' || act === 'ryo-rebel' || act === 'ryo-leave') {
     const key = act === 'ryo-offer' ? 'offer' : act === 'ryo-ne' ? 'ne:' + id : act === 'ryo-rebel' ? 'rebel' : 'leave';

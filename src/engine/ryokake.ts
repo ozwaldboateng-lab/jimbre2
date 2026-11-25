@@ -7,6 +7,7 @@ import { retainersOf } from './kashin';
 import type { KumiEv } from './kumiev';
 import { temperOf } from './lines';
 import { answerOffer, NE } from './ryoplot';
+import { follows, goalOf, HOMEN, yorikiOf } from './homenshin';
 import { addUtagai, benmeiChance, kitsumonGo, kitsumonRefuse } from './ryoshin';
 import { clanName } from './state';
 import type { GameState, General } from './types';
@@ -20,7 +21,7 @@ const lordOf = (s: GameState) => { const me = heroOf(s); return me?.clan ? gen(s
 const vars = (s: GameState, extra: Record<string, string> = {}) => ({ me: heroOf(s)!.name, lord: lordOf(s)?.name ?? '主君', ...extra });
 type RX = { yk?: { kumi?: boolean }; zanAt?: number; gon?: { asked?: number; inkyo?: number; letter?: number } };
 const X = (s: GameState) => s.hero as unknown as RX & NonNullable<GameState['hero']>;
-export const RYO_KINDS: KumiEv['k'][] = ['kazo', 'genpo', 'seki', 'zan', 'mitsushi', 'nyujo', 'inkyo', 'letter'];
+export const RYO_KINDS: KumiEv['k'][] = ['kazo', 'genpo', 'seki', 'zan', 'mitsushi', 'nyujo', 'inkyo', 'letter', 'homenGoal', 'homenRemind', 'homenOk', 'homenNg', 'yorikiWin', 'yorikiLost', 'gonjo', 'senpo'];
 
 // ───────── 月の出来事 → 場面 ─────────
 export function evBeats(s: GameState, e: KumiEv): Beat[] {
@@ -71,6 +72,43 @@ export function evBeats(s: GameState, e: KumiEv): Beat[] {
     ...(X(s).yk?.kumi ? [{ who: 'g_yokichi', text: K.INKYO_YOKICHI }] : []),
     { who: me.id, text: '……権六。', ask: 'k_r_inkyo', choices: K.INKYO_CHOICE.map((x) => ({ id: x.id, label: x.label, note: x.note })) },
   ]);
+  // ───── 方面軍団長 ─────
+  const yk = (X(s).yk?.kumi ? [{ who: 'g_yokichi', text: pick(K.YOKICHI_HOMEN, k + 'y') }] : []) as Beat[];
+  if (e.k === 'homenGoal') {
+    const g = goalOf(s); if (!g) return [];
+    const cs = g.castles.map((i) => s.castles[i].name).join('・'), v = vars(s, { castles: cs, years: String(Math.round(HOMEN.GOAL_MONTHS / 12)) });
+    return headed('方面の目当て', [
+      { bg: 'zashiki_day', text: fill(K.HOMEN_GOAL_NARR, v) },
+      ...(L ? [{ who: L.id, text: fill(pick(K.HOMEN_GOAL_LORD[temperOf(L)], k), v) }] : []),
+      ...yorikiOf(s).slice(0, 3).map((y, i) => ({ who: y.id, text: fill(pick(K.YORIKI_GREET[temperOf(y)], k + i), { name: y.name }) })),
+      ...yk,
+    ]);
+  }
+  if (e.k === 'homenRemind') return headed('方面の目当て', [{ bg: 'zashiki_day', who: 'g_shisha', name: '主君の使者', text: fill(K.HOMEN_REMIND, vars(s)) }]);
+  if (e.k === 'homenOk') {
+    const y = yorikiOf(s)[0];
+    return headed('方面の目当て', [
+      { bg: 'zashiki_day', text: `方面の目当て（${(e.ids ?? []).map((i) => s.castles[+i]?.name).join('・')}）を果たした。` },
+      ...(L ? [{ who: L.id, text: fill(pick(K.HOMEN_OK_LORD[temperOf(L)], k), vars(s)) }] : []),
+      ...(y ? [{ who: y.id, text: pick(K.YORIKI_JOY[temperOf(y)], k) }] : []),
+      ...yk,
+    ]);
+  }
+  if (e.k === 'homenNg') return headed('解任', [
+    { bg: 'zashiki_day', text: '方面の目当ては、果たせなかった。' },
+    ...(L ? [{ who: L.id, text: fill(pick(K.HOMEN_NG_LORD[temperOf(L)], k), vars(s)) }] : []),
+    ...(e.ids ?? []).slice(0, 2).map((id, i) => ({ who: id, text: pick(K.YORIKI_PART, k + i) })),
+  ]);
+  if (e.k === 'yorikiWin') { const y = yorikiOf(s)[hash(k) % Math.max(1, yorikiOf(s).length)]; return y ? headed('方面の軍勢', [{ bg: 'senjo', text: '方面の軍勢が、城を落とした。' }, { who: y.id, text: pick(K.YORIKI_JOY[temperOf(y)], k) }, ...yk]) : []; }
+  if (e.k === 'yorikiLost') { const y = gen(s, e.id); return y ? headed('与力', [{ bg: 'jinmaku', text: `与力の${y.name}が、率いていた部隊を失った。` }, { who: y.id, text: pick(K.YORIKI_LOST[temperOf(y)], k) }]) : []; }
+  if (e.k === 'gonjo') { const y = gen(s, e.id); return y ? headed('言上', [{ bg: 'zashiki_day', text: fill(K.GONJO_NARR, { name: y.name }) }, { who: 'g_shisha', name: '主君の使者', text: K.GONJO_SHISHA }]) : []; }
+  if (e.k === 'senpo') {
+    const y = gen(s, e.id); if (!y || !yorikiOf(s).includes(y)) return [];
+    return headed('先鋒の願い', [
+      { bg: 'jinmaku', text: `与力の${y.name}が、陣に訪ねてきた。` },
+      { who: y.id, text: pick(K.SENPO_ASK[temperOf(y)], k), ask: `k_r_senpo:${y.id}`, choices: K.SENPO_CHOICE.map((x) => ({ id: x.id, label: x.label, note: x.note })) },
+    ]);
+  }
   if (e.k === 'letter') return headed('権六の便り', [{ bg: 'zashiki_night', text: K.LETTER_NARR }, { who: 'g_gonroku', text: pick(K.LETTER_LINES, k) }]);
   return [];
 }
@@ -93,6 +131,15 @@ export function shinBeats(s: GameState, ev: ShinEv): Beat[] {
       { bg: 'night_fire', text: fill(K.UCHITE_NARR, vars(s)) },
       ...lines,
       { who: me.id, text: '……皆の心は、わかった。', ask: 'k_r_uchite', choices: K.UCHITE_CHOICE.map((x) => ({ id: x.id, label: x.label, note: x.id === 'benmei' ? `${x.note}（見込み${Math.round(benmeiChance(s, true) * 100)}%）` : x.note })) },
+    ]);
+  }
+  if (ev.kind === 'hei') {
+    const ys = [...yorikiOf(s), ...rx];
+    return headed('兵の取り合い', [
+      { bg: 'zashiki_day', who: 'g_shisha', name: '主君の使者', text: fill(K.HEI_SHISHA, vars(s, { need: String((ev as { need?: number }).need ?? '') })) },
+      ...(ys[0] ? [{ who: ys[0].id, text: pick(K.HEI_KEEP, k) }] : []),
+      ...(ys[1] ? [{ who: ys[1].id, text: pick(K.HEI_GIVE, k) }] : []),
+      { who: me.id, text: '……。', ask: 'k_r_hei', choices: K.HEI_CHOICE.map((x) => ({ id: x.id, label: x.label, note: x.note })) },
     ]);
   }
   if (ev.kind === 'kunigae') {
@@ -129,7 +176,13 @@ export function choose(s: GameState, key: string, id: string): Beat[] {
     const r = kitsumonGo(s, kitsuBonus(s, id)); last = r.text;
     return headed('詰問', [{ who: me.id, text: c.line }, ...(L ? [{ who: L.id, text: fill(pick((r.ok ? K.KITSU_OK : K.KITSU_NG)[temperOf(L)], k), vars(s)) }] : []), { text: r.text }]);
   }
-  if (key === 'k_r_uchite' || key === 'k_r_kuni') { pend = id; return []; }
+  if (key === 'k_r_uchite' || key === 'k_r_kuni' || key === 'k_r_hei' || key === 'k_r_rebel') { pend = id; return []; } // 大名の画面がする（謀反・出奔・申し開き・国替え・兵の取り合い）
+  if (key.startsWith('k_r_senpo:')) {
+    const y = gen(s, key.slice(10)); if (!y) return [];
+    if (id === 'yes') { s.hero!.rel[y.id] = Math.min(100, (s.hero!.rel[y.id] ?? 0) + HOMEN.SENPO_REL); const a = y.army !== null && y.army !== undefined ? s.armies[y.army] : null; if (a) a.morale = Math.min(1.3, a.morale + HOMEN.SENPO_MORALE); last = `${y.name}に次の城攻めの先鋒を許した（親しさ+${HOMEN.SENPO_REL}${a ? '・部隊の士気+0.10' : ''}）。`; }
+    else { s.hero!.rel[y.id] = Math.max(0, (s.hero!.rel[y.id] ?? 0) - HOMEN.SENPO_NG); last = `${y.name}の先鋒の願いを退けた（親しさ−${HOMEN.SENPO_NG}）。`; }
+    return headed('先鋒の願い', [{ who: y.id, text: pick((id === 'yes' ? K.SENPO_YES : K.SENPO_NO)[temperOf(y)], k) }]);
+  }
   if (key.startsWith('k_r_mitsu:')) {
     const clan = key.slice(10), cn = clanName(s, clan);
     if (id === 'listen') { last = `${cn}家の密使の話を聞いた。寝返るかどうかは、今月のうちに「主家」の欄で返事をする。`; return []; }
@@ -159,4 +212,15 @@ export function gonMonth(s: GameState): KumiEv[] {
   if (G.inkyo !== undefined) { if (s.turn - (G.letter ?? G.inkyo) >= GON.LETTER_EVERY) { G.letter = s.turn; return [{ k: 'letter' }]; } return []; }
   if (G.asked !== undefined && s.turn - G.asked >= GON.ASK_AGAIN) { G.asked = undefined; return [{ k: 'inkyo' }]; }
   return [];
+}
+
+// 方面ごとの謀反の前夜: 与力が一人ずつ去就を言う（親しさ60からはついて来る。仕組みは変えず、見えるようにするだけ）
+export function rebelEveBeats(s: GameState): Beat[] {
+  const ys = yorikiOf(s); if (!ys.length) return [];
+  const k = `rebel|${s.turn}`;
+  return headed('謀反の前夜', [
+    { bg: 'zashiki_night', text: K.REBEL_EVE_NARR },
+    ...ys.map((y, i) => ({ who: y.id, text: pick((follows(s, y) ? K.REBEL_FOLLOW : K.REBEL_STAY)[temperOf(y)], k + i) })),
+    { who: heroOf(s)!.id, text: `……${ys.filter((y) => follows(s, y)).length}人か。`, ask: 'k_r_rebel', choices: K.REBEL_CHOICE.map((x) => ({ id: x.id, label: x.label, note: x.note })) },
+  ]);
 }

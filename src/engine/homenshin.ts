@@ -3,12 +3,13 @@
 // 方面の目標: 任じられたら、方面の近く（6マス）の敵の城を三つまで、三年のうちに落とせと命じられる。果たせば覚え+20・名声+10・功績+100で、落とした城は領に。果たせなければ解任（方面の城と与力を失い、覚え−15）。
 // 兵の取り合い: 方面軍団長の間、月に4%で主君が「ほかの方面が危うい。兵を回せ」と命じる（主君との出来事の窓で、従うか渋るか）
 import { hexDist } from './map';
+import { pushKumi } from './kumiev';
 import * as R from './rules';
 import { addUtagai } from './ryoshin';
 import { addLog, castleKoku, clanName, garrisonMax, hostile, rand } from './state';
 import type { GameState, General } from './types';
 
-export const HOMEN = { GOAL_N: 3, GOAL_RANGE: 6, GOAL_MONTHS: 36, WIN_REL: 3, LOST_REL: 5, ZAN_REL: 20, ZAN_P: 0.06, ZAN_UTA: 5, ZAN_FAVOR: 3, OK_FAVOR: 20, OK_FAME: 10, OK_MERIT: 100, NG_FAVOR: 15, HEI_P: 0.04, HEI_SHARE: 0.2, HEI_MIN: 500, HEI_OK: 5, HEI_NG: 8, HEI_NG_UTA: 5, FOLLOW: 60 };
+export const HOMEN = { SENPO_P: 0.08, SENPO_REL: 5, SENPO_NG: 3, SENPO_MORALE: 0.1, GOAL_N: 3, GOAL_RANGE: 6, GOAL_MONTHS: 36, WIN_REL: 3, LOST_REL: 5, ZAN_REL: 20, ZAN_P: 0.06, ZAN_UTA: 5, ZAN_FAVOR: 3, OK_FAVOR: 20, OK_FAME: 10, OK_MERIT: 100, NG_FAVOR: 15, HEI_P: 0.04, HEI_SHARE: 0.2, HEI_MIN: 500, HEI_OK: 5, HEI_NG: 8, HEI_NG_UTA: 5, FOLLOW: 60 };
 type Goal = { castles: number[]; until: number; clan: string };
 type HX = { homenGoal?: Goal; yorikiArmy?: Record<string, number>; shinEv?: { kind: string; turn: number; need?: number }; career?: { steps: string[] }; favor: number; fame?: number; rel: Record<string, number>; id: string; mode?: string; fuchu?: number; ryo?: number[] };
 const X = (s: GameState) => s.hero as unknown as HX;
@@ -31,7 +32,7 @@ export function homenMonth(s: GameState): string[] {
       .sort((a, b) => Math.min(...fc.map((k) => hexDist(k.hex, a.hex))) - Math.min(...fc.map((k) => hexDist(k.hex, b.hex))));
     if (foes.length) {
       const pick = foes.slice(0, HOMEN.GOAL_N);
-      H.homenGoal = { castles: pick.map((c) => c.i), until: s.turn + HOMEN.GOAL_MONTHS, clan: pick[0].owner! };
+      H.homenGoal = { castles: pick.map((c) => c.i), until: s.turn + HOMEN.GOAL_MONTHS, clan: pick[0].owner! }; pushKumi(s, { k: 'homenGoal' }); // 言い渡しと与力の顔合わせの場面
       out.push(`主君から方面の目標が言い渡された: ${HOMEN.GOAL_MONTHS / 12}年のうちに、${pick.map((c) => c.name).join('・')}を落とせ。果たせば大きな加増、果たせなければ解任。`);
     }
   } else {
@@ -41,22 +42,25 @@ export function homenMonth(s: GameState): string[] {
       for (const i of g.castles) if (s.castles[i].owner === clan) { if (!(H.ryo ??= []).includes(i) && i !== H.fuchu) H.ryo.push(i); if (!f.castles.includes(i)) f.castles.push(i); }
       out.push(`方面の目標（${g.castles.map((i) => s.castles[i].name).join('・')}）を果たした！ 主君の覚え+${HOMEN.OK_FAVOR}・名声+${HOMEN.OK_FAME}・功績+${HOMEN.OK_MERIT}。落とした城は領に加えられた。`);
       addLog(s, `${me(s).name}が方面の目標を果たし、大きく加増された。`, 'info', true);
-      H.homenGoal = undefined; // 次の目標は来月言い渡される
-    } else if (s.turn > g.until) out.push(...dismiss(s));
+      pushKumi(s, { k: 'homenOk', ids: g.castles.map(String) }); H.homenGoal = undefined; // 次の目標は来月言い渡される
+    } else if (s.turn > g.until) { pushKumi(s, { k: 'homenNg', ids: yorikiOf(s).map((y) => y.id) }); out.push(...dismiss(s)); } // 解任の場面（去る与力の名は、解く前に）
+    else if (g.until - s.turn === 12) pushKumi(s, { k: 'homenRemind' }); // 残り一年の催促
   }
   if (!isHomen(s)) return out;
   // 与力の親しさ
   const ys = yorikiOf(s);
   const took = s.castles.some((c) => c.owner === clan && c.prevOwner && c.prevOwner !== clan && c.prevTurn !== undefined && s.turn - c.prevTurn <= 1 && f.castles.some((i) => hexDist(s.castles[i].hex, c.hex) <= R.hx(HOMEN.GOAL_RANGE)));
-  if (took && ys.length) { for (const g of ys) H.rel[g.id] = Math.min(100, (H.rel[g.id] ?? 0) + HOMEN.WIN_REL); out.push(`方面の軍勢が城を落とした。与力の${ys.map((g) => g.name).join('・')}との親しさ+${HOMEN.WIN_REL}。`); }
+  if (took && ys.length) { pushKumi(s, { k: 'yorikiWin' }); for (const g of ys) H.rel[g.id] = Math.min(100, (H.rel[g.id] ?? 0) + HOMEN.WIN_REL); out.push(`方面の軍勢が城を落とした。与力の${ys.map((g) => g.name).join('・')}との親しさ+${HOMEN.WIN_REL}。`); }
   const prev = H.yorikiArmy ?? {}, now: Record<string, number> = {};
   for (const g of ys) {
     if (g.army !== null && s.armies[g.army]) now[g.id] = g.army;
-    else if (prev[g.id] !== undefined && !s.armies[prev[g.id]]) { H.rel[g.id] = Math.max(0, (H.rel[g.id] ?? 0) - HOMEN.LOST_REL); out.push(`与力の${g.name}は率いていた部隊を失い、捨て駒にされたと恨んでいる（親しさ−${HOMEN.LOST_REL}）。`); }
+    else if (prev[g.id] !== undefined && !s.armies[prev[g.id]]) { H.rel[g.id] = Math.max(0, (H.rel[g.id] ?? 0) - HOMEN.LOST_REL); pushKumi(s, { k: 'yorikiLost', id: g.id }); out.push(`与力の${g.name}は率いていた部隊を失い、捨て駒にされたと恨んでいる（親しさ−${HOMEN.LOST_REL}）。`); }
   }
   H.yorikiArmy = now;
   const sour = ys.filter((g) => (H.rel[g.id] ?? 0) < HOMEN.ZAN_REL);
-  if (sour.length && rand(s) < HOMEN.ZAN_P) { const g = sour[Math.floor(rand(s) * sour.length)]; addUtagai(s, HOMEN.ZAN_UTA); H.favor = Math.max(0, H.favor - HOMEN.ZAN_FAVOR); out.push(`与力の${g.name}が、主君に方面の差配への不満を言上した（覚え−${HOMEN.ZAN_FAVOR}・疑い+${HOMEN.ZAN_UTA}）。`); }
+  if (sour.length && rand(s) < HOMEN.ZAN_P) { const g = sour[Math.floor(rand(s) * sour.length)]; pushKumi(s, { k: 'gonjo', id: g.id }); addUtagai(s, HOMEN.ZAN_UTA); H.favor = Math.max(0, H.favor - HOMEN.ZAN_FAVOR); out.push(`与力の${g.name}が、主君に方面の差配への不満を言上した（覚え−${HOMEN.ZAN_FAVOR}・疑い+${HOMEN.ZAN_UTA}）。`); }
+  // 先鋒の願い（新しい出来事）: 目標がある間、月に8%で与力の一人が次の城攻めの先鋒を願い出る（ryokake.ts の場面で許すか退けるか）
+  if (ys.length && H.homenGoal && rand(s) < HOMEN.SENPO_P) pushKumi(s, { k: 'senpo', id: ys[Math.floor(rand(s) * ys.length)].id });
   // 兵の取り合い
   if (!H.shinEv && rand(s) < HOMEN.HEI_P) {
     const total = f.castles.map((i) => s.castles[i]).filter((c) => c.owner === clan).reduce((t, c) => t + c.garrison, 0);
