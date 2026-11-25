@@ -497,7 +497,7 @@ function kakeHtml(st: GameState, k: RK.Kake) {
 function ronBeats(st: GameState): Beat[] { return [...RK.newOfferBeats(st), ...(kakeOn() ? RK.rumorBeats(st) : []), ...KK.pendingBeats(st, kakeOn())]; } // 組頭・足軽大将: 寄親・同輩・取り立ての場面
 // 場面で選んだ答えの結び: 城下に出して、旬を進める
 function ronAfter(st: GameState): boolean {
-  const t = RK.takeLast(); if (!t) return false;
+  const t = RK.takeLast() ?? KK.takeLast(); if (!t) return false;
   H.note(st, t); say = { text: t }; save(); render(); void advance(); return true;
 }
 // 選ぶところのある場面を、行いとして始める（病・月の報告・忙しい時は始めない）
@@ -580,7 +580,8 @@ async function advance() {
   if (bg === 'tabi' && !st.hero!.field && (st.hero!.dest === null || st.hero!.dest === undefined)) { bg = 'town'; pane = 'spots'; }
   save(); render();
   const rb = cev && cev.beats.length ? [] : ronBeats(st); // 浪人: 来たばかりの誘いの使者・城下の噂
-  if (rb.length && theater) { if (held || report) { heldBeats = [...(heldBeats ?? []), ...rb]; return; } theater(rb, () => { save(); if (!ronAfter(st)) render(); }, chooser(st), opt(st)); return; }
+  // 閉じられない窓（合戦の誘いなど）しかなければ、その上で場面を出す
+  if (rb.length && theater) { if (report || (held && !say?.offer)) { heldBeats = [...(heldBeats ?? []), ...rb]; return; } theater(rb, () => { save(); if (!ronAfter(st)) render(); }, chooser(st), opt(st)); return; }
   if (cev && cev.beats.length && theater) { if (held || report) { heldBeats = cev.beats; return; } theater(cev.beats, () => { save(); render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, undefined, opt(st)); return; } // 出世の節目の場面（セリフの窓・月の報告を閉じてから）
   runStory();
 }
@@ -588,7 +589,7 @@ async function advance() {
 type Theater = (beats: Beat[], done: () => void, choose?: (key: string, id: string) => Beat[], opt?: { part2?: boolean; label?: string; cast?: Record<string, string>; tx?: (x: string) => string }) => void;
 let theater: Theater | null = null;
 export function setTheater(f: Theater) { theater = f; }
-const chooser = (st: GameState) => (key: string, id: string) => (key.startsWith('r_') ? RK.choose(st, key, id) : M.storyChoose(st, key, id).beats); // r_: 浪人の場面（誘い・目通り・連歌会） // 結果の数値は物語の画面に出さず、場面のあとで城下に
+const chooser = (st: GameState) => (key: string, id: string) => (key.startsWith('r_') ? RK.choose(st, key, id) : key.startsWith('k_') ? KK.choose(st, key, id) : M.storyChoose(st, key, id).beats); // k_: 足軽大将の場面（持ち場・与吉） // r_: 浪人の場面（誘い・目通り・連歌会） // 結果の数値は物語の画面に出さず、場面のあとで城下に
 const opt0 = (st: GameState) => { const d = st.hero!.storyDone ?? []; return { part2: d.includes('katoku'), label: d.includes('ryo4') ? '残り火　第五部' : d.includes('ryo3') ? '残り火　第四部' : d.includes('ryo') ? '残り火　第三部' : d.includes('katoku') ? '残り火　第二部' : '残り火　第二幕' }; };
 const opt = (st: GameState) => CR.freeHero(st) ? { part2: false, label: CR.houseName(st), cast: { ...RK.CAST, ...Object.fromEntries(Object.values(st.generals).map((g) => [g.id, g.name])) }, tx: (x: string) => M.genText(x, st) } : opt0(st);
 function runStory() {
@@ -833,7 +834,7 @@ function onClick(e: Event) {
   if (h === 'ban-go' || h === 'ban-auto') {
     const st = s, P = YR.banPendOf(st); if (!P) { say = null; render(); return; }
     const seen = !!P.yori; // 寄親が同じ軍勢にいて、働きを見ている
-    const fin = (bn: import('../engine/ban').Ban) => { const kake = kakeOn() ? KK.battleOutro(st, bn, seen) : []; const t2 = BP.applyBan(st, bn); for (const x of t2) H.note(st, x); say = { text: t2.join(''), hold: true, kake: kake.length ? kake : undefined }; save(); render(); };
+    const fin = (bn: import('../engine/ban').Ban) => { const kake = kakeOn() ? KK.battleOutro(st, bn, seen) : []; const t2 = BP.applyBan(st, bn); for (const x of t2) H.note(st, x); const rk = KK.retainerKake(st); if (kakeOn()) kake.push(...rk); say = { text: t2.join(''), hold: true, kake: kake.length ? kake : undefined }; save(); render(); }; // 家臣の一言（腕を上げた・手傷）は盤の後に
     if (h === 'ban-auto') { const bn = BP.autoBan(st); if (bn) fin(bn); return; }
     const bn = BP.battleBan(st); if (!bn) return;
     const go = () => void openBan(bn, `${P.foeName}との合戦 ― 槍働き`, banColors(st, P.foe)).then(fin);
@@ -852,7 +853,8 @@ function onClick(e: Event) {
     if (SK.isSick(st)) { say = { text: '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
     dlg = null;
     const bn = BP.skirmishBan(st, q.sub ?? 'scout');
-    void openBan(bn, `${st.castles[q.castle].name}の境 ― 小競り合い`, banColors(st, Object.values(st.generals).find((g) => g.clan === q.target)?.id)).then(async (r) => { const res = BP.applySkirmish(st, r); H.note(st, res.text); say = { text: res.text, hold: true }; save(); render(); await advance(); });
+    const go = () => void openBan(bn, `${st.castles[q.castle].name}の境 ― 小競り合い`, banColors(st, Object.values(st.generals).find((g) => g.clan === q.target)?.id)).then(async (r) => { const won = KK.zeriWon(r), res = BP.applySkirmish(st, r); H.note(st, res.text); const kake = kakeOn() ? [...KK.zeriOutro(st, won), ...KK.retainerKake(st)] : (KK.retainerKake(st), []); say = { text: res.text, hold: true, kake: kake.length ? kake : undefined }; save(); render(); await advance(); });
+    if (kakeOn() && theater) theater(KK.zeriIntro(st, q.sub ?? 'scout'), go, undefined, opt(st)); else go(); // 出立の前: 家臣と手立てを話す
     return;
   }
   if (h === 'work') { const k = s.hero!.quest!.kind; void act(() => H.work(s!), k); return; }

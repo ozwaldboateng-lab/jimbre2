@@ -2,6 +2,7 @@
 import { autoAll, BAN, BKind, hero as heroPiece, kindOf, MOCHI_NAME, newBan, type Ban, type BanSetup, type Mochi, type Who } from './ban';
 import { banPendOf, clearBanPend, deedsOf, YARI } from './yari';
 import { retainersOf } from './kashin';
+import { pushKumi } from './kumiev';
 import { hpMax, hpOf, lv, spendHp } from './skill';
 import { addLog, rand } from './state';
 import { rivalOf, yoriBan } from './yorioya';
@@ -106,13 +107,13 @@ function settle(s: GameState, b: Ban, out: string[]) {
       const need = BANW.GROW_AT + Math.max(0, Math.round((g[k] - 70) / 2)); // 70を超えると、伸びるのに要る経験が増える
       if (left < need || g[k] >= BANW.GROW_MAX) break;
       left -= need;
-      const before = kindOf(g); g[k]++;
+      const before = kindOf(g); g[k]++; pushKumi(s, { k: 'grow', id: g.id, kind: kindOf(g) !== before ? kindOf(g) : undefined }); // 盤のあとの家臣の一言
       out.push(`${g.name}が槍働きで腕を上げた（${k === 'bra' ? '武勇' : '知略'}${g[k]}）。${kindOf(g) !== before ? `型が変わり、次から${({ ashi: '足軽', yumi: '弓', teppo: '鉄砲', kiba: '騎馬' } as Record<string, string>)[kindOf(g)]}の駒に乗る。` : ''}`);
     }
     KX.kexp[g.id] = left;
   }
   // 倒れた配下は手傷で、しばらく出られない
-  for (const p of b.pieces) if (p.side === 'me' && !p.alive && p.gid && !p.hero) { const g = s.generals[p.gid]; if (g) { g.sick = Math.max(g.sick ?? 0, 1); out.push(`${g.name}は手傷を負い、しばらく養生する。`); } }
+  for (const p of b.pieces) if (p.side === 'me' && !p.alive && p.gid && !p.hero) { const g = s.generals[p.gid]; if (g) { g.sick = Math.max(g.sick ?? 0, 1); out.push(`${g.name}は手傷を負い、しばらく養生する。`); pushKumi(s, { k: 'hurt', id: g.id }); } }
 }
 // 持ち場を願い出る（一合戦に一度）: 寄親との親しさ30からは聞き入れられる。それより下は半々
 export function askMochi(s: GameState, m: Mochi): { ok: boolean; text: string } {

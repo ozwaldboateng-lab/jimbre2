@@ -2,6 +2,7 @@
 // 家臣は主家に属したまま、主人公の家臣（status 'kashin'・liege＝主人公）として、大名のAIには使わせない。
 // 使い道: 城代（城を空けている間の治め）・代わりに働かせる（使い番・物見・普請）・合戦（手勢を率いて働きを上げる）・家中の進言の担い手
 import type { Act } from './hero';
+import { pushKumi } from './kumiev';
 import { hexDist } from './map';
 import { addLog, clamp100, rand } from './kashin_util';
 import type { GameState, General } from './types';
@@ -41,7 +42,7 @@ export function recruit(s: GameState, gid: string): Act {
   const p = 0.35 + (H.fame ?? 0) / 150 + me.cha / 300 + (rel - KASHIN.REL) / 150;
   if (rand(s) < Math.min(0.9, p)) {
     H.gold -= KASHIN.SHITAKU;
-    take(s, g);
+    take(s, g); pushKumi(s, { k: 'oath', id: g.id }); // 主従の盃の場面
     return { ok: true, who: gid, line: 'よかろう。おぬしの家で、もう一度槍を振ろう。', text: `${g.name}を家臣に召し抱えた（家臣${retainersOf(s).length}／${capOf(s)}人。扶持は月${KASHIN.FUCHI}貫）。` };
   }
   H.rel[gid] = clamp100(rel - 5);
@@ -104,7 +105,7 @@ export function kashinMonth(s: GameState): string[] {
   // 扶持
   const cost = rs.length * KASHIN.FUCHI;
   if (H.gold >= cost) H.gold -= cost;
-  else { H.gold = 0; const g = rs[rs.length - 1]; if (rand(s) < 0.5) { release(s, g.id, '扶持が払われず、暇を取った。'); out.push(`扶持が払えず、家臣の${g.name}が去った。`); } }
+  else { H.gold = 0; const g = rs[rs.length - 1]; if (rand(s) < 0.5) { release(s, g.id, '扶持が払われず、暇を取った。'); pushKumi(s, { k: 'leave', id: g.id, unpaid: true }); out.push(`扶持が払えず、家臣の${g.name}が去った。`); } }
   // 城代の治め（主人公がその城下にいない月）
   for (const [k, gid] of Object.entries(H.daikan ?? {})) {
     const c = s.castles[+k], g = s.generals[gid];

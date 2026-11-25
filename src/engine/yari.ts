@@ -8,6 +8,7 @@ import { addLog, rand } from './state';
 import type { Army, BattleReport, GameState } from './types';
 import type { Target } from './move';
 import { ronkoStart } from './yorioya';
+import { pushKumi } from './kumiev';
 
 export const YARI = {
   KUBI_P: 0.3, KUBI_YARI: 0.05, KUBI_MERIT: 10, // 首級: 30%＋槍術一段5%＋武勇÷400（負け戦は半分）
@@ -50,7 +51,7 @@ export function aftermath(s: GameState): { lines: string[]; duel: string | null;
   d.battles++; if (b.won) d.wins++;
   if (b.castle) { d.castles++; out.push(`${b.castle}の攻めに加わり、城は落ちた。`); }
   if (b.lead) ronkoStart(s, b.won, b.foeName); // 率いた合戦のあとは、論功行賞で寄子・家臣に手柄を配る
-  if (!b.lead) { const ms = ['senjin', 'waki', 'teppo', 'gozume'] as const; H.banPend = { turn: s.turn, won: b.won, foe: b.foe, foeName: b.foeName, yori: b.yori, mochi: me.rank <= 2 ? ms[Math.floor(rand(s) * 4)] : undefined }; out.push(`${b.foeName}との合戦に加わった（${b.won ? '勝ち戦' : '負け戦'}）。`); return { lines: out, duel: null, ban: true }; }
+  if (!b.lead) { const ms = ['senjin', 'waki', 'teppo', 'gozume'] as const; H.banPend = { turn: s.turn, won: b.won, foe: b.foe, foeName: b.foeName, yori: b.yori, mochi: me.rank <= 2 ? ms[Math.floor(rand(s) * 4)] : undefined }; if (H.banPend.mochi) pushKumi(s, { k: 'mochi' }); /* 寄親が持ち場を言い渡す場面（その場で願い出られる） */ out.push(`${b.foeName}との合戦に加わった（${b.won ? '勝ち戦' : '負け戦'}）。`); return { lines: out, duel: null, ban: true }; }
   const p = (YARI.KUBI_P + lv(s, 'yari') * YARI.KUBI_YARI + me.bra / 400) * (b.won ? 1 : 0.5);
   if (rand(s) < p) { d.kubi++; H.kubi = (H.kubi ?? 0) + 1; me.merit += YARI.KUBI_MERIT; out.push(`${b.foeName}との合戦で、${me.name}は自ら槍を振るい、首級を挙げた（功績+${YARI.KUBI_MERIT}）。`); }
   else out.push(`${b.foeName}との合戦に加わった（${b.won ? '勝ち戦' : '負け戦'}）。`);

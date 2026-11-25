@@ -1,10 +1,13 @@
 // 武将で遊ぶ（物語の外）: 足軽組頭・足軽大将の演出。寄親（付いた時・合戦の前後・推挙しない時・取り立て）と同輩（顔合わせ・盤の前後・先を越された・討ち死に）。
 // 節目は場面（画面いっぱい）、合戦の前は短い場面、合戦の後は掛け合い（顔とセリフを二、三行）。セリフは data/kumi_kake.ts
-import type { Beat } from '../data/story_toshiie';
+import type { Beat, Choice } from '../data/story_toshiie';
 import * as K from '../data/kumi_kake';
-import type { Ban } from './ban';
+import { MOCHI_NAME, type Ban, type Mochi } from './ban';
+import { askMochi } from './banplay';
+import { retainersOf } from './kashin';
+import { banPendOf } from './yari';
 import { heroOf } from './hero';
-import { takeKumi, type KumiEv } from './kumiev';
+import { pushKumi, takeKumi, type KumiEv } from './kumiev';
 import { temperOf } from './lines';
 import type { Kake } from './roninkake';
 import * as R from './rules';
@@ -77,10 +80,65 @@ function evBeats(s: GameState, e: KumiEv): Beat[] {
       ...(r && r.rank > me.rank ? [{ who: r.id, text: fill(pick(K.RIVAL_BEHIND[temperOf(r)], k + 'r'), v) }] : []),
     ]);
   }
+  if (e.k === 'oath') {
+    const g = gen(s, e.id); if (!g) return [];
+    return headed('主従の盃', [
+      { bg: 'zashiki_night', text: `${g.name}を家臣に召し抱えた。灯の下で、主従の盃を交わす。` },
+      { who: g.id, text: pick(K.KASHIN_OATH[temperOf(g)], k) },
+      { who: me.id, text: pick(K.HERO_OATH[ht], k) },
+    ]);
+  }
+  if (e.k === 'leave') {
+    const g = gen(s, e.id); if (!g) return [];
+    return headed('暇乞い', [
+      { bg: 'zashiki_day', text: `${fill(K.KASHIN_LEAVE_NARR, { name: g.name })}${e.unpaid ? '扶持が、払えなかった。' : ''}` },
+      { who: g.id, text: pick(K.KASHIN_LEAVE[temperOf(g)], k) },
+    ]);
+  }
+  if (e.k === 'mochi') return mochiBeats(s);
+  if (e.k === 'yokichi') return headed('権六の願い', [
+    { bg: 'jinmaku', text: '陣払いのあと、権六が改まって膝をついた。後ろで、与吉がそわそわしている。' },
+    { who: 'g_gonroku', text: K.GONROKU_SUGGEST, ask: 'k_yokichi', choices: [{ id: 'yes', label: '与吉に組を預ける', note: '与吉が組頭になる（組の足軽は権六が見る）' }, { id: 'no', label: 'まだ早い', note: 'しばらくして、また願い出てくる' }] },
+  ]);
   return [];
 }
+// ───────── 持ち場の言い渡し（足軽大将から。寄親が言い渡し、その場で願い出られる） ─────────
+function mochiBeats(s: GameState): Beat[] {
+  const P = banPendOf(s), y = yoriOf(s); if (!P?.mochi || P.asked) return [];
+  const k = `${s.turn}|m`, m = P.mochi;
+  const ch: Choice[] = [{ id: 'keep', label: '承る', note: `${MOCHI_NAME[m]}で戦う` }, ...(['senjin', 'waki', 'teppo', 'gozume'] as Mochi[]).filter((x) => x !== m).map((x) => ({ id: x, label: `${MOCHI_NAME[x]}を願い出る`, note: y && (s.hero!.rel[y.id] ?? 0) >= 30 ? '寄親と親しいので、聞き入れられる' : '聞き入れられるかは半々' }))];
+  return headed('持ち場', [
+    { bg: 'jinmaku', text: `${P.foeName}との合戦。陣の中で、寄親から持ち場が言い渡される。` },
+    { who: y?.id ?? heroOf(s)!.id, text: y ? pick(K.YORI_MOCHI[m], k) : `持ち場は${MOCHI_NAME[m]}。`, ask: 'k_mochi', choices: ch },
+  ]);
+}
+function kashinMochi(s: GameState, m: string, k: string): Beat[] { const g = retainersOf(s)[0]; return g ? [{ who: g.id, text: pick(K.KASHIN_MOCHI[m], k) }] : []; }
+let last: string | null = null;
+export const takeLast = () => { const t = last; last = null; return t; };
+export function choose(s: GameState, key: string, id: string): Beat[] {
+  const k = `${s.turn}|${key}|${id}`;
+  if (key === 'k_mochi') {
+    const P = banPendOf(s); if (!P?.mochi) return [];
+    const y = yoriOf(s);
+    if (id === 'keep') return headed('持ち場', kashinMochi(s, P.mochi, k));
+    const r = askMochi(s, id as Mochi); last = r.text;
+    return headed('持ち場', [...(y ? [{ who: y.id, text: pick(r.ok ? K.YORI_MOCHI_OK : K.YORI_MOCHI_NG, k) }] : []), { text: r.text }, ...kashinMochi(s, P.mochi, k)]);
+  }
+  if (key === 'k_yokichi') {
+    const Y = yk(s);
+    if (id === 'yes') { Y.kumi = true; last = '与吉に組を預けた。与吉が組頭になった。'; return headed('権六の願い', [{ who: 'g_yokichi', text: K.YOKICHI_KUMI_YES[0] }, { who: 'g_gonroku', text: K.YOKICHI_KUMI_YES[1] }]); }
+    Y.asked = s.turn; last = '与吉に組を預けるのは、まだ早いとした。';
+    return headed('権六の願い', [{ who: 'g_yokichi', text: K.YOKICHI_KUMI_NO[0] }, { who: 'g_gonroku', text: K.YOKICHI_KUMI_NO[1] }]);
+  }
+  return [];
+}
+// 与吉の成長（足軽大将まで続く権六と与吉の小さな物語）: 初めての首・深い手傷・組を預けるかの願い出
+type YK = { battles: number; kubi?: boolean; hurt?: boolean; kumi?: boolean; asked?: number };
+const yk = (s: GameState): YK => { const H = s.hero as unknown as { yk?: YK }; return (H.yk ??= { battles: 0 }); };
+export const YOKICHI = { KUBI_AFTER: 2, KUBI_KILLS: 3, HURT_P: 0.3, ASK_AFTER: 4, ASK_AGAIN: 6 };
 // 溜まった出来事の場面（取り立てがあれば、同じ月の「推挙されない」は出さない）
 export function pendingBeats(s: GameState, on: boolean): Beat[] {
+  takeKumi(s, ['grow', 'hurt']); // 盤のあとの掛け合いで出しそびれた分は捨てる
   const evs = takeKumi(s); if (!on || !evs.length || (s.hero as { story?: string } | undefined)?.story === 'toshiie') return []; // 利家の物語には、物語の場面がある
   const promoted = evs.some((e) => e.k === 'promote'), lastP = evs.filter((e) => e.k === 'promote').pop();
   return evs.filter((e) => !(promoted && e.k === 'suisen') && (e.k !== 'promote' || e === lastP)).flatMap((e) => evBeats(s, e)); // 同じ月に二段上がれば、最後の身分の場面だけ
@@ -97,15 +155,24 @@ export function battleIntro(s: GameState, mochi: string | undefined, seen: boole
     { bg: 'jinmaku', text: '陣触れの太鼓が鳴った。組の足軽たちが、槍を手に集まってくる。' },
     ...(y && yl ? [{ who: y.id, text: yl }] : []),
     ...(r ? [{ who: r.id, text: pick(K.RIVAL_BEFORE[temperOf(r)], k) }] : []),
-    ...(kumiOf(s) ? [{ who: 'g_gonroku', text: pick(mochi && K.GONROKU_BEFORE[mochi] ? K.GONROKU_BEFORE[mochi] : K.GONROKU_BEFORE.all, k + 'g') }, { who: 'g_yokichi', text: pick(K.YOKICHI_BEFORE, k + 'y') }] : []), // 組の足軽
+    ...(kumiOf(s) ? [{ who: 'g_gonroku', text: pick(mochi && K.GONROKU_BEFORE[mochi] ? K.GONROKU_BEFORE[mochi] : K.GONROKU_BEFORE.all, k + 'g') }, { who: 'g_yokichi', text: pick(yk(s).kumi ? K.YOKICHI_AS_KUMI : K.YOKICHI_BEFORE, k + 'y') }] : []), // 組の足軽（与吉が組頭になれば、組頭としての言葉）
     { who: me.id, text: pick(K.HERO_BEFORE[temperOf(me)], k + 'h') },
   ]);
 }
 export function battleOutro(s: GameState, b: Ban, seen: boolean): Kake {
   const y = yoriOf(s), r = rivalOf(s), k = `${s.turn}|a`, out: Kake = [];
   // 組の足軽: 一番槍の歓声・首実検（権六が首を差し出し、寄親が検める）・手傷を案じる
+  let story = false; // 与吉の物語が出た戦（掛け合いを五行まで）
   const kumi = kumiOf(s), hero = b.pieces.find((p) => p.hero), kubi = kumi && b.pieces.some((p) => p.sho && p.side === 'foe' && !p.alive && !p.gone);
-  if (!kumi) { /* 侍大将からは組がない */ } else if (b.over === 'lose' || (hero && !hero.alive)) out.push({ who: 'g_yokichi', line: pick(K.YOKICHI_HURT, k) });
+  // 与吉の物語（一戦に一つまで）: 二戦目からの勝ち戦で討ち取り三つ以上なら初めての首、首を取ったあとは三割で深い手傷、足軽大将で四戦を越えれば権六が組を預けるよう願い出る
+  if (kumi) {
+    const Y = yk(s); Y.battles++;
+    const say3 = (t: [string, string, string]) => [{ line: t[2] }, { who: 'g_yokichi', line: t[0] }, { who: 'g_gonroku', line: t[1] }];
+    if (!Y.kubi && b.over === 'win' && b.kills >= YOKICHI.KUBI_KILLS && Y.battles >= YOKICHI.KUBI_AFTER) { Y.kubi = true; story = true; out.push(...say3(K.YOKICHI_FIRST_KUBI)); }
+    else if (Y.kubi && !Y.hurt && !Y.kumi && hash(k + 'h') % 100 < YOKICHI.HURT_P * 100) { Y.hurt = true; story = true; out.push(...say3(K.YOKICHI_BADLY_HURT)); }
+    if (Y.kubi && !Y.kumi && (heroOf(s)?.rank ?? 3) <= 2 && Y.battles >= YOKICHI.ASK_AFTER && (Y.asked === undefined || s.turn - Y.asked >= YOKICHI.ASK_AGAIN)) pushKumi(s, { k: 'yokichi' });
+  }
+  if (!kumi || story) { /* 侍大将からは組がない。与吉の物語の戦は、それだけ */ } else if (b.over === 'lose' || (hero && !hero.alive)) out.push({ who: 'g_yokichi', line: pick(K.YOKICHI_HURT, k) });
   else if (b.log.some((t) => t.startsWith('一番槍'))) out.push({ who: 'g_yokichi', line: pick(K.YOKICHI_ICHIBAN, k) });
   if (kubi && b.over !== 'lose') { out.push({ who: 'g_gonroku', line: pick(K.GONROKU_KUBI, k) }); if (y) out.push({ who: y.id, line: pick(K.YORI_KUBI, k) }); }
   if (y) {
@@ -119,5 +186,31 @@ export function battleOutro(s: GameState, b: Ban, seen: boolean): Kake {
     else if (b.tegara > b.rivalTegara) out.push({ who: r.id, line: pick(K.RIVAL_LOST[t], k) });
   }
   if (kumi && b.over === 'win' && !kubi) out.push({ who: 'g_gonroku', line: pick(K.GONROKU_WIN, k) }); // 勝ち戦の夜
-  return out.slice(0, 4); // 掛け合いは四行まで
+  return out.slice(0, story ? 5 : 4); // 掛け合いは四行まで（与吉の物語の戦は五行）
+}
+
+// 盤のあとの家臣の一言（腕を上げた・型が変わった・手傷）。月の出来事から取り出す
+export function retainerKake(s: GameState): Kake {
+  const evs = takeKumi(s, ['grow', 'hurt']), out: Kake = [], seen = new Set<string>();
+  for (const e of evs) {
+    const g = gen(s, e.id); if (!g || seen.has(g.id + e.k)) continue; seen.add(g.id + e.k);
+    const t = temperOf(g), k = `${s.turn}|${g.id}|${e.k}`;
+    out.push({ who: g.id, line: e.k === 'hurt' ? pick(K.KASHIN_HURT[t], k) : e.kind ? K.KASHIN_KIND[e.kind] ?? pick(K.KASHIN_GROW[t], k) : pick(K.KASHIN_GROW[t], k) });
+  }
+  return out.slice(0, 2);
+}
+
+// ───────── 小競り合いの主命（物見・夜討ち・砦の守り） ─────────
+export function zeriIntro(s: GameState, sub: string): Beat[] {
+  const me = heroOf(s)!, g = retainersOf(s)[0], k = `${s.turn}|z|${sub}`;
+  return headed('小競り合い', [
+    { bg: sub === 'youchi' ? 'tsukiyo' : sub === 'toride' ? 'jinmaku' : 'senjo', text: K.ZERI_NARR[sub] ?? '' },
+    ...(g ? [{ who: g.id, text: pick(K.ZERI_KASHIN[sub] ?? K.ZERI_KASHIN.scout, k) }] : [{ who: 'g_gonroku', text: pick(K.ZERI_KASHIN[sub] ?? K.ZERI_KASHIN.scout, k) }]),
+    { who: me.id, text: pick(K.ZERI_HERO[sub] ?? K.ZERI_HERO.scout, k) },
+  ]);
+}
+export const zeriWon = (b: Ban) => (b.goal === 'hold' ? (b.over === 'time' || b.over === 'win') && !!b.pieces.find((p) => p.hero)?.alive && !b.breached : b.over === 'win');
+export function zeriOutro(s: GameState, won: boolean): Kake {
+  const g = retainersOf(s)[0], k = `${s.turn}|zo`;
+  return [{ who: g?.id ?? 'g_gonroku', line: pick(won ? K.ZERI_WIN : K.ZERI_LOSE, k) }];
 }

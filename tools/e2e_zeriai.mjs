@@ -9,6 +9,7 @@ for (const [vp, sub] of [[{ width: 1360, height: 820, tag: 'pc' }, 'scout'], [{ 
   const p = await b.newPage({ viewport: { width: vp.width, height: vp.height } });
   p.on('pageerror', (e) => errors.push(vp.tag + ' ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(vp.tag + ' ' + m.text()); });
+  await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 演出は e2e_ashigaru で試す
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
   await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200);

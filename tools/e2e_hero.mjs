@@ -9,6 +9,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   const p = await b.newPage({ viewport: { width: vp.width, height: vp.height } });
   p.on('pageerror', (e) => errors.push('pageerror ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push('console ' + m.text()); });
+  await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 演出は e2e_kumikake・e2e_ashigaru で試す
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.screenshot({ path: `${out}/title-${vp.tag}.png` });
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(400);
