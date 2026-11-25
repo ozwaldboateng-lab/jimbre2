@@ -24,7 +24,7 @@ export interface Ban {
   mid: BanSetup['foe']; late: BanSetup['foe']; // 中盤に現れる敵・殿で迫る敵
   duel?: Duel; duelWon?: string[]; duelLost?: number; // 一騎討ち（いま戦っている・勝った相手の名・負けた数）
   mochi?: Mochi; rescued?: number; // 持ち場（足軽大将から）・後詰めで救った組の数
-  goal?: Goal; goalLabel?: string; breached?: boolean; night?: boolean; // night: 夜討ち（盤を暗く） // 小競り合いのねらい（主命。なければ合戦の槍働き）・砦を破られた
+  goal?: Goal; goalLabel?: string; breached?: boolean; night?: boolean; honjin?: boolean; // night: 夜討ち（盤を暗く）。honjin: 本陣の盤（退くは「本陣を下げる」） // 小競り合いのねらい（主命。なければ合戦の槍働き）・砦を破られた
 }
 // 小競り合い（足軽大将の主命）のねらい: reach 主人公が敵の端（一番上の行）に着けば果たす・rout 敵を討ち払えば果たす・hold 手番の終わりまで主人公が持ちこたえれば果たす
 export type Goal = 'reach' | 'rout' | 'hold';
@@ -73,7 +73,7 @@ export function makePiece(id: number, side: BSide, kind: BKind, w: Who | null, x
 }
 
 // ───────── 盤を作る ─────────
-export interface BanSetup { goalLabel?: string; goal?: Goal; fort?: 'foe' | 'me'; sleep?: boolean; spread?: boolean; mochi?: Mochi; rescue?: { kind: BKind; who: Who | null }[]; me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number; end?: 'oiuchi' | 'shingari'; mid?: { kind: BKind; who: Who | null }[]; late?: { kind: BKind; who: Who | null }[] }
+export interface BanSetup { honjin?: boolean; goalLabel?: string; goal?: Goal; fort?: 'foe' | 'me'; sleep?: boolean; spread?: boolean; mochi?: Mochi; rescue?: { kind: BKind; who: Who | null }[]; me: { kind: BKind; who: Who | null }[]; foe: { kind: BKind; who: Who | null }[]; seed: number; maxTurn?: number; end?: 'oiuchi' | 'shingari'; mid?: { kind: BKind; who: Who | null }[]; late?: { kind: BKind; who: Who | null }[] }
 export function newBan(o: BanSetup): Ban {
   const b: Ban = { w: BAN.W, h: BAN.H, terr: Array(BAN.W * BAN.H).fill('.'), pieces: [], turn: 1, maxTurn: o.maxTurn ?? BAN.TURNS, phase: 'me', log: [], tegara: 0, kills: 0, rivalTegara: 0, seed: o.seed | 0 || 1, end: o.end ?? 'oiuchi', mid: o.mid ?? [], late: o.late ?? [], mochi: o.mochi, goal: o.goal, goalLabel: o.goalLabel };
   // 地形: 中ほど（上下3行は陣地として空ける）に林・丘・柵、川を一筋
@@ -94,6 +94,7 @@ export function newBan(o: BanSetup): Ban {
   place('me', o.me); place('foe', o.foe);
   if (o.spread) for (const p of b.pieces) if (p.side === 'foe') { for (let k = 0; k < 30; k++) { const x = Math.floor(rnd(b) * b.w), y = 1 + Math.floor(rnd(b) * 4); if (!at(b, x, y) && !isWall(terrAt(b, x, y))) { p.x = x; p.y = y; break; } } } // 物見: 敵は2〜5行目に散らばって見張る
   if (o.sleep) b.night = true;
+  if (o.honjin) b.honjin = true;
   if (o.sleep) for (const p of b.pieces) if (p.side === 'foe') p.confused = 1; // 夜討ち: 敵ははじめの一手、寝込んでいて乱れる
   // 後詰め: 盤の中ほど（5行目）に、崩れかけた味方の組（体は半ば。自分では動かせない）
   (o.rescue ?? []).forEach((u, i) => { const x = [2, 5, 3, 4][i % 4], y = 5; b.terr[y * b.w + x] = '.'; const p = makePiece(b.pieces.length, 'me', u.kind, u.who, x, y); p.npc = true; p.hp = Math.ceil(p.maxhp * 0.4); p.mov = 2; (p as Piece & { rescue?: boolean }).rescue = true; p.name = `崩れかけた味方の${KIND[u.kind].name}`; b.pieces.push(p); });
@@ -181,7 +182,7 @@ function countRescue(b: Ban) {
   const n = b.pieces.filter((p) => (p as Piece & { rescue?: boolean }).rescue && p.alive).length;
   b.rescued = n; if (n) { b.tegara += n * 2; b.log.push(`崩れかけた味方の組を${n}つ救った（手柄+${n * 2}）。`); }
 }
-export function retreat(b: Ban) { if (!b.over) { b.over = 'retreat'; b.log.push('持ち場へ退いた。'); countRescue(b); } }
+export function retreat(b: Ban) { if (!b.over) { b.over = 'retreat'; b.log.push(b.honjin ? '本陣を下げた。' : '持ち場へ退いた。'); countRescue(b); } }
 // 手番を終える
 export function endPhase(b: Ban) {
   if (b.over) return;

@@ -87,14 +87,14 @@ function render() {
   for (let y = 0; y < b.h; y++) for (let x = 0; x < b.w; x++) { const p = B.at(b, x, y), cl = cellCls(x, y, reach, tg); cells += `<button class="${cl}" style="z-index:${(/\bfront\b/.test(cl) ? 100 : 10) + y}" data-x="${x}" data-y="${y}" aria-label="${x + 1}列${y + 1}行・${B.TERR_NAME[B.terrAt(b, x, y)]}${p ? ' ' + esc(p.name) : ''}">${terrHtml(x, y)}${p ? pieceHtml(p) : ''}</button>`; }
   const foes = b.pieces.filter((p) => p.side === 'foe' && p.alive).length, ours = b.pieces.filter((p) => p.side === 'me' && p.alive).length;
   const phase = `${b.mochi ? `持ち場 ${B.MOCHI_NAME[b.mochi]}・` : ''}${B.stageName(b)}・${b.over ? '終わり' : b.phase === 'me' ? 'あなたの手番' : '敵の手番'}`;
-  const over = b.over ? `<div class="ban-over"><b>${duelOnly ? (b.over === 'win' ? '師範を打ち負かした' : '師範に敗れた') : b.breached ? '砦を破られた' : b.goal === 'reach' && b.over === 'win' ? '敵陣の端まで見届けた' : b.goal === 'hold' && b.over === 'time' ? '砦を持ちこたえた' : b.goal && b.over === 'time' ? '時が尽きた' : { win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}${b.pieces.some((q) => q.rival) ? `（同輩${b.rivalTegara}）` : ''}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
+  const over = b.over ? `<div class="ban-over"><b>${duelOnly ? (b.over === 'win' ? '師範を打ち負かした' : '師範に敗れた') : b.breached ? '砦を破られた' : b.goal === 'reach' && b.over === 'win' ? '敵陣の端まで見届けた' : b.goal === 'hold' && b.over === 'time' ? '砦を持ちこたえた' : b.goal && b.over === 'time' ? '時が尽きた' : { win: '目の前の敵を討ち払った', lose: '手傷を負い、後ろへ運ばれた', retreat: b.honjin ? '本陣を下げた' : '持ち場へ退いた', time: '合戦の流れが変わり、槍を収めた' }[b.over]}</b><span>討ち取り${b.kills}・手柄${b.tegara}${b.pieces.some((q) => q.rival) ? `（同輩${b.rivalTegara}）` : ''}</span><button class="ban-btn main" data-b="close">閉じる</button></div>` : '';
   const btns = b.over ? '' : `<div class="ban-acts">
     <button class="ban-btn" data-b="wait" ${mine && !s!.acted ? '' : 'disabled'}>待機</button>
     ${B.duelFoes(b).length && s && s.hero ? `<button class="ban-btn duel" data-b="nanori" data-id="${B.duelFoes(b)[0].id}">名乗る（${esc(B.duelFoes(b)[0].name)}と一騎討ち）</button>` : ''}
     <button class="ban-btn kyo" data-b="kyoho" ${mine && B.kyohoTargets(b, s!).length ? '' : 'disabled'}>${aim ? 'やめる' : `虚報${mine && s!.kyoho ? `（あと${s!.kyoho}）` : ''}`}</button>
     <button class="ban-btn main" data-b="end" ${b.phase === 'me' && !busy ? '' : 'disabled'}>手番を終える</button>
     <button class="ban-btn" data-b="auto" ${busy ? 'disabled' : ''}>オート</button>
-    <button class="ban-btn dim" data-b="retreat" ${busy ? 'disabled' : ''}>持ち場へ退く</button></div>`;
+    <button class="ban-btn dim" data-b="retreat" ${busy ? 'disabled' : ''}>${b.honjin ? '本陣を下げる' : '持ち場へ退く'}</button></div>`;
   const D = b.duel, duel = D ? duelHtml(D) : '';
   root.innerHTML = `${duel}<div class="ban-wrap"><div class="ban-head"><b>${esc(title)}</b><span>第${Math.min(b.turn, b.maxTurn)}手／${b.maxTurn}・${phase}・味方${ours}・敵${foes}・手柄${b.tegara}</span></div>
     <div class="ban-body"><div class="ban-grid${b.night ? ' night' : ''}" style="grid-template-columns:repeat(${b.w},1fr);grid-template-rows:repeat(${b.h},1fr)">${cells}${tagsHtml()}</div>

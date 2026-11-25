@@ -153,7 +153,7 @@ export function applySkirmish(s: GameState, b: Ban): { ok: boolean; text: string
 export function honjinBan(s: GameState, foe: { name: string; bra: number; int: number; lea: number; gid?: string }, lord?: General): Ban {
   const mob = (k: BKind) => ({ kind: k, who: null });
   const me: BanSetup['me'] = lord ? [{ kind: 'kiba', who: whoOf(lord, { hero: true }) }, mob('ashi'), mob('yumi'), mob('teppo')] : myPieces(s); // 大名: 当主と旗本
-  return newBan({ me, foe: [{ kind: 'kiba', who: { ...foe, sho: true } }, mob('ashi'), mob('ashi'), mob('yumi')], seed: Math.floor(rand(s) * 1e9), maxTurn: 5, goal: 'rout', goalLabel: '本陣の守り（迫った敵を討ち払う）' });
+  return newBan({ me, foe: [{ kind: 'kiba', who: { ...foe, sho: true } }, mob('ashi'), mob('ashi'), mob('yumi')], seed: Math.floor(rand(s) * 1e9), maxTurn: 5, goal: 'rout', goalLabel: '本陣の守り（迫った敵を討ち払う）', honjin: true });
 }
 // 首尾: 討ち払うか迫った将を討てば（勝ち）その部隊は兵−25%・士気−0.3・この手番は動けない。二つ以上討てば兵−10%・士気−0.1。主人公が倒れれば本陣の士気−0.4・体力が減る（盤の傷）。退いた・時切れはそのまま
 export const HONJIN = { WIN_TROOPS: 0.25, WIN_MORALE: 0.3, PART_TROOPS: 0.1, PART_MORALE: 0.1, LOSE_MORALE: 0.4, HP_K: 40 };

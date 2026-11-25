@@ -65,7 +65,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
       if (!banOpen) errors.push(vp.tag + ' 本陣の盤が開かない');
       else {
         const pieces = await p.evaluate(() => window.__ban.b.pieces.filter((q) => q.side === 'me').map((q) => `${q.name}${q.hero ? '(本人)' : ''}`).join('・'));
-        console.log(vp.tag, '味方の駒', pieces);
+        console.log(vp.tag, '味方の駒', pieces, '| 退くボタン:', await p.$eval('#ban [data-b="retreat"]', (e) => e.textContent)); if ((await p.$eval('#ban [data-b="retreat"]', (e) => e.textContent)) !== '本陣を下げる') errors.push(vp.tag + ' 退くボタンの言葉');
         await p.screenshot({ path: `${out}/honjin-daimyo-${vp.tag}.png` });
         await p.click('#ban [data-b="auto"]'); await p.waitForTimeout(300);
         console.log(vp.tag, '盤の終わり:', await p.$eval('#ban .ban-over', (e) => e.textContent.replace(/\s+/g, ' ')));
