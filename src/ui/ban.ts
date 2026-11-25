@@ -56,8 +56,18 @@ const artOf = (p: Piece) => { const k = artKey(p); return k ? { src: BAN_ART[`${
 function pieceHtml(p: Piece) {
   const K = B.KIND[p.kind], art = artOf(p);
   const marks = `${p.confused ? '<u>乱</u>' : p.flee ? '<u class="fl">逃</u>' : ''}<i class="hpb" style="width:${Math.round((p.hp / p.maxhp) * 100)}%"></i>`;
-  if (art) return `<span class="pa ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.rival ? ' rival' : p.npc ? ' npc' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}" style="--sc:${art.sc};--dy:${art.dy}%"><s class="base"></s><img src="${art.src}" alt="">${p.hero || p.sho || p.gid ? `<em>${p.rival ? '同輩・' : p.npc ? '同僚・' : ''}${esc(p.name.slice(-3))}</em>` : ''}${marks}</span>`;
+  if (art) return `<span class="pa ${pcls(p)}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}" style="--sc:${art.sc};--dy:${art.dy}%"><s class="base"></s><img src="${art.src}" alt=""></span>`;
   return `<span class="pc ${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.acted && p.side === 'me' && b!.phase === 'me' ? ' done' : ''}" title="${esc(p.name)}">${p.sho ? '将' : K.ch}${marks}</span>`;
+}
+const pcls = (p: Piece) => `${p.side}${p.hero ? ' hero' : ''}${p.sho ? ' sho' : ''}${p.rival ? ' rival' : p.npc ? ' npc' : ''}`;
+// 札の層: 絵の駒の名札・体のバー・印（乱・逃）。マスの重なり（矢盾・柵が奥の駒にかぶさる）より上に、盤と同じ升目で重ねる
+function tagsHtml() {
+  let h = '';
+  for (const p of b!.pieces) {
+    if (!p.alive || !artOf(p)) continue;
+    h += `<span class="tg ${pcls(p)}" style="grid-column:${p.x + 1};grid-row:${p.y + 1}">${p.hero || p.sho || p.gid ? `<em>${p.rival ? '同輩・' : p.npc ? '同僚・' : ''}${esc(p.name.slice(-3))}</em>` : ''}${p.confused ? '<u>乱</u>' : p.flee ? '<u class="fl">逃</u>' : ''}<i class="hpb" style="width:${Math.round((p.hp / p.maxhp) * 100)}%"></i></span>`;
+  }
+  return `<div class="ban-tags" aria-hidden="true" style="grid-template-columns:repeat(${b!.w},1fr);grid-template-rows:repeat(${b!.h},1fr)">${h}</div>`;
 }
 function infoHtml(p: Piece | null) {
   if (!p) return '<p class="ban-hint">自分の駒を押して選ぶ。青いマスへ動き、赤い敵を押して攻める。攻めずに終える駒は「待機」。武将の駒は「虚報」で、3マス以内の敵を惑わせられる（知略で見込みが決まる）。</p>';
@@ -87,7 +97,7 @@ function render() {
     <button class="ban-btn dim" data-b="retreat" ${busy ? 'disabled' : ''}>持ち場へ退く</button></div>`;
   const D = b.duel, duel = D ? duelHtml(D) : '';
   root.innerHTML = `${duel}<div class="ban-wrap"><div class="ban-head"><b>${esc(title)}</b><span>第${Math.min(b.turn, b.maxTurn)}手／${b.maxTurn}・${phase}・味方${ours}・敵${foes}・手柄${b.tegara}</span></div>
-    <div class="ban-body"><div class="ban-grid${b.night ? ' night' : ''}" style="grid-template-columns:repeat(${b.w},1fr);grid-template-rows:repeat(${b.h},1fr)">${cells}</div>
+    <div class="ban-body"><div class="ban-grid${b.night ? ' night' : ''}" style="grid-template-columns:repeat(${b.w},1fr);grid-template-rows:repeat(${b.h},1fr)">${cells}${tagsHtml()}</div>
     <div class="ban-side">${over}${b.over ? '' : infoHtml(s)}${kyoList}${last && !b.over ? `<p class="ban-last">${esc(last)}</p>` : ''}${btns}<div class="ban-log">${b.log.slice(-6).reverse().map((t) => `<p>${esc(t)}</p>`).join('')}</div></div></div></div>`;
   drawGround();
 }
@@ -243,14 +253,15 @@ const CSS = `
 .pa{position:relative;z-index:1;width:100%;height:100%;display:block}
 .pa img{position:absolute;left:50%;bottom:calc(9% - var(--dy,0%));height:calc(128% * var(--sc,1));width:auto;max-width:none;transform:translateX(-50%);filter:drop-shadow(0 3px 2px rgba(0,0,0,.55));pointer-events:none}.pa.done img{opacity:.55}
 .pa .base{position:absolute;left:16%;right:16%;bottom:4%;height:15%;border-radius:50%;border:2px solid var(--me);background:color-mix(in srgb,var(--me) 35%,transparent)}.pa.foe .base{border-color:var(--foe);background:color-mix(in srgb,var(--foe) 35%,transparent)}
-.pa.rival .base,.pa.npc .base{border:2px dashed #d8d8d8;background:rgba(220,220,220,.18)}.pa.rival em,.pa.npc em{color:#dcdcdc}
+.pa.rival .base,.pa.npc .base{border:2px dashed #d8d8d8;background:rgba(220,220,220,.18)}.tg.rival em,.tg.npc em{color:#dcdcdc}
 .pa.hero .base{border-color:#e0b04a;box-shadow:0 0 6px #e0b04a}.pa.sho .base{border-color:#ff8a5a;box-shadow:0 0 6px #ff8a5a}
-.pa em{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:9.5px;font-style:normal;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000;white-space:nowrap;overflow:hidden}
-.pa.hero em{color:#f2d27a}.pa.sho em{color:#ffb08a}
-.pa .hpb{position:absolute;left:8%;bottom:1px;height:4px;max-width:84%;background:#5bc06a}.pa.foe .hpb{background:#e0604f}
+.ban-tags{position:absolute;inset:0;display:grid;z-index:500;pointer-events:none}.tg{position:relative}
+.tg em{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:9.5px;font-style:normal;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000;white-space:nowrap;overflow:hidden}
+.tg.hero em{color:#f2d27a}.tg.sho em{color:#ffb08a}
+.tg .hpb{position:absolute;left:8%;bottom:1px;height:4px;max-width:84%;background:#5bc06a}.tg.foe .hpb{background:#e0604f}
 .pc.hero{border-color:#e0b04a;box-shadow:0 0 0 2px #e0b04a,0 2px 4px rgba(0,0,0,.5)}.pc.sho{border-color:#ff8a5a;box-shadow:0 0 0 2px #ff8a5a}
 .pc.done{opacity:.55}
-.pa u{position:absolute;top:-6px;right:4%;z-index:2;font-size:11px;line-height:1;padding:2px 4px;background:#8a3fb0;color:#fff;text-decoration:none;border-radius:4px}.pa u.fl{background:#8a6a2a}
+.tg u{position:absolute;top:-6px;right:4%;z-index:2;font-size:11px;line-height:1;padding:2px 4px;background:#8a3fb0;color:#fff;text-decoration:none;border-radius:4px}.tg u.fl{background:#8a6a2a}
 .pc u{position:absolute;top:0;right:0;font-size:10px;line-height:1;padding:2px 3px;background:#8a3fb0;color:#fff;text-decoration:none;border-radius:0 0 0 4px}.pc u.fl{background:#8a6a2a}
 .bc.kyo{box-shadow:inset 0 0 0 3px rgba(170,90,220,.95)}
 .ban-btn.kyo{border-color:#a070c8}.ban-btn.duel{grid-column:1/-1;background:#6b2a1c;border-color:#e0a060}
