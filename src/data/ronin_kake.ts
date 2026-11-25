@@ -6,7 +6,7 @@ type Pool = Record<Temper, string[]>;
 
 // 話すだけの人物（顔の絵は ART_ORDER_RONIN.txt。届くまでは名札だけ）
 export const RONIN_CAST: Record<string, string> = {
-  g_shisha: '使者', g_shihan: '道場の師範', g_choro: '村の長老', g_shonin: '旅の商人', g_kunishu: '国衆', g_yato: '野盗の頭', g_onna: '町の女', g_chonin: '町人', g_sosho: '連歌の宗匠', g_rojin: '家老',
+  g_shisha: '使者', g_shihan: '道場の師範', g_choro: '村の長老', g_shonin: '旅の商人', g_kunishu: '国衆', g_yato: '野盗の頭', g_onna: '町の女', g_chonin: '町人', g_sosho: '連歌の宗匠', g_rojin: '家老', g_gonroku: '権六', g_yokichi: '与吉', // 権六・与吉は組の足軽（kumi_kake.ts）
 };
 
 // ───────── 誘いの使者 ─────────

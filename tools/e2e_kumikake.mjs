@@ -39,7 +39,7 @@ for (const vp of [{ width: 390, height: 844, tag: 'sp' }, { width: 1360, height:
   if (!(await p.$('[data-h="ban-go"]'))) errors.push(vp.tag + ' 槍働きの盤が出ない');
   else {
     await p.click('[data-h="ban-go"]'); await p.waitForTimeout(300);
-    if (await scene()) await shot('2-before');
+    if (await scene()) { for (let n = 0; n < 4; n++) { const nx = await p.$('#story .hr-say[data-s="next"]'); if (nx) { await nx.click(); await p.waitForTimeout(60); } } await shot('2-before'); }
     const before = await read(); console.log(vp.tag, '合戦の前:', before.join(' ／ '));
     if (!before.some((x) => x.includes('[出陣]'))) errors.push(vp.tag + ' 合戦の前の場面が出ない');
     for (let k = 0; k < 30 && !(await p.$('#ban:not([hidden])')); k++) await p.waitForTimeout(100);

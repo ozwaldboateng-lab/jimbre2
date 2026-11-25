@@ -87,6 +87,8 @@ export function pendingBeats(s: GameState, on: boolean): Beat[] {
 }
 
 // ───────── 合戦の前後（槍働きの盤） ─────────
+// 組の足軽（権六・与吉）がいるのは、足軽組頭・足軽大将のあいだ
+const kumiOf = (s: GameState) => { const me = heroOf(s); return !!me?.clan && me.rank >= 2; };
 export function battleIntro(s: GameState, mochi: string | undefined, seen: boolean): Beat[] {
   const me = heroOf(s)!, y = yoriOf(s), r = rivalOf(s), k = `${s.turn}|b`;
   if (!y && !r) return [];
@@ -95,11 +97,17 @@ export function battleIntro(s: GameState, mochi: string | undefined, seen: boole
     { bg: 'jinmaku', text: '陣触れの太鼓が鳴った。組の足軽たちが、槍を手に集まってくる。' },
     ...(y && yl ? [{ who: y.id, text: yl }] : []),
     ...(r ? [{ who: r.id, text: pick(K.RIVAL_BEFORE[temperOf(r)], k) }] : []),
+    ...(kumiOf(s) ? [{ who: 'g_gonroku', text: pick(mochi && K.GONROKU_BEFORE[mochi] ? K.GONROKU_BEFORE[mochi] : K.GONROKU_BEFORE.all, k + 'g') }, { who: 'g_yokichi', text: pick(K.YOKICHI_BEFORE, k + 'y') }] : []), // 組の足軽
     { who: me.id, text: pick(K.HERO_BEFORE[temperOf(me)], k + 'h') },
   ]);
 }
 export function battleOutro(s: GameState, b: Ban, seen: boolean): Kake {
   const y = yoriOf(s), r = rivalOf(s), k = `${s.turn}|a`, out: Kake = [];
+  // 組の足軽: 一番槍の歓声・首実検（権六が首を差し出し、寄親が検める）・手傷を案じる
+  const kumi = kumiOf(s), hero = b.pieces.find((p) => p.hero), kubi = kumi && b.pieces.some((p) => p.sho && p.side === 'foe' && !p.alive && !p.gone);
+  if (!kumi) { /* 侍大将からは組がない */ } else if (b.over === 'lose' || (hero && !hero.alive)) out.push({ who: 'g_yokichi', line: pick(K.YOKICHI_HURT, k) });
+  else if (b.log.some((t) => t.startsWith('一番槍'))) out.push({ who: 'g_yokichi', line: pick(K.YOKICHI_ICHIBAN, k) });
+  if (kubi && b.over !== 'lose') { out.push({ who: 'g_gonroku', line: pick(K.GONROKU_KUBI, k) }); if (y) out.push({ who: y.id, line: pick(K.YORI_KUBI, k) }); }
   if (y) {
     const t = temperOf(y);
     const line = b.over === 'lose' ? pick(K.YORI_AFTER_HURT, k) : b.tegara <= 0 ? pick(K.YORI_AFTER_NONE[t], k) : seen ? pick(K.YORI_AFTER_GOOD[t], k) : pick(K.YORI_AFTER_UNSEEN, k);
@@ -110,5 +118,6 @@ export function battleOutro(s: GameState, b: Ban, seen: boolean): Kake {
     if (b.rivalTegara > b.tegara) out.push({ who: r.id, line: pick(K.RIVAL_WON[t], k) });
     else if (b.tegara > b.rivalTegara) out.push({ who: r.id, line: pick(K.RIVAL_LOST[t], k) });
   }
-  return out;
+  if (kumi && b.over === 'win' && !kubi) out.push({ who: 'g_gonroku', line: pick(K.GONROKU_WIN, k) }); // 勝ち戦の夜
+  return out.slice(0, 4); // 掛け合いは四行まで
 }

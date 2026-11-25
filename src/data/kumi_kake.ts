@@ -4,8 +4,21 @@ import type { Temper } from './lines';
 
 type Pool = Record<Temper, string[]>;
 
-// 組の足軽（4。顔の絵が届いてから出す。ART_ORDER_KUMI.txt）
+// 組の足軽: 古参の権六（g_gonroku）と若い与吉（g_yokichi）。組頭・足軽大将のあいだ、合戦の前後に話す（ART_ORDER_KUMI.txt）
 export const KUMI_ASHIGARU = { g_gonroku: '権六', g_yokichi: '与吉' };
+export const GONROKU_BEFORE: Record<string, string[]> = {
+  senjin: ['組頭、今日は先陣だそうで。……一番槍、取りに行きやしょう。', '先陣ですか。わしの若い頃は、先陣で生き残る方が手柄だと言われたもんで。'],
+  waki: ['脇備えですな。合図があるまで、腰を据えて待ちやしょう。', '横から突く戦は、待つのが仕事ですぜ、組頭。'],
+  teppo: ['鉄砲備えか。柵の内にいりゃ、そう死にはしやせん。', '玉込めの間は、わしらが槍で守りやす。'],
+  gozume: ['後詰めか。……崩れた味方を拾うのは、地味だが大事な仕事で。', '味方を救う戦ですな。組頭らしい持ち場だ。'],
+  all: ['組頭、今日の持ち場は。……へい、わしらはどこへでも。', '無理はなさるな、組頭。生きて帰るのが一番の手柄で。', '槍の穂先、研いでおきやした。'],
+};
+export const YOKICHI_BEFORE: string[] = ['く、組頭！ おいら、震えてなんかいませんから！', '今日こそ、おいらも首を取ってみせます！', '組頭の後ろ、しっかりついて行きます！'];
+export const YOKICHI_ICHIBAN: string[] = ['一番槍だ！ 組頭がやったぞ！ 見たか、みんな！', 'すげえ……組頭が一番槍だ！'];
+export const YOKICHI_HURT: string[] = ['組頭！ 怪我は……しっかりしてください！', '組頭、血が……！ 誰か、早く手当てを！'];
+export const GONROKU_WIN: string[] = ['勝ち戦だ。今夜は組で一杯やりやしょう、組頭。', '生きて帰れた。……それが何よりで。さ、酒だ酒だ。'];
+export const GONROKU_KUBI: string[] = ['組頭の取った首、わしが首実検にお持ちしやした。', '首、洗っておきやした。寄親さまのお目にかけやしょう。'];
+export const YORI_KUBI: string[] = ['ほう、よい首じゃ。……名のある者の首と見た。', 'たしかに検めた。手柄帳に記させよう。'];
 
 // ───────── 寄親 ─────────
 // 初めて会う（寄親の第一声）
