@@ -510,6 +510,12 @@ function ronScene(beats: Beat[], scene: string) {
   const st = s; bg = scene;
   theater(beats, () => { save(); if (!ronAfter(st)) render(); }, chooser(st), opt(st));
 }
+// 軍議で決めた攻め方の首尾（夜討ちは盤を開く）
+function gungiDone(st: GameState, r: ReturnType<typeof GG.gungi>) {
+  if (!r.ok) { say = { text: r.text }; render(); return; }
+  if (r.ban) { void openBan(BP.skirmishBan(st, 'youchi'), `${GG.targetCastle(st)?.name ?? ''} ― 夜討ち`, banColors(st)).then(async (b) => { const t2 = `${r.text}${GG.applyYouchi(st, b)}`; H.note(st, t2); say = { text: t2, hold: true }; save(); render(); await advance(); }); return; }
+  H.note(st, r.text); say = { text: r.text, hold: true }; save(); render(); void advance();
+}
 function closeSay() {
   if (!say) return;
   say = { text: say.text };
@@ -579,10 +585,13 @@ async function advance() {
   // 城下に着いたら、城下の画面へ戻る
   if (bg === 'tabi' && !st.hero!.field && (st.hero!.dest === null || st.hero!.dest === undefined)) { bg = 'town'; pane = 'spots'; }
   save(); render();
-  const rb = cev && cev.beats.length ? [] : ronBeats(st); // 浪人: 来たばかりの誘いの使者・城下の噂
-  // 閉じられない窓（合戦の誘いなど）しかなければ、その上で場面を出す
-  if (rb.length && theater) { if (report || (held && !say?.offer)) { heldBeats = [...(heldBeats ?? []), ...rb]; return; } theater(rb, () => { save(); if (!ronAfter(st)) render(); }, chooser(st), opt(st)); return; }
-  if (cev && cev.beats.length && theater) { if (held || report) { heldBeats = cev.beats; return; } theater(cev.beats, () => { save(); render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, undefined, opt(st)); return; } // 出世の節目の場面（セリフの窓・月の報告を閉じてから）
+  // 出世の節目の場面（cev）と、浪人・組頭・足軽大将・侍大将の演出の場面（誘いの使者・噂・寄親・寄子・持ち場など）を一続きに。
+  // セリフの窓・月の報告を閉じてから出す。閉じられない窓（合戦の誘いなど）しかなければ、その上で出す
+  const rb = [...(cev && cev.beats.length ? cev.beats : []), ...ronBeats(st)];
+  if (rb.length && theater) {
+    if (report || (held && !say?.offer)) { heldBeats = [...(heldBeats ?? []), ...rb]; return; }
+    theater(rb, () => { save(); if (ronAfter(st)) return; render(); if (pendRyo) { pendRyo = false; maybeRyoshu(st); } }, chooser(st), opt(st)); return;
+  }
   runStory();
 }
 // 物語（前田利家 ― 残り火）: 時期の来た場面を、物語の画面で見せる
@@ -763,7 +772,7 @@ function onClick(e: Event) {
   if (h === 'skip') { skipTime(); return; }
   if (h === 'advice') { advice(); return; }
   if (h === 'askshiro') { askShiro(); return; }
-  if (h === 'lead') { recenter = true; void act(() => HA.lead(s!), 'town'); return; }
+  if (h === 'lead') { recenter = true; const st = s; void act(() => HA.lead(st), 'town').then(() => { const bs = kakeOn() && theater && HA.leading(st) ? KK.shutsujinBeats(st) : []; if (bs.length) theater!(bs, () => { save(); if (!ronAfter(st)) render(); }, chooser(st), opt(st)); }); return; } // 出陣: 総大将として号令を選ぶ
   if (h === 'advance') { recenter = true; void act(() => HA.advance(s!, +id), 'town'); return; }
   if (h === 'disband') { void act(() => HA.disband(s!), 'town', true); return; }
   if (h === 'selfcmd') { s.hero!.selfCommand = !s.hero!.selfCommand; save(); render(); return; }
@@ -774,17 +783,15 @@ function onClick(e: Event) {
   if (h === 'shikan') { if (RK.meetPlain(s)) void act(() => CR.askService(s!), 'tojo'); else ronScene(RK.meetBeats(s), 'tojo'); return; } // 目通り: 当主との問答（家の欲しい働きを答えれば見込みが上がる）
   if (h === 'jingari') { void act(() => RP.jingari(s!, +id), 'town', false, (r) => RK.jingariKake(s!, r.who, r.line)); return; }
   if (h === 'leavemerc') { void act(() => RP.leaveMerc(s!), 'town', true); return; }
-  if (h === 'gungi-open') { dlg = { kind: 'gungi' }; say = null; render(); showDlg(); return; }
+  if (h === 'gungi-open') { const st = s; if (!GG.gungiBlock(st) && kakeOn() && theater && !busy) { say = null; theater(KK.gungiBeats(st), () => { const r = KK.takeGungi(); if (!r) { save(); render(); return; } gungiDone(st, r); }, chooser(st), opt(st)); return; } dlg = { kind: 'gungi' }; say = null; render(); showDlg(); return; } // 軍議: 陣幕の中で家臣・寄子が進言し、攻め方を選ぶ
   if (h === 'gg') {
     if (busy) return;
     const st = s, r = GG.gungi(st, id as GG.Saku); dlg = null;
-    if (!r.ok) { say = { text: r.text }; render(); return; }
-    if (r.ban) { void openBan(BP.skirmishBan(st, 'youchi'), `${GG.targetCastle(st)?.name ?? ''} ― 夜討ち`, banColors(st)).then(async (b) => { const t2 = `${r.text}${GG.applyYouchi(st, b)}`; H.note(st, t2); say = { text: t2, hold: true }; save(); render(); await advance(); }); return; }
-    H.note(st, r.text); say = { text: r.text, hold: true }; save(); render(); void advance(); return;
+    gungiDone(st, r); return;
   }
   if (h === 'ronko') { ronkoAlloc = {}; dlg = { kind: 'ronko' }; say = null; render(); showDlg(); return; }
   if (h === 'rk-plus' || h === 'rk-minus') { const r = YO.ronkoOf(s); if (!r) return; const used = Object.values(ronkoAlloc).reduce((a, b) => a + b, 0); const n = ronkoAlloc[id] ?? 0; if (h === 'rk-plus' && used < r.pool) ronkoAlloc[id] = n + 1; if (h === 'rk-minus' && n > 0) ronkoAlloc[id] = n - 1; render(); return; }
-  if (h === 'rk-done') { const t2 = YO.applyRonko(s, ronkoAlloc); H.note(s, t2); dlg = null; say = { text: t2, hold: true }; save(); render(); return; }
+  if (h === 'rk-done') { const won = YO.ronkoOf(s)?.pool === YO.YORIKO.POOL_WIN, kake = kakeOn() ? KK.ronkoKake(s, ronkoAlloc, won) : []; const t2 = YO.applyRonko(s, ronkoAlloc); H.note(s, t2); dlg = null; say = { text: t2, hold: true, kake: kake.length ? kake : undefined }; save(); render(); return; } // 配ったあとの礼と不満
   if (h === 'yk-sui') { void act(() => { const r = YO.suisenYoriko(s!, id); if (r.ok) s!.hero!.jun++; return r; }, 'yashiki'); return; }
   if (h === 'offers') { offerMsg = ''; dlg = { kind: 'offers' }; say = null; render(); showDlg(); return; }
   if (h === 'of-acc') { void act(() => SA.acceptOffer(s!, id), 'tojo'); return; }

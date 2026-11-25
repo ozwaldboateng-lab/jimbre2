@@ -11,7 +11,7 @@ for (const [vp, saku] of [[{ width: 1360, height: 820, tag: 'pc' }, 'choryaku'],
   const p = await b.newPage({ viewport: { width: vp.width, height: vp.height } });
   p.on('pageerror', (e) => errors.push(vp.tag + ' ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(vp.tag + ' ' + m.text()); });
-  await p.addInitScript((j) => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
+  await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'off'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
   await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);

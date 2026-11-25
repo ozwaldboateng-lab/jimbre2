@@ -13,7 +13,9 @@ import type { Kake } from './roninkake';
 import * as R from './rules';
 import { clanName } from './state';
 import type { GameState, General } from './types';
-import { rivalOf, yoriOf } from './yorioya';
+import { judgeQuarrel, rivalOf, yoriOf, yorikoOf } from './yorioya';
+import * as GG from './gungi';
+import { leading } from './heroArmy';
 
 function hash(str: string) { let h = 2166136261; for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619); return h >>> 0; }
 const pick = <T>(arr: T[], key: string): T => arr[hash(key) % arr.length];
@@ -78,6 +80,7 @@ function evBeats(s: GameState, e: KumiEv): Beat[] {
       ...(L && !e.pull ? [{ who: L.id, text: fill(pick(K.LORD_PROMOTE[temperOf(L)], k), v) }] : []),
       ...(y ? [{ who: y.id, text: fill(pick(K.YORI_PROMOTE[temperOf(y)], k + 'y'), v) }] : []),
       ...(r && r.rank > me.rank ? [{ who: r.id, text: fill(pick(K.RIVAL_BEHIND[temperOf(r)], k + 'r'), v) }] : []),
+      ...((e.rank ?? me.rank) === 1 ? [{ who: 'g_gonroku', text: K.GONROKU_PROMOTE }, ...(yk(s).kumi ? [{ who: 'g_yokichi', text: '殿……いえ、侍大将さま！ おいら、ずっとついて行きます！' }] : [])] : []), // 侍大将に: 権六は旗本に
     ]);
   }
   if (e.k === 'oath') {
@@ -96,6 +99,26 @@ function evBeats(s: GameState, e: KumiEv): Beat[] {
     ]);
   }
   if (e.k === 'mochi') return mochiBeats(s);
+  if (e.k === 'yoriko') {
+    const g = gen(s, e.id); if (!g) return [];
+    return headed('寄子', [
+      { bg: 'zashiki_day', text: `${g.name}（${R.RANK_NAME[g.rank]}）が、寄子として挨拶に来た。今度は自分が寄親として、心得を授ける番だ。` },
+      { who: g.id, text: fill(pick(K.YORIKO_GREET[temperOf(g)], k), { name: g.name }) },
+      { who: me.id, text: '……そなたに、一つだけ言うておく。', ask: `k_kokoroe:${g.id}`, choices: K.KOKOROE_CHOICE.map((c) => ({ id: c.id, label: c.label })) },
+    ]);
+  }
+  if (e.k === 'yorikoSour') {
+    const g = gen(s, e.id); if (!g) return [];
+    return headed('寄子', [{ bg: 'zashiki_night', text: fill(K.YORIKO_SOUR_NARR, { name: g.name }) }, { who: g.id, text: pick(K.YORIKO_SOUR[temperOf(g)], k) }]);
+  }
+  if (e.k === 'quarrel') {
+    const a = gen(s, e.a), b = gen(s, e.b); if (!a || !b) return [];
+    return headed('寄子の手柄争い', [
+      { bg: 'jinmaku', text: fill(K.QUARREL_NARR, { a: a.name, b: b.name }) },
+      { who: a.id, text: pick(K.QUARREL_CLAIM[temperOf(a)], k + 'a') },
+      { who: b.id, text: pick(K.QUARREL_CLAIM[temperOf(b)], k + 'b'), ask: `k_quarrel:${a.id}:${b.id}`, choices: [{ id: 'a', label: `${a.name}の手柄と認める`, note: `${a.name}の親しさ+6・功績+10、${b.name}の親しさ−6` }, { id: 'b', label: `${b.name}の手柄と認める`, note: `${b.name}の親しさ+6・功績+10、${a.name}の親しさ−6` }, { id: 'split', label: '二人で分けよ（折半）', note: '二人とも親しさ+1・功績+5' }] },
+    ]);
+  }
   if (e.k === 'yokichi') return headed('権六の願い', [
     { bg: 'jinmaku', text: '陣払いのあと、権六が改まって膝をついた。後ろで、与吉がそわそわしている。' },
     { who: 'g_gonroku', text: K.GONROKU_SUGGEST, ask: 'k_yokichi', choices: [{ id: 'yes', label: '与吉に組を預ける', note: '与吉が組頭になる（組の足軽は権六が見る）' }, { id: 'no', label: 'まだ早い', note: 'しばらくして、また願い出てくる' }] },
@@ -123,6 +146,40 @@ export function choose(s: GameState, key: string, id: string): Beat[] {
     if (id === 'keep') return headed('持ち場', kashinMochi(s, P.mochi, k));
     const r = askMochi(s, id as Mochi); last = r.text;
     return headed('持ち場', [...(y ? [{ who: y.id, text: pick(r.ok ? K.YORI_MOCHI_OK : K.YORI_MOCHI_NG, k) }] : []), { text: r.text }, ...kashinMochi(s, P.mochi, k)]);
+  }
+  if (key.startsWith('k_kokoroe:')) {
+    const g = gen(s, key.slice(10)), c = K.KOKOROE_CHOICE.find((x) => x.id === id); if (!g || !c) return [];
+    const hit = temperOf(g) === c.id; s.hero!.rel[g.id] = Math.min(100, (s.hero!.rel[g.id] ?? 0) + (hit ? 6 : 1));
+    last = `寄子の${g.name}に心得を授けた${hit ? '。心に響いたようだ（親しさ+6）' : '（親しさ+1）'}。`;
+    return headed('寄子', [{ who: heroOf(s)!.id, text: c.line }, { who: g.id, text: pick((hit ? K.KOKOROE_HIT : K.KOKOROE_MISS)[temperOf(g)], k) }]);
+  }
+  if (key.startsWith('k_quarrel:')) {
+    const [, a, b] = key.split(':'), ga = gen(s, a), gb = gen(s, b); if (!ga || !gb) return [];
+    last = judgeQuarrel(s, a, b, id as 'a' | 'b' | 'split');
+    if (id === 'split') return headed('寄子の手柄争い', [{ who: ga.id, text: pick(K.QUARREL_SPLIT, k) }, { text: last }]);
+    const w = id === 'a' ? ga : gb, l = id === 'a' ? gb : ga;
+    return headed('寄子の手柄争い', [{ who: w.id, text: pick(K.QUARREL_WIN[temperOf(w)], k) }, { who: l.id, text: pick(K.QUARREL_LOSE[temperOf(l)], k) }, { text: last }]);
+  }
+  if (key === 'k_gungi') {
+    const saku = id as GG.Saku, adv = GG.advisers(s), c = GG.targetCastle(s);
+    const r = GG.gungi(s, saku); gungiRes = r; if (!r.ok) return [{ text: r.text }];
+    const out: Beat[] = [];
+    for (const a of adv) { const ok = a.saku === saku; s.hero!.rel[a.g.id] = Math.max(0, Math.min(100, (s.hero!.rel[a.g.id] ?? 0) + (ok ? GUNGI_REL.ADOPT : -GUNGI_REL.REJECT))); }
+    const ad = adv.find((a) => a.saku === saku), rj = adv.find((a) => a.saku !== saku);
+    if (ad) out.push({ who: ad.g.id, text: pick(K.GUNGI_ADOPT[temperOf(ad.g)], k) });
+    if (rj) out.push({ who: rj.g.id, text: pick(K.GUNGI_REJECT[temperOf(rj.g)], k) });
+    void c;
+    return headed('攻略の軍議', [...out, ...(r.ban ? [] : [{ text: r.text }])]);
+  }
+  if (key === 'k_gorei') {
+    const gr = K.GOREI.find((x) => x.id === id); if (!gr) return [];
+    const a = leading(s), H = s.hero!;
+    if (a) a.morale = Math.min(1.3, a.morale + (id === 'ichiban' ? 0.1 : id === 'kubi' ? 0.06 : 0.03));
+    if (id === 'muri') for (const g of [...yorikoOf(s), ...retainersOf(s)]) H.rel[g.id] = Math.min(100, (H.rel[g.id] ?? 0) + 3);
+    if (id === 'kubi') H.fame = Math.min(100, (H.fame ?? 0) + 1);
+    last = `出陣の号令: ${gr.label}（${gr.note}）`;
+    const rx = [...retainersOf(s), ...yorikoOf(s)][0];
+    return headed('出陣', [{ who: heroOf(s)!.id, text: gr.line }, { who: rx?.id ?? 'g_gonroku', text: pick(K.GOREI_REACT[id], k) }]);
   }
   if (key === 'k_yokichi') {
     const Y = yk(s);
@@ -213,4 +270,43 @@ export const zeriWon = (b: Ban) => (b.goal === 'hold' ? (b.over === 'time' || b.
 export function zeriOutro(s: GameState, won: boolean): Kake {
   const g = retainersOf(s)[0], k = `${s.turn}|zo`;
   return [{ who: g?.id ?? 'g_gonroku', line: pick(won ? K.ZERI_WIN : K.ZERI_LOSE, k) }];
+}
+
+// ───────── 侍大将: 攻略の軍議（陣幕の中で家臣・寄子が進言し、攻め方を選ぶ。採った者の親しさ+4、退けた者−2） ─────────
+export const GUNGI_REL = { ADOPT: 4, REJECT: 2 };
+let gungiRes: (ReturnType<typeof GG.gungi>) | null = null;
+export const takeGungi = () => { const r = gungiRes; gungiRes = null; return r; };
+export function gungiBeats(s: GameState): Beat[] {
+  const c = GG.targetCastle(s); if (!c) return [];
+  const adv = GG.advisers(s);
+  return headed('攻略の軍議', [
+    { bg: 'jinmaku', text: fill(K.GUNGI_NARR, { castle: c.name }) },
+    ...adv.map((a) => ({ who: a.g.id, text: `${GG.SAKU_NAME[a.saku]}を。${a.line}` })),
+    { who: heroOf(s)!.id, text: K.GUNGI_ASK, ask: 'k_gungi', choices: (['chikara', 'hyoro', 'choryaku', 'youchi'] as GG.Saku[]).map((x) => ({ id: x, label: `${GG.SAKU_NAME[x]}${adv.some((a) => a.saku === x) ? `（${adv.filter((a) => a.saku === x).map((a) => a.g.name).join('・')}の策）` : ''}`, note: x === 'choryaku' ? `${GG.SAKU_DESC[x]}（見込み${Math.round(GG.choryakuChance(s) * 100)}%）` : GG.SAKU_DESC[x] })) },
+  ]);
+}
+// ───────── 侍大将: 出陣（軍勢を率いて城を出る時。号令を選ぶ。権六は旗本、与吉は組頭として時々） ─────────
+export function shutsujinBeats(s: GameState): Beat[] {
+  if (!leading(s)) return [];
+  const k = `${s.turn}|sj`, rx = [...retainersOf(s), ...yorikoOf(s)];
+  return headed('出陣', [
+    { bg: 'jinmaku', text: K.SHUTSUJIN_NARR },
+    ...rx.slice(0, 2).map((g, i) => ({ who: g.id, text: pick(K.HERO_BEFORE[temperOf(g)], k + i) })),
+    { who: 'g_gonroku', text: pick(K.GONROKU_HATAMOTO, k) },
+    ...(yk(s).kumi && hash(k) % 10 < 4 ? [{ who: 'g_yokichi', text: pick(K.YOKICHI_VISIT, k) }] : []),
+    { who: heroOf(s)!.id, text: '……皆、聞け。', ask: 'k_gorei', choices: K.GOREI.map((g) => ({ id: g.id, label: g.label, note: g.note })) },
+  ]);
+}
+// ───────── 侍大将: 論功行賞の反応（配る前に、配り方から決める） ─────────
+export function ronkoKake(s: GameState, alloc: Record<string, number>, won: boolean): Kake {
+  const me = heroOf(s)!, k = `${s.turn}|rk`, out: Kake = [];
+  const others = Object.entries(alloc).filter(([id]) => id !== me.id), total = Object.values(alloc).reduce((a, b) => a + b, 0);
+  const top = others.filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])[0];
+  const cands = [...yorikoOf(s), ...retainersOf(s)], slighted = cands.find((g) => !(alloc[g.id] > 0));
+  const rx = cands.find((g) => g.id !== top?.[0] && g !== slighted); // 合戦の一言は、礼・不満を言う者とは別の者に
+  if (rx) out.push({ who: rx.id, line: pick(won ? K.BATTLE_WIN_K : K.BATTLE_LOSE_K, k) });
+  if (top) { const g = gen(s, top[0]); if (g) out.push({ who: g.id, line: pick(K.RONKO_THANK[temperOf(g)], k) }); }
+  if (slighted) out.push({ who: slighted.id, line: pick(K.RONKO_SLIGHT[temperOf(slighted)], k) });
+  if (total > 0 && (alloc[me.id] ?? 0) / total > 0.5) out.push({ line: pick(K.RONKO_SELF, k) });
+  return out.slice(0, 4);
 }

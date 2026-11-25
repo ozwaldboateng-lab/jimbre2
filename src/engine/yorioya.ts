@@ -107,7 +107,7 @@ const RANK_OF = (rank: number) => R.RANK_NAME[rank];
 // 推挙: 寄子の功績が次の身分の八割まで来ていれば取り立てられ、主人公との親しさ+15（同じ寄子は半年に一度）。
 // 論功行賞: 主人公が率いた合戦のあと、手柄（勝ち戦6・負け戦2）を自分・寄子・家臣に配る。一つにつき功績+5・親しさ+3。配られなかった寄子・家臣は親しさ−3（冷遇）。
 //   自分に半分を超えて取ると、名声−1（手柄を独り占めした）。配り終えると、配った手柄はその者の功績になる
-export const YORIKO = { N: 2, POOL_WIN: 6, POOL_LOSE: 2, MERIT_PER: 5, REL_PER: 3, SLIGHT: 3, GREED: 0.5, SUISEN_EVERY: 6, SUISEN_K: 0.8, SUISEN_REL: 15 };
+export const YORIKO = { SOUR_REL: 15, SOUR_P: 0.15, QUARREL_P: 0.06, QUARREL_REL: 6, QUARREL_MERIT: 10, N: 2, POOL_WIN: 6, POOL_LOSE: 2, MERIT_PER: 5, REL_PER: 3, SLIGHT: 3, GREED: 0.5, SUISEN_EVERY: 6, SUISEN_K: 0.8, SUISEN_REL: 15 };
 type KX = { yoriko?: string[]; yorikoSuisen?: Record<string, number>; ronko?: { turn: number; pool: number; foe: string }; mode?: string; fame?: number; kubi?: number };
 const K = (s: GameState) => s.hero as unknown as YX & KX;
 export const needsYoriko = (s: GameState) => { const H = K(s); if (!H || H.story === 'toshiie' || H.mode === 'ryoshu') return false; const me = meOf(s); return !!me?.clan && me.rank <= 1 && me.status !== 'dead'; };
@@ -116,10 +116,14 @@ export function yorikoMonth(s: GameState): string[] {
   if (!needsYoriko(s)) return [];
   const H = K(s), me = meOf(s), L = s.clans[me.clan!].leader, have = yorikoOf(s), out: string[] = [];
   H.yoriko = have.map((g) => g.id);
+  // 冷遇の続いた寄子（親しさ15未満）が陰で不満を漏らす（一人一度）・寄子二人の手柄争い（さばく場面）
+  const KX = H as unknown as { ykSour?: string[] };
+  for (const g of have) if ((H.rel[g.id] ?? 0) < YORIKO.SOUR_REL && !(KX.ykSour ??= []).includes(g.id) && rand(s) < YORIKO.SOUR_P) { KX.ykSour.push(g.id); pushKumi(s, { k: 'yorikoSour', id: g.id }); }
+  if (have.length >= 2 && rand(s) < YORIKO.QUARREL_P) pushKumi(s, { k: 'quarrel', a: have[0].id, b: have[1].id });
   if (have.length >= YORIKO.N) return out;
   const cs = Object.values(s.generals).filter((g) => active(s, g, me.clan) && g.id !== L && g.id !== me.id && g.rank >= 2 && !g.kin && !g.liege && !g.yoriki && !(H.retainers ?? []).includes(g.id) && g.id !== H.yorioya && g.id !== H.rival && !H.yoriko!.includes(g.id) && surnameOf(g.name) !== surnameOf(me.name));
   cs.sort((a, b) => (a.loc === me.loc ? 0 : 1) - (b.loc === me.loc ? 0 : 1) || a.rank - b.rank || (b.bra + b.lea) - (a.bra + a.lea));
-  for (const g of cs.slice(0, YORIKO.N - have.length)) { H.yoriko.push(g.id); out.push(`${g.name}（${RANK_OF(g.rank)}）が寄子に付いた。手柄を見て推挙してやれば、恩を感じる。`); }
+  for (const g of cs.slice(0, YORIKO.N - have.length)) { H.yoriko.push(g.id); pushKumi(s, { k: 'yoriko', id: g.id }); out.push(`${g.name}（${RANK_OF(g.rank)}）が寄子に付いた。手柄を見て推挙してやれば、恩を感じる。`); }
   return out;
 }
 // 寄子を推挙する
@@ -163,4 +167,14 @@ export function applyRonko(s: GameState, alloc: Record<string, number>): string 
   if (r.pool > 0 && mine > r.pool * YORIKO.GREED) { H.fame = Math.max(0, (H.fame ?? 0) - 1); greed = '手柄を独り占めしたと陰で言われた（名声−1）。'; }
   H.ronko = undefined;
   return `${r.foe}との合戦の論功行賞を行った。${mine ? `自分の功に${mine}。` : ''}${got.length ? `寄子・家臣に手柄を分けた（${got.join('・')}。功績と親しさが上がる）。` : ''}${slighted.length ? `${slighted.join('・')}は報われず、不満を抱いた（親しさ−${YORIKO.SLIGHT}）。` : ''}${greed}`;
+}
+
+// 寄子の手柄争いをさばく（kumikake.ts の場面から）: 認めた方は親しさ+6・功績+10、退けた方は親しさ−6。折半なら二人とも親しさ+1・功績+5
+export function judgeQuarrel(s: GameState, a: string, b: string, pick: 'a' | 'b' | 'split'): string {
+  const H = K(s), ga = s.generals[a], gb = s.generals[b]; if (!ga || !gb) return '';
+  if (pick === 'split') { for (const g of [ga, gb]) { H.rel[g.id] = Math.min(100, relOf(s, g.id) + 1); g.merit += YORIKO.QUARREL_MERIT / 2; } return `${ga.name}と${gb.name}の手柄争いを、折半とした（二人とも親しさ+1）。`; }
+  const w = pick === 'a' ? ga : gb, l = pick === 'a' ? gb : ga;
+  H.rel[w.id] = Math.min(100, relOf(s, w.id) + YORIKO.QUARREL_REL); w.merit += YORIKO.QUARREL_MERIT;
+  H.rel[l.id] = Math.max(0, relOf(s, l.id) - YORIKO.QUARREL_REL);
+  return `手柄争いを${w.name}の手柄と裁いた（${w.name}の親しさ+${YORIKO.QUARREL_REL}・${l.name}の親しさ−${YORIKO.QUARREL_REL}）。`;
 }

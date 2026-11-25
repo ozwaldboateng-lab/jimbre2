@@ -15,7 +15,7 @@ export type BanColors = { me?: string; foe?: string }; // 駒の色（家の色�
 
 let duelOnly = false; // 道場破り: 一騎討ちだけ（終われば盤も終わる）
 // ───────── 盤の中の声（局面の変わり目の叫び・一番槍）。盤を描き直しても消えないよう、盤の外の札に出して、しばらくで消す ─────────
-let lastEvent: string | undefined, ichibanShown = false, goalShown = false, fx: HTMLElement | null = null;
+let lastEvent: string | undefined, ichibanShown = false, goalShown = false, honjinWon = false, fx: HTMLElement | null = null;
 function shout(text: string, big = false) {
   if (!fx) { fx = document.createElement('div'); fx.className = 'ban-fx'; document.body.appendChild(fx); }
   const el = document.createElement('div'); el.className = big ? 'ban-shout big' : 'ban-shout'; el.textContent = text;
@@ -24,6 +24,8 @@ function shout(text: string, big = false) {
 const pickV = (arr: string[], key: string) => arr[Math.abs([...key].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)) % arr.length];
 function voices() {
   if (!b || b.dojo) return;
+  if (b.honjin && !goalShown) { goalShown = true; shout(`「${KV.VOICE_HONJIN}」`); } // 本陣の盤: 家臣の叫び
+  if (b.honjin && b.over === 'win' && !honjinWon) { honjinWon = true; shout(`「${KV.VOICE_HONJIN_WIN}」`); }
   if (b.goal && !goalShown) { goalShown = true; const v = b.goal === 'rout' ? (b.night ? KV.VOICE_GOAL.rout : null) : KV.VOICE_GOAL[b.goal]; if (v) shout(`「${v}」`); } // 小競り合いの始まりの声（夜討ち・砦の守り・物見）
   if (b.ichiban && !ichibanShown) { ichibanShown = true; shout(KV.VOICE_ICHIBAN, true); }
   if (b.event && b.event !== lastEvent) {
@@ -36,7 +38,7 @@ function voices() {
 const temperP = (p: Piece): 'bold' | 'wise' | 'steady' => (p.bra - p.int >= 10 ? 'bold' : p.int - p.bra >= 10 ? 'wise' : 'steady');
 const noFoe = (arr: string[]) => arr.filter((x) => !x.includes('{foe}'));
 export function openBan(ban: Ban, heading: string, colors: BanColors = {}, opt: { duelOnly?: boolean } = {}): Promise<Ban> {
-  b = ban; sel = null; busy = false; title = heading; last = ''; aim = false; groundKey = ''; duelOnly = !!opt.duelOnly; lastEvent = undefined; ichibanShown = !!ban.ichiban; goalShown = false;
+  b = ban; sel = null; busy = false; title = heading; last = ''; aim = false; groundKey = ''; duelOnly = !!opt.duelOnly; lastEvent = undefined; ichibanShown = !!ban.ichiban; goalShown = false; honjinWon = false;
   if (duelOnly) { const f = ban.pieces.find((p) => p.side === 'foe'); if (f) B.startDuel(ban, f); }
   if (!root) {
     root = document.createElement('div'); root.id = 'ban'; root.className = 'ban';

@@ -79,7 +79,7 @@ for (const vp of [{ width: 390, height: 844, tag: 'sp' }, { width: 1360, height:
   await idle(); await drain();
   // 5. 扶持が払えない → 暇乞い
   let lv = [];
-  for (let i = 0; i < 8 && !lv.some((x) => x.includes('[暇乞い]')); i++) { await p.evaluate(() => { window.__hero.hero.gold = -2000; }); await rest(); lv.push(...await drain()); if (!(await p.evaluate(() => window.__hero.hero.retainers?.length))) break; }
+  for (let i = 0; i < 18 && !lv.some((x) => x.includes('[暇乞い]')); i++) { await p.evaluate(() => { window.__hero.hero.gold = -2000; }); await rest(); lv.push(...await drain()); if (!(await p.evaluate(() => window.__hero.hero.retainers?.length))) break; }
   console.log(vp.tag, '暇乞い:', lv.filter((x) => x.includes('[暇乞い]')).join(' ／ '));
   if (!lv.some((x) => x.includes('[暇乞い]'))) errors.push(vp.tag + ' 暇乞いが出ない');
   await p.close();
