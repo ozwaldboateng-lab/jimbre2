@@ -171,10 +171,33 @@ function drawGround(force = false) {
   c.fillStyle = '#7d8a52'; c.fillRect(0, 0, W, H);
   if (ok(g1)) { c.fillStyle = pat(g1, C * 4.2)!; c.fillRect(0, 0, W, H); }
   if (ok(g2)) { c.globalAlpha = 0.35; c.fillStyle = pat(g2, C * 5.5, C * 1.7, C * 2.3)!; c.fillRect(0, 0, W, H); c.globalAlpha = 1; }
+  // 草の色を落とし、枯れ色に寄せる（近くで見ると芝生に見えないように）
+  c.globalCompositeOperation = 'saturation'; c.fillStyle = 'rgba(128,128,128,0.35)'; c.fillRect(0, 0, W, H); c.globalCompositeOperation = 'source-over';
+  c.fillStyle = 'rgba(112,92,52,0.16)'; c.fillRect(0, 0, W, H);
+  // 土の地肌: 踏み荒らされた帯（盤を横切る）と、散らばった斑。盤ごとに決まった形（地形から種を取る）
+  const so = img('soil');
+  if (ok(so)) {
+    let seed = b.w * 977 + b.h; for (const ch of b.terr.join('')) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    // 斑の形は一マス12pxほどの小さな下書きに描き（ぼかしなし）、引き伸ばして一度だけぼかす（重くしない）
+    const k = 12 / C, s = document.createElement('canvas'); s.width = Math.ceil(W * k); s.height = Math.ceil(H * k);
+    const sc = s.getContext('2d')!; sc.setTransform(k, 0, 0, k, 0, 0); sc.fillStyle = '#000';
+    const blob = (x: number, y: number, r: number, a: number) => { sc.globalAlpha = a; sc.beginPath(); sc.arc(x, y, r, 0, Math.PI * 2); sc.fill(); };
+    for (let i = 0; i < 2; i++) { let x = -C, y = H * (0.3 + 0.4 * rnd()); while (x < W + C) { blob(x, y, C * (0.22 + 0.36 * rnd()), 0.8); x += C * 0.22; y += (rnd() - 0.5) * C * 0.55; } }
+    for (let i = 0; i < 22; i++) { const x = rnd() * W, y = rnd() * H, n = 3 + Math.floor(rnd() * 5); for (let j = 0; j < n; j++) blob(x + (rnd() - 0.5) * C * 1.1, y + (rnd() - 0.5) * C * 0.7, C * (0.14 + 0.3 * rnd()), 0.85); }
+    const m = document.createElement('canvas'); m.width = ground.width; m.height = ground.height;
+    const mc = m.getContext('2d')!; mc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    mc.filter = `blur(${Math.max(2, C * 0.08)}px)`; mc.drawImage(s, 0, 0, W, H); mc.filter = 'none';
+    mc.globalCompositeOperation = 'source-in';
+    const sp = mc.createPattern(so, 'repeat'); sp?.setTransform(new DOMMatrix().scale(C * 3 / so.naturalWidth));
+    if (sp) { mc.fillStyle = sp; mc.fillRect(0, 0, W, H); }
+    mc.globalCompositeOperation = 'source-atop'; mc.fillStyle = 'rgba(74,54,32,0.42)'; mc.fillRect(0, 0, W, H); // 湿った濃い土色に
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(m, 0, 0); c.restore();
+  }
   const cells = (t: B.Terr) => { const out: [number, number][] = []; for (let y = 0; y < b!.h; y++) for (let x = 0; x < b!.w; x++) if (B.terrAt(b!, x, y) === t) out.push([x, y]); return out; };
   const sprite = (name: string, x: number, y: number, size: number, up = 0) => { const im = img(`${name}${pick(x, y, 3) + 1}`); if (!ok(im)) return; const [cx, cy] = ctr(x, y); c.drawImage(im, cx - size / 2, cy - size / 2 - up, size, size); };
   // 丘
-  for (const [x, y] of cells('oka')) sprite('oka', x, y, C * 1.5);
+  c.filter = 'saturate(.72) brightness(.94)'; for (const [x, y] of cells('oka')) sprite('oka', x, y, C * 1.5); c.filter = 'none'; // 草の色を落とした地面になじむように
   // 川: 一列に一マス（ずれる列は二マス）を左から順に結ぶ。盤の左右の端は外へ流れ出る
   const rs = cells('kawa');
   if (rs.length) {
@@ -201,7 +224,7 @@ function drawGround(force = false) {
   const sk = img('w_saku');
   if (ok(sk)) for (const [x, y] of [...(sa ? [] : cells('saku')), ...(ta ? [] : cells('tate'))]) { const [cx, cy] = ctr(x, y), sw = sk.naturalHeight * 2; c.drawImage(sk, (x * sw) % (sk.naturalWidth - sw), 0, sw, sk.naturalHeight, cx - C / 2, cy - C * 0.28, C, C * 0.56); }
   // 林（大きめ。上の行から順に重ねる）
-  for (const [x, y] of cells('mori')) sprite('mori', x, y, C * 1.8, C * 0.12);
+  c.filter = 'saturate(.85)'; for (const [x, y] of cells('mori')) sprite('mori', x, y, C * 1.8, C * 0.12); c.filter = 'none';
 }
 const CSS = `
 .ban{position:fixed;inset:0;z-index:95;background:rgba(8,6,4,.92);display:flex;align-items:center;justify-content:center;overflow:auto;color:#eadfc8;font-family:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif}
