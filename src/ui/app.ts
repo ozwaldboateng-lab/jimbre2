@@ -54,7 +54,7 @@ import { armySupply, carryOf, castleSupply, hyoroBugyo, initStores, storeOf, sup
 import { centerOf, CHIAN_RAMP, EMBER_RAMP, FRONT_COLORS, HEX_ALPHA, MAP_MODES, MB, MapView, SUP, type MapMode } from './render';
 import { cancelOrder, orderAttack, orderFor, ordersAt } from '../engine/orders';
 import { breakTreaty, clanPower, DIP, DIP_NAME, evaluate, neighbors, propose, setProposalHook, type DipKind } from '../engine/diplomacy';
-import { getBattleStyle, openBattle, setBattleStyle, UNIT_STYLE_NAME, type UnitStyle } from './battle';
+import { getBattleStyle, openBattle, setBattleStyle, setBattleTheater, UNIT_STYLE_NAME, type UnitStyle } from './battle';
 import { setBattleHook } from '../engine/hooks';
 import { PORTRAITS } from '../data/portraits';
 import { besieged, enactRakuichi, rakuichiBlock } from '../engine/economy';
@@ -374,6 +374,7 @@ function openTosyu(st: GameState, next: () => void) {
 // 城主・国持ちの演出の場面（engine/ryokake.ts）: 加増・減封・席次・讒言・寝返りの密使・入城・権六。月のはじめに一続きで（掛け合いを省く設定なら出さない）
 const kakeOn = () => { try { return localStorage.getItem('sengoku-kake') !== 'off'; } catch { return true; } };
 const ryoOpt = (st: GameState) => ({ label: `${st.clans[st.player]?.name ?? ''}家`, cast: { ...RONIN_CAST, ...Object.fromEntries(Object.values(st.generals).map((g) => [g.id, g.name])) } });
+setBattleTheater((st, bs, done) => playTheater(bs, done, undefined, { ...ryoOpt(st), label: '合戦' })); // 開戦の口上
 function openRyoScenes(st: GameState, next: () => void) {
   const bs = RY.isRyoshu(st) ? KK.pendingBeats(st, kakeOn()) : !st.hero ? TK.pendingBeats(st, kakeOn()) : []; // 大名: 家を立てた日・旧主・権六
   if (!bs.length) { next(); return; }

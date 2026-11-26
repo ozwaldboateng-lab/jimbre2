@@ -18,6 +18,11 @@ import type { Army, BattleReport, GameState } from '../engine/types';
 import { drawFootSoldiers } from './render';
 import { openBan } from './ban';
 import * as BP from '../engine/banplay';
+import * as KS from './kassen';
+import type { Beat } from '../data/story_toshiie';
+// 開戦の口上を見せる劇場（app.ts が story.ts の playTheater を渡す）
+let theaterFn: ((s: GameState, beats: Beat[], done: () => void) => void) | null = null;
+export function setBattleTheater(f: typeof theaterFn) { theaterFn = f; }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -899,6 +904,12 @@ export function openBattle(s: GameState, a: Army, target: Target, joined: Army[]
   mood('battle'); sfx('horn');
   gs = s;
   tac = createTactical(s, a, target, playerSide, joined);
+  KS.resetBarks(tac);
+  const opening = theaterFn ? KS.openingBeats(s, tac) : [];
+  if (opening.length) return new Promise((res) => theaterFn!(s, opening, () => { void showBattle(s, playerSide).then(res); }));
+  return showBattle(s, playerSide);
+}
+function showBattle(s: GameState, playerSide: 'A' | 'D'): Promise<BattleReport> {
   sel = null; pending = null; delegateQueued = false;
   $('battle').hidden = false;
   ($('battle') as HTMLElement).style.zIndex = s.hero ? '90' : ''; // 武将で遊ぶの画面より前に
@@ -915,11 +926,11 @@ export function openBattle(s: GameState, a: Army, target: Target, joined: Army[]
   }
   view.t = tac; view.s = s;
   view.resize();
-  const atk = clanName(s, tac.attackerClan), def = clanName(s, tac.defenderClan);
-  const sv = tac.castle !== null ? s.sieges?.[tac.castle] : undefined;
-  $('bt-title').textContent = tac.kind === 'siege' ? `${s.castles[tac.castle!].name}攻防戦${sv && sv.clan === tac.attackerClan ? `（包囲${sv.months + 1}か月目）` : ''}` : '野戦';
+  const atk = clanName(s, tac!.attackerClan), def = clanName(s, tac!.defenderClan);
+  const sv = tac!.castle !== null ? s.sieges?.[tac!.castle] : undefined;
+  $('bt-title').textContent = tac!.kind === 'siege' ? `${s.castles[tac!.castle!].name}攻防戦${sv && sv.clan === tac!.attackerClan ? `（包囲${sv.months + 1}か月目）` : ''}` : '野戦';
   const ie = (id: string | null, n: string) => (id ? `${n}家` : n);
-  $('bt-sub').textContent = `${ie(tac.attackerClan, atk)}（攻）対 ${ie(tac.defenderClan, def)}（守）　あなたは${playerSide === 'A' ? '攻め手' : '守り手'}`;
+  $('bt-sub').textContent = `${ie(tac!.attackerClan, atk)}（攻）対 ${ie(tac!.defenderClan, def)}（守）　あなたは${playerSide === 'A' ? '攻め手' : '守り手'}`;
   return new Promise((resolve) => {
     finish = resolve;
     const n = ambushAllowance(tac!, playerSide);
@@ -1123,6 +1134,7 @@ function delegate() {
   if (aiRunning) { delegateQueued = true; $('bt-phase').textContent = '委任を受け付けた…'; return; }
   // 残りを自動で解決
   autoResolve(t, gs!);
+  KS.dropEvents(t); // 一気に解いた分は声にしない
   refresh();
   showResult();
 }
@@ -1139,11 +1151,12 @@ function showResult() {
   const won = t.over === t.playerSide;
   const draw = t.over === 'draw';
   sfx(won ? 'win' : draw ? 'clap' : 'lose');
+  KS.clearBarks(); // 結果の札の一言と食い違わないよう、残っている戦の声は消す
   const siegeGoesOn = draw && t.kind === 'siege' && t.playerSide === 'A';
   const defending = draw && t.kind === 'siege' && t.playerSide === 'D';
   const sum = (side: 'A' | 'D', start: boolean) => t.units.filter((u) => u.side === side).reduce((x, u) => x + (start ? t.start[u.id] : u.troops), 0);
   const me = t.playerSide!, en = me === 'A' ? 'D' : 'A';
-  $('bt-panel').innerHTML = `<div class="bt-result ${won ? 'win' : draw ? 'draw' : 'lose'}"><div class="stamp">${won ? '勝利' : draw ? (t.kind === 'siege' ? '月越し' : '引き分け') : '敗北'}</div>
+  $('bt-panel').innerHTML = `<div class="bt-result ${won ? 'win' : draw ? 'draw' : 'lose'}"><div class="stamp">${won ? '勝利' : draw ? (t.kind === 'siege' ? '月越し' : '引き分け') : '敗北'}</div>${KS.endLineHtml(s, t)}
     <p>${esc(t.reason)}</p>
     <dl class="kv"><dt>自軍</dt><dd>${fmt(sum(me, true))} → ${fmt(sum(me, false))}</dd><dt>敵軍</dt><dd>${fmt(sum(en, true))} → ${fmt(sum(en, false))}</dd><dt>${t.kind === 'siege' ? '日数' : '刻'}</dt><dd>${t.kind === 'siege' ? `${siegeDay(t)} / ${SIEGE_DAYS}日` : `${Math.min(t.turn, t.maxTurn)} / ${t.maxTurn}`}</dd></dl>
     ${siegeGoesOn ? `<p class="hint" style="margin:6px 0">囲んだままにすれば、来月の評定でこの軍団に${esc(s.castles[t.castle!].name)}への出陣命令が出ている。評定を終えると、この盤面の続きから攻める（門の傷・部隊の位置はそのまま）。そのあいだ城兵は城の蔵を食べる。</p>` : ''}
@@ -1203,6 +1216,7 @@ function onPanel(e: Event) {
 
 // ───────── 表示更新 ─────────
 function refresh(inspect?: TUnit | null) {
+  if (tac && gs) KS.drain(gs, tac); // 戦の声
   const t = tac, s = gs;
   if (!t || !s || !view) return;
   const u = selected();

@@ -747,3 +747,17 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 .wk-pi{display:flex;flex-direction:column;flex:1 1 160px;min-width:0}
 .wk-pi span{font-size:12px;opacity:.8}
 .wk-pa{display:flex;flex-wrap:wrap;gap:4px;align-items:center;flex:2 1 260px}
+
+/* 合戦の戦の声・決着の一言（ui/kassen.ts） */
+.bt-field { position: relative; }
+.bt-koe-box{position:absolute;left:12px;bottom:12px;z-index:30;display:flex;flex-direction:column;gap:6px;pointer-events:none;max-width:min(420px,calc(100% - 24px))}
+.bt-koe{display:flex;gap:10px;align-items:center;background:rgba(20,16,12,.86);color:#f4ead6;border:1px solid rgba(240,200,120,.45);border-left:4px solid #d9a441;border-radius:6px;padding:6px 10px 6px 6px;box-shadow:0 4px 14px rgba(0,0,0,.4);animation:btKoeIn .25s ease-out;transition:opacity .3s}
+.bt-koe.out{opacity:0}
+.bt-koe img,.bt-koe-noface{width:44px;height:55px;border-radius:4px;object-fit:cover;flex:none;background:#3a3026}
+.bt-koe-noface{display:flex;align-items:center;justify-content:center;font-size:14px;color:#e8d8b8}
+.bt-koe b{font-size:12px;color:#e8c070;font-weight:600}
+.bt-koe p{margin:2px 0 0;font-size:14px;line-height:1.45}
+.bt-koe.end{position:static;margin:8px 0;animation:none;background:rgba(0,0,0,.18);color:inherit;box-shadow:none}
+.bt-koe.end b{color:inherit;opacity:.8}
+@keyframes btKoeIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.bt-koe{animation:none}}

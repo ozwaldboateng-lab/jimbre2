@@ -100,7 +100,11 @@ export interface Tactical {
   seen?: Record<Side, Record<number, { tile: number; troops: number; turn: number }>>; // 最後に見た敵の位置
   scouts?: Record<Side, { left: number; max: number }>; // 物見の残り回数（毎刻）
   scoutAreas?: { side: Side; tile: number }[]; // 物見で見通している場所（その側の次の手番まで）
+  ev?: TEv[]; first?: boolean; // 戦の声のための出来事（画面が読んで空にする）・一番槍が出たか
 }
+// 戦の声の出来事: u は部隊、g は武将、side はその出来事の当事者の側
+export type TEv = { k: 'rout' | 'hqFall' | 'death' | 'capture' | 'ambush' | 'first' | 'gate' | 'fire' | 'sneak'; side: Side; u?: string; g?: string };
+const ev = (t: Tactical, e: TEv) => { (t.ev ??= []).push(e); };
 // 城攻めは一か月がかり: 刻の上限で30日。1刻は 30÷刻数 日（15刻なら2日、20刻なら1.5日）。野戦は一日のうち
 export const SIEGE_DAYS = 30;
 export const siegeDay = (t: Tactical, turn = t.turn) => turn > t.maxTurn ? SIEGE_DAYS : Math.floor((turn - 1) * SIEGE_DAYS / t.maxTurn) + 1; // その手番の始まりの日
@@ -603,7 +607,7 @@ export function springAmbush(t: Tactical, s: GameState, victim: TUnit) {
   h.hidden = false;
   const roll = 1 - TR.SPREAD + rand(s) * TR.SPREAD * 2;
   const dealt = Math.round(Math.min(victim.troops, pv.dealt * roll));
-  t.log.push(`伏兵！${h.name}が${victim.name}に襲いかかる：敵−${dealt}`);
+  t.log.push(`伏兵！${h.name}が${victim.name}に襲いかかる：敵−${dealt}`); ev(t, { k: 'ambush', side: h.side, u: h.name, g: h.general ?? undefined });
   victim.morale = Math.max(0, victim.morale - TR.AMBUSH_SHOCK);
   victim.confused = Math.max(victim.confused, 1);
   hit(t, s, victim, dealt, h);
@@ -661,6 +665,8 @@ export function doVolley(t: Tactical, s: GameState, units0: TUnit[], e: TUnit, c
   const n = units.length;
   let dealt = 0;
   const amb = units.some((u) => u.hidden);
+  if (amb) ev(t, { k: 'ambush', side: units[0].side, u: units[0].name, g: units[0].general ?? undefined });
+  else if (!t.first) { t.first = true; ev(t, { k: 'first', side: units[0].side, u: units[0].name, g: units[0].general ?? undefined }); }
   for (const u of units) {
     const gun = u.role === 'gun';
     const pv = preview(t, u, e, charge && !gun, gun ? 'gun' : false, true);
@@ -695,11 +701,11 @@ function hit(t: Tactical, s: GameState, victim: TUnit, loss: number, by: TUnit |
 function rout(t: Tactical, s: GameState, u: TUnit) {
   u.routed = true;
   t.log.push(`${u.name}が潰走した。`);
-  if (u.hq) hqFall(t, s, u);
+  if (u.hq) hqFall(t, s, u); else ev(t, { k: 'rout', side: u.side, u: u.name });
 }
 
 function hqFall(t: Tactical, s: GameState, u: TUnit) {
-  t.log.push(`${u.side === 'A' ? '攻め手' : '守り手'}の本陣が崩れた。全軍の士気が下がる。`);
+  t.log.push(`${u.side === 'A' ? '攻め手' : '守り手'}の本陣が崩れた。全軍の士気が下がる。`); ev(t, { k: 'hqFall', side: u.side, u: u.name });
   for (const x of t.units) if (!x.out && x.side === u.side && x.id !== u.id) {
     x.morale = Math.max(0, x.morale - TR.HQ_FALL);
     if (!x.routed && x.morale < routAt(t, x)) { x.routed = true; t.log.push(`${x.name}が潰走した。`); }
@@ -713,8 +719,8 @@ function destroyUnit(t: Tactical, s: GameState, u: TUnit, by: TUnit | null) {
   if (u.general) {
     const r = rand(s);
     const g = s.generals[u.general];
-    if (r < TR.FATE_DEATH) { t.deaths.push(u.general); t.log.push(`${g.name}討死。`); }
-    else if (r < TR.FATE_DEATH + TR.FATE_CAPTURE && by) { const clan = by.side === 'A' ? t.attackerClan : t.defenderClan; if (clan) { t.captures.push({ general: u.general, by: clan }); t.log.push(`${g.name}を捕らえた。`); } }
+    if (r < TR.FATE_DEATH) { t.deaths.push(u.general); t.log.push(`${g.name}討死。`); ev(t, { k: 'death', side: u.side, g: g.id }); }
+    else if (r < TR.FATE_DEATH + TR.FATE_CAPTURE && by) { const clan = by.side === 'A' ? t.attackerClan : t.defenderClan; if (clan) { t.captures.push({ general: u.general, by: clan }); t.log.push(`${g.name}を捕らえた。`); ev(t, { k: 'capture', side: u.side, g: g.id }); } }
     else t.log.push(`${g.name}は落ち延びた。`);
   }
   if (u.hq) hqFall(t, s, u);
@@ -725,7 +731,7 @@ function deathRoll(t: Tactical, s: GameState, u: TUnit, p: number) {
   if (u.morale < 0.5) p *= 1.5;
   if (rand(s) < p) {
     const g = s.generals[u.general];
-    t.deaths.push(u.general);
+    t.deaths.push(u.general); ev(t, { k: 'death', side: u.side, g: g.id });
     t.log.push(`${g.name}、乱戦の中で討死。${u.name.replace(/隊$/, '')}の兵は崩れた。`);
     u.general = null; u.name = `${g.name}残兵`; u.int = 40;
     u.morale = Math.min(u.morale, 0.2);
@@ -757,6 +763,7 @@ export function doAction(t: Tactical, s: GameState, u: TUnit, a: TAction, charge
     t.gates[a.tile] = Math.max(0, (t.gates[a.tile] ?? 0) - dmg);
     // 城内からの反撃（門に隣接する守備部隊の射撃）
     const msg = t.gates[a.tile] <= 0 ? `${u.name}が城門を打ち破った！` : `${u.name}が城門を攻める（残り${t.gates[a.tile]}）。`;
+    if (t.gates[a.tile] <= 0) ev(t, { k: 'gate', side: u.side, u: u.name });
     t.log.push(msg);
     if (charge) u.morale = Math.max(0, u.morale - 0.05);
     checkEnd(t, s);
@@ -765,7 +772,7 @@ export function doAction(t: Tactical, s: GameState, u: TUnit, a: TAction, charge
   if (a.kind === 'fire') {
     const ok = rand(s) < fireChance(t, u);
     if (!ok) { const m = `${u.name}の火計は不発に終わった。`; t.log.push(m); return m; }
-    t.fire[a.tile] = TR.FIRE_TURNS;
+    t.fire[a.tile] = TR.FIRE_TURNS; ev(t, { k: 'fire', side: u.side, u: u.name });
     const parts = [`${u.name}が火を放った！`];
     if (t.tiles[a.tile] === 'G') { const dmg = Math.round(t.gateMax * TR.FIRE_GATE_HIT); t.gates[a.tile] = Math.max(0, (t.gates[a.tile] ?? 0) - dmg); parts.push(`城門が燃える（残り${t.gates[a.tile]}）`); }
     const e = unitAt(t, a.tile);
@@ -775,7 +782,7 @@ export function doAction(t: Tactical, s: GameState, u: TUnit, a: TAction, charge
   if (a.kind === 'sneak') {
     u.sneaked = true;
     const ok = rand(s) < sneakChance(t, u);
-    if (ok) t.gates[a.tile] = 0;
+    if (ok) { t.gates[a.tile] = 0; ev(t, { k: 'sneak', side: u.side, u: u.name }); }
     const m = ok ? `${u.name}の忍びが石垣を越えて忍び込み、城門を内から開けた！` : `${u.name}の忍び込みは見破られた。`;
     t.log.push(m); checkEnd(t, s); return m;
   }
@@ -804,6 +811,8 @@ export function doAction(t: Tactical, s: GameState, u: TUnit, a: TAction, charge
   const taken = Math.round(Math.min(u.troops, pv.taken * roll()));
   const msg = `${amb ? '伏兵！' : ''}${u.name}${a.kind === 'shoot' ? 'の鉄砲が' : bow ? 'の弓が' : charge ? 'が突撃、' : 'が'}${e.name}${a.kind === 'shoot' ? 'を撃つ' : bow ? 'を射る' : 'を攻撃'}：敵−${dealt}${taken ? `／自−${taken}` : ''}`;
   t.log.push(msg);
+  if (amb) ev(t, { k: 'ambush', side: u.side, u: u.name, g: u.general ?? undefined });
+  else if (!t.first && !bow) { t.first = true; ev(t, { k: 'first', side: u.side, u: u.name, g: u.general ?? undefined }); }
   hit(t, s, e, dealt, u);
   if (taken) hit(t, s, u, taken, e);
   if (!bow) {
