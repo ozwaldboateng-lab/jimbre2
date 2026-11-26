@@ -7,6 +7,11 @@ export const BLD_SUB: Record<Bld, string> = { shiro: '登城・仕官・城の�
 const POS: Record<Exclude<Bld, 'youken'>, [number, number]> = {
   shiro: [56, 13], buke: [22, 28], tera: [78, 28], dojo: [11, 47], ie: [37, 47], chaya: [63, 47], ichi: [89, 47], kaido: [15, 66], nanban: [50, 66], mura: [85, 66],
 };
+// 建物の窓の背景（いまある場面の絵）。街道口は季節で雨・雪の道
+export function bldArt(id: Bld, month: number, ronin: boolean): string {
+  if (id === 'kaido') return month === 12 || month <= 2 ? 'yukimichi' : month === 6 ? 'amemichi' : 'story_kita_michi';
+  return ({ shiro: 'zashiki_day', buke: 'zashiki_day', ie: ronin ? 'chaya' : 'zashiki_night', dojo: 'dojo', tera: 'hondo', chaya: 'chaya', ichi: 'ichi', nanban: 'minato', mura: 'mura', youken: 'ichi' } as Record<Bld, string>)[id];
+}
 // 浪人は自分の屋敷ではなく長屋
 export const ieName = (ronin: boolean) => (ronin ? '長屋' : BLD_NAME.ie);
 
@@ -63,6 +68,19 @@ export const MACHI_CSS = `
 .hr-bld:hover,.hr-bld:focus-visible{background:rgba(60,44,20,.92);border-color:#e8c070}
 .hr-bld.mark::after{content:'';position:absolute;top:-5px;right:-5px;width:11px;height:11px;border-radius:50%;background:#e0b04a;box-shadow:0 0 6px #e0b04a}
 .hr-say.machi{position:absolute;left:12px;right:12px;bottom:12px;margin:0;z-index:2}
+.hr-dlg.hr-bldwin{padding:0;width:min(900px,calc(100% - 24px));max-height:calc(100% - 20px);display:flex;flex-direction:column;overflow:hidden}
+.hr-bldart{flex:none;height:clamp(120px,30vh,240px);background:#222 center/cover no-repeat;position:relative;display:flex;align-items:flex-end}
+.hr-bldart::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(10,10,10,.92) 100%)}
+.hr-bldart h4{position:relative;z-index:1;margin:0 0 10px 18px;font-family:var(--font-display,serif);font-weight:400;font-size:22px;letter-spacing:.1em;color:#f4e6c4;text-shadow:0 2px 6px #000}
+.hr-bldart h4 small{display:block;font-size:12px;letter-spacing:.05em;color:#cdbb95;margin-top:2px}
+.hr-bldres{flex:none;margin:10px 18px 0;padding:8px 12px;border-left:3px solid #cfa95e;background:rgba(207,169,94,.1)}
+.hr-bldres p{margin:2px 0;font-size:14px;line-height:1.6}
+.hr-bldbody{overflow:auto;padding:12px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px;align-content:start}
+.hr-bldbody>p,.hr-bldbody>h4,.hr-bldbody>div{grid-column:1/-1}
+.hr-bldbody .hr-spot{margin:0}
+.hr-bldfoot{flex:none;padding:0 18px 12px;text-align:right}
+.hr-bldfoot .hr-dclose{float:none}
+@media (max-width:820px){.hr-dlg.hr-bldwin{width:calc(100% - 12px);max-height:calc(100% - 12px)}.hr-bldbody{grid-template-columns:1fr;padding:10px 12px}}
 .hr-bldlist{display:flex;flex-wrap:wrap;gap:6px}
 @media (max-width:820px){.hr-bld{min-width:64px;padding:5px 6px}.hr-bld b{font-size:13px}.hr-bld span{display:none}}
 `;

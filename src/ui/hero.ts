@@ -225,11 +225,15 @@ function bldWin(st: GameState, id: MC.Bld) {
   const strip = (h: string) => h.replace(/^<div class="hr-dlg">/, '').replace(/<button class="hr-btn hr-dclose" data-h="dlg-close">閉じる<\/button><\/div>$/, '');
   if ((id === 'dojo' || id === 'tera') && CR.freeHero(st) && !ronin) { const keep = dlg; dlg = { kind: id }; const inner = strip(dlgHtml0(st)); dlg = keep; xs = xs.map((x) => (x.includes(`data-h="spot" data-id="${id}"`) ? inner.replace(/^<h4[\s\S]*?<\/h4>/, '') : x)); }
   if (id === 'buke') xs = xs.map((x) => (x.includes('data-h="spot" data-id="yashiki"') ? peopleHtml(st, true) : x));
+  const VERB: Record<string, string> = { chaya: '旅人の話を聞く', ichi: '進物を買う', dojo: '稽古する', tera: '学問する', nanban: '南蛮の品を見る', tabi: '旅に出る' }; // 窓の中では、場所の名でなく、することを書く
+  xs = xs.map((x) => x.replace(/(data-h="spot" data-id="(\w+)"[^>]*><b>)[^<]*(<\/b>)/, (m, a, k, b) => (VERB[k] ? a + VERB[k] + b : m)));
   const house = houseHtml(st), cha = /<button class="hr-spot" data-h="chakai"[\s\S]*?<\/button>/.exec(house)?.[0] ?? '';
   if (id === 'ie') xs.push(house.replace(cha, '') || (CR.freeHero(st) ? skillNote(st) : ''), ...(peopleHtml(st).match(/<p class="hr-note"><b>(?:配下|家臣)[\s\S]*?<\/p>/g) ?? []), azukeHtml(st)); // 家のこと・配下・家臣
   if (id === 'shiro' && cha) xs.push(cha);
   const name = id === 'ie' ? MC.ieName(ronin) : MC.BLD_NAME[id];
-  return `<div class="hr-dlg hr-bldwin"><h4 class="hr-sub">${esc(st.castles[st.hero!.town].name)}の${name}</h4>${xs.join('') || '<p class="hr-none">いまここでできることはない。</p>'}<button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div>`;
+  const art = ART(MC.bldArt(id, st.month, ronin)) ?? '';
+  const res = say && !say.hold ? `<div class="hr-bldres">${say.text.split('\n').map((x) => `<p>${esc(x)}</p>`).join('')}</div>` : '';
+  return `<div class="hr-dlg hr-bldwin"><div class="hr-bldart" style="${art ? `background-image:url(${art})` : ''}"><h4>${id === 'shiro' ? esc(st.castles[st.hero!.town].name) : name}<small>${esc(st.castles[st.hero!.town].name.replace(/城$/, ''))}の城下</small></h4></div>${res}<div class="hr-bldbody">${xs.join('') || '<p class="hr-none">いまここでできることはない。</p>'}</div><div class="hr-bldfoot"><button class="hr-btn hr-dclose" data-h="dlg-close">町へ戻る</button></div></div>`;
 }
 function spotsHtml(st: GameState) {
   if (st.hero!.over) return `<p class="hr-note">${esc(st.hero!.over)}</p><button class="hr-spot main" data-h="quit"><b>タイトルへ</b><span>この遊びは終わった</span></button>`;
@@ -553,15 +557,17 @@ function playHeld() {
 }
 async function act(fn: () => H.Act, scene?: string, allowSick = false, kk?: (r: H.Act) => RK.Kake) {
   if (!s || busy) return;
+  const keep = dlg?.kind === 'bld' ? dlg.id : null; // 建物の窓から行動した: 結果を窓の中に出し、窓は開いたままに（月をまたぐ・町を離れる時は閉じる）
   dlg = null;
   if (!allowSick && SK.isSick(s)) { say = { text: H.inArmy(s) || HA.leading(s) ? '病に伏していて、動けない。陣中で過ごすか、陣を離れて（軍勢を解いて）城へ下がる。' : '病に伏していて、動けない。休んで治すしかない。' }; render(); return; }
   if (heldReport) { report = heldReport; heldReport = null; render(); return; } // 閉じずに次へ進もうとした: 先に月の報告を見せる
   const r = fn();
-  if (!r.ok) { say = { text: r.text }; render(); return; }
-  if (scene) bg = scene;
+  if (!r.ok) { say = { text: r.text }; if (keep && machiable(s)) dlg = { kind: 'bld', id: keep }; render(); return; }
+  if (scene && !keep) bg = scene; // 建物の窓からの行動では、町の画面はそのまま
   const kake = kk && kakeOn() ? kk(r) : undefined; // 浪人の掛け合い（顔とセリフを二、三行）
   const hold = (!!(r.who && r.line) || !!kake?.length) && !mapMode(s);
   say = kake?.length ? { text: r.text, hold, kake } : { who: r.who, line: r.line, text: r.text, hold, offer: hold && r.offer };
+  if (keep && !hold && s.hero!.jun < H.HERO.JUN && machiable(s)) dlg = { kind: 'bld', id: keep };
   await advance();
 }
 // 3旬が過ぎたら1か月を進める。月をまたぐ旅は続ける
@@ -782,7 +788,7 @@ function onClick(e: Event) {
   if (h === 'pane') dlg = null;
   if (h === 'pane') { if (id === 'tabi') recenter = true; pane = id as typeof pane; render(); return; }
   if (h === 'meet') { dlg = { kind: 'person', id }; say = null; render(); showDlg(); return; }
-  if (h === 'dlg-close') { dlg = null; render(); return; }
+  if (h === 'dlg-close') { if (dlg?.kind === 'bld' && !say?.hold) say = null; dlg = null; render(); return; } // 建物の窓で見た結果は、閉じたら町に残さない
   if (h === 'bld') { dlg = { kind: 'bld', id: id as MC.Bld }; say = null; render(); showDlg(); return; } // 町の建物: その建物でできることの窓
   if (h === 'machi') { MC.machiSet(id === 'machi'); dlg = null; render(); return; }
   if (h === 'ban-keiko') { const bn = BP.keikoBan(s); void openBan(bn, `${s.castles[s.hero!.town].name}の道場 ― 盤の稽古`, banColors(s)).then((r) => { dlg = null; say = { text: `盤の稽古を終えた（${{ win: '勝ち', lose: '負け', retreat: '退いた', time: '時切れ' }[r.over ?? 'time']}・討ち取り${r.kills}）。` }; render(); }); return; }
