@@ -73,7 +73,8 @@ function terrHtml(x: number, y: number) {
 // 駒の絵（assets/ban。なければ文字の駒）。味方は背面、敵は正面の絵。足もとに家の色の輪（主人公は金、名のある将は朱）
 // 人の大きさをそろえる: 騎馬は少し大きく、膝をついた鉄砲は少し小さく
 const ART_SCALE: Record<string, number> = { bugei: 1.2, bokuto: 1.2, kiba: 1.65, sho: 1.65, hero: 1.65, ashi: 1, yumi: 1, teppo: 0.82 };
-const artKey = (p: Piece) => { const d = p.side === 'me' ? 'b' : 'f'; for (const k of [p.art ?? '', p.sho ? 'sho' : p.hero ? 'hero' : '', p.kind]) if (k && BAN_ART[`${k}_${d}`]?.length) return k; return null; };
+// 主人公の駒は、専用の絵がなければ名のある将（騎馬）の絵を使う（金の台座で見分ける）
+const artKey = (p: Piece) => { const d = p.side === 'me' ? 'b' : 'f'; for (const k of [p.art ?? '', p.sho ? 'sho' : p.hero ? (BAN_ART[`hero_${d}`]?.length ? 'hero' : 'sho') : '', p.kind]) if (k && BAN_ART[`${k}_${d}`]?.length) return k; return null; };
 // 騎馬は足もとを下げ、下のマス（馬の尻の側）にもはみ出す（マスの高さに対する割合）
 const ART_DROP: Record<string, number> = { kiba: 30, sho: 30, hero: 30 };
 const artOf = (p: Piece) => { const k = artKey(p); return k ? { src: BAN_ART[`${k}_${p.side === 'me' ? 'b' : 'f'}`][0], sc: ART_SCALE[k] ?? 1, dy: ART_DROP[k] ?? 0 } : null; };
