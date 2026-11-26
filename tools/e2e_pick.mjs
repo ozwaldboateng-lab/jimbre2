@@ -22,7 +22,7 @@ for (const [scen, clan, tag] of cases) {
   const cards = await p.$$eval('#hero [data-h="pick"]', (es) => es.map((e) => e.dataset.id + ':' + e.querySelector('b').textContent));
   console.log(scen, cid, 'cards', cards.length, cards.slice(0, 5).join(' '));
   if (scen === '1560' && clan === 'takeda') await p.screenshot({ path: `${out}/pk-2-cards.png` });
-  await p.click(`#hero [data-h="pick"] >> nth=${Math.min(2, cards.length - 1)}`); await p.waitForTimeout(400);
+  await p.click(`#hero [data-h="pick"] >> nth=${cards.length - 1}`); // 城持ち（宿老）は領主の画面から始まるので、いちばん下の身分の武将で await p.waitForTimeout(400);
   console.log(scen, cid, 'start:', (await p.$eval('#hero .hr-id', (e) => e.textContent)), '|', (await p.$eval('#hero .hr-say', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => '')).slice(0, 90));
   for (let i = 0; i < 4; i++) {
     for (const sel of ['#hero [data-h="say-close"]', '#hero [data-h="report-ok"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(80); } }

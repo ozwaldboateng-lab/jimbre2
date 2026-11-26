@@ -9,7 +9,7 @@ const p = await b.newPage({ viewport: { width: 1360, height: 820 } });
 p.on('pageerror', (e) => errors.push(e.message));
 await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
 await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
-await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200); await p.click('[data-h="pick"][data-id="shibata_katsuie"]'); await p.waitForTimeout(300);
+await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200); await p.click('[data-h="pick"][data-id="niwa_nagahide"]'); await p.waitForTimeout(300);
 console.log('head:', (await p.$eval('#hero .hr-stats', (e) => e.textContent.replace(/\s+/g, ' '))));
 await p.click('#hero [data-h="spot"][data-id="dojo"]'); await p.waitForTimeout(150); await p.screenshot({ path: `${out}/sk-0-dojo.png` });
 console.log('studies:', (await p.$$eval('#hero [data-h="study"]', (es) => es.map((e) => e.textContent.slice(0, 30) + (e.disabled ? '×' : '')))).join(' | '));

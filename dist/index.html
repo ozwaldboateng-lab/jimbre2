@@ -975,7 +975,7 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
       <section class="hr-scene${Id(e)?" map":""}${Ni?" machi":""}" style="${r&&!Id(e)&&!Ni?`background-image:url(${r})`:""}">
         ${Id(e)?'<div id="hr-mapslot"></div>':""}
         <div class="hr-town">${Mt(e)?(()=>{let l=Mt(e);return`<b>${j(e.generals[l.main]?.name??"")}\u306E\u9663\u4E2D</b><span>${j(q(e,l.hex)?.name??Ua[be[l.hex].p].name+"\u306E\u91CE")}\u30FB\u5175${l.troops.toLocaleString("ja-JP")}\u30FB\u58EB\u6C17${l.morale.toFixed(2)}</span>`})():a.field?`<b>${j(Ua[be[a.hex].p].name)}\u306E\u91CE</b><span>\u65C5\u306E\u9014\u4E2D</span>`:`<b>${j(o.name)}\u306E\u57CE\u4E0B</b><span>${o.owner?`${j(R(e,o.owner))}\u5BB6\u306E\u57CE`:"\u56FD\u4EBA\u306E\u57CE"}${o.owner&&o.owner!==t.clan?"\uFF08\u4ED6\u56FD\uFF09":""}</span>`}</div>
-        ${Ni&&!Oo?Ej(Ni,xq(e),St(e),!!W?.hold||!!ia):""}
+        ${Ni?Ej(Ni,xq(e),St(e),!!W?.hold||!!ia||!!Oo):""}
         ${ia&&!Oo?Rq(e):""}
         ${W&&!ia?`<div class="hr-say${Id(e)?" mini":""}${s?" scene":Ni&&!W.hold?" machi":""}${W.hold&&!W.offer?" hold":""}"${s&&!W.offer?' data-h="scene-close"':W.hold&&!W.offer?' data-h="say-close"':""}>${s?`<div class="hr-sayart" style="background-image:url(${s})"></div>`:""}${W.kake?.length?Uq(e,W.kake):""}${W.who&&W.line?`<div class="hr-who">${ai(W.who,128)||""}<div><b>${j(e.generals[W.who]?.name??"")}</b><p>\u300C${j(W.line)}\u300D</p></div></div>`:""}<p class="hr-text">${j(W.text)}</p>${W.offer?Dq(e):W.hold||s?'<span class="hr-close">\u25BC \u62BC\u3057\u3066\u9589\u3058\u308B</span>':""}</div>`:""}
       </section>
@@ -1067,6 +1067,16 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 .hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}
 .hr-kake{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}.hr-kake .hr-who{margin:0;gap:12px}.hr-kake .hr-who img{width:56px;height:70px}.hr-kake .hr-who p{font-size:16px;line-height:1.6;margin-top:2px}.hr-kake .hr-who b{font-size:13px}.hr-knarr{margin:0;font-size:14px;color:#cfc3a8;font-style:italic}.hr-say.mini .hr-kake{display:none}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}
+/* \u7269\u8A9E\uFF08\u524D\u7530\u5229\u5BB6\uFF09\u306E\u753B\u9762\u4E0A\u90E8: \u6B66\u5C06\u3067\u904A\u3076\u306E\u4E0A\u90E8\u3092 .bar \u306B\u3057\u305F\u306E\u3067\u3001\u7269\u8A9E\u306E\u753B\u9762\u3060\u3051\u306B\u3053\u308C\u307E\u3067\u306E\u4F5C\u308A\u3092\u6B8B\u3059 */
+#story .hr-head{display:flex;align-items:center;gap:16px;padding:8px 14px;border-bottom:1px solid rgba(207,169,94,.28);background:#151517;flex-wrap:wrap}
+#story .hr-id{display:flex;align-items:center;gap:10px}#story .hr-id img{border-radius:3px}#story .hr-id b{display:block;font-size:17px}#story .hr-id span{font-size:12px;color:#b8ab92}
+#story .hr-date{font-family:var(--font-display,serif);font-size:22px;color:#cfa95e;display:flex;flex-direction:column;line-height:1.1}#story .hr-date small{font-size:12px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}
+#story .hr-stats{display:grid;grid-auto-flow:column;grid-template-rows:auto auto;gap:0 14px;margin:0;flex:1;min-width:0}
+#story .hr-stats dt{font-size:10.5px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}#story .hr-stats dd{margin:0;font-family:var(--font-ui,sans-serif);font-size:14px;white-space:nowrap}#story .hr-stats small{color:#b8ab92;font-size:11px}
+@media (max-width:820px){
+  #story .hr-head{gap:10px}#story .hr-stats{grid-auto-flow:row;grid-template-columns:repeat(5,auto);grid-template-rows:auto;order:3;flex-basis:100%}
+  #story .hr-stats dt{grid-row:1}#story .hr-stats dd{grid-row:2;font-size:12.5px}
+}
 /* \u753B\u9762\u4E0A\u90E8\uFF08\u5927\u540D\u30D7\u30EC\u30A4\u3068\u540C\u3058 .bar \u306E\u4F5C\u308A\uFF09 */
 #hero .bar.hr-head{flex:none}
 #hero .bar .seal{border:0;cursor:pointer;padding:0}
@@ -1170,7 +1180,7 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
   <nav class="ttl-menu" aria-label="\u30BF\u30A4\u30C8\u30EB">
     <button type="button" class="ttl-item" data-act="t-new"><b>\u65B0\u3057\u304F\u59CB\u3081\u308B</b><span>\u6642\u4EE3\u3068\u5BB6\u3092\u9078\u3093\u3067\u51FA\u9663\u3059\u308B</span></button>
     <button type="button" class="ttl-item" data-act="t-story"><b>\u524D\u7530\u5229\u5BB6 \u2015 \u6B8B\u308A\u706B</b><span>\u6D6A\u4EBA\u306E\u8EAB\u304B\u3089\u3001\u3082\u3046\u4E00\u5EA6\u4FE1\u9577\u306E\u5EAD\u3078\u3002\u305D\u3057\u3066\u5317\u3078\uFF08\u7269\u8A9E\u30FB\u5168\u4E94\u90E8\uFF09</span></button>
-    <button type="button" class="ttl-item" data-act="t-hero"><b>\u6B66\u5C06\u3067\u904A\u3076<small>\uFF08\u8A66\u4F5C\uFF09</small></b><span>\u7E54\u7530\u5BB6\u306E\u5BB6\u81E3\u3068\u3057\u3066\u57CE\u4E0B\u3092\u6B69\u304D\u3001\u51FA\u4E16\u3092\u76EE\u6307\u3059</span></button>
+    <button type="button" class="ttl-item" data-act="t-hero"><b>\u6B66\u5C06\u3067\u904A\u3076<small>\uFF08\u8A66\u4F5C\uFF09</small></b><span>\u5927\u540D\u5BB6\u306E\u5BB6\u81E3\u304B\u6D6A\u4EBA\u3068\u3057\u3066\u57CE\u4E0B\u3092\u6B69\u304D\u3001\u51FA\u4E16\u3092\u76EE\u6307\u3059</span></button>
     ${e.auto?`<button type="button" class="ttl-item" data-act="t-continue"><b>\u7D9A\u304D\u304B\u3089</b><span>${Do(e.autoLabel)}</span></button>`:""}
     <button type="button" class="ttl-item" data-act="t-help"><b>\u904A\u3073\u65B9</b><span>\u64CD\u4F5C\u30FB\u7528\u8A9E\u30FB\u4ED5\u7D44\u307F</span></button>
   </nav>

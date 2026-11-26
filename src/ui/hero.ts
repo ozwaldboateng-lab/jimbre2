@@ -165,7 +165,7 @@ function render() {
       <section class="hr-scene${mapMode(st) ? ' map' : ''}${machiB ? ' machi' : ''}" style="${art && !mapMode(st) && !machiB ? `background-image:url(${art})` : ''}">
         ${mapMode(st) ? '<div id="hr-mapslot"></div>' : ''}
         <div class="hr-town">${H.inArmy(st) ? (() => { const a = H.inArmy(st)!; return `<b>${esc(st.generals[a.main]?.name ?? '')}の陣中</b><span>${esc(castleAt(st, a.hex)?.name ?? PROVINCES[HEXES[a.hex].p].name + 'の野')}・兵${a.troops.toLocaleString('ja-JP')}・士気${a.morale.toFixed(2)}</span>`; })() : Hh.field ? `<b>${esc(PROVINCES[HEXES[Hh.hex].p].name)}の野</b><span>旅の途中</span>` : `<b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span>`}</div>
-        ${machiB && !report ? MC.machiHtml(machiB, machiView(st), RP.isRonin(st), !!say?.hold || !!dlg) : ''}
+        ${machiB ? MC.machiHtml(machiB, machiView(st), RP.isRonin(st), !!say?.hold || !!dlg || !!report) : ''}
         ${dlg && !report ? dlgHtml(st) : ''}
         ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${sayArt ? ' scene' : machiB && !say.hold ? ' machi' : ''}${say.hold && !say.offer ? ' hold' : ''}"${sayArt && !say.offer ? ' data-h="scene-close"' : say.hold && !say.offer ? ' data-h="say-close"' : ''}>${sayArt ? `<div class="hr-sayart" style="background-image:url(${sayArt})"></div>` : ''}${say.kake?.length ? kakeHtml(st, say.kake) : ''}${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold || sayArt ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
@@ -1073,6 +1073,16 @@ export const CSS = `
 .hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}
 .hr-kake{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}.hr-kake .hr-who{margin:0;gap:12px}.hr-kake .hr-who img{width:56px;height:70px}.hr-kake .hr-who p{font-size:16px;line-height:1.6;margin-top:2px}.hr-kake .hr-who b{font-size:13px}.hr-knarr{margin:0;font-size:14px;color:#cfc3a8;font-style:italic}.hr-say.mini .hr-kake{display:none}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}
+/* 物語（前田利家）の画面上部: 武将で遊ぶの上部を .bar にしたので、物語の画面だけにこれまでの作りを残す */
+#story .hr-head{display:flex;align-items:center;gap:16px;padding:8px 14px;border-bottom:1px solid rgba(207,169,94,.28);background:#151517;flex-wrap:wrap}
+#story .hr-id{display:flex;align-items:center;gap:10px}#story .hr-id img{border-radius:3px}#story .hr-id b{display:block;font-size:17px}#story .hr-id span{font-size:12px;color:#b8ab92}
+#story .hr-date{font-family:var(--font-display,serif);font-size:22px;color:#cfa95e;display:flex;flex-direction:column;line-height:1.1}#story .hr-date small{font-size:12px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}
+#story .hr-stats{display:grid;grid-auto-flow:column;grid-template-rows:auto auto;gap:0 14px;margin:0;flex:1;min-width:0}
+#story .hr-stats dt{font-size:10.5px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}#story .hr-stats dd{margin:0;font-family:var(--font-ui,sans-serif);font-size:14px;white-space:nowrap}#story .hr-stats small{color:#b8ab92;font-size:11px}
+@media (max-width:820px){
+  #story .hr-head{gap:10px}#story .hr-stats{grid-auto-flow:row;grid-template-columns:repeat(5,auto);grid-template-rows:auto;order:3;flex-basis:100%}
+  #story .hr-stats dt{grid-row:1}#story .hr-stats dd{grid-row:2;font-size:12.5px}
+}
 /* 画面上部（大名プレイと同じ .bar の作り） */
 #hero .bar.hr-head{flex:none}
 #hero .bar .seal{border:0;cursor:pointer;padding:0}
