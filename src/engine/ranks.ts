@@ -144,7 +144,7 @@ export function promoteOne(s: GameState, g: General): boolean {
 function promote(s: GameState, clan: string) {
   if (clan === s.player && !delegateOf(s).reward) return;
   const label = tsukaiLabel(clan);
-  const gens = Object.values(s.generals).filter((g) => g.clan === clan && isActive(g) && !isLeader(s, g) && !g.liege).sort((a, b) => b.merit - a.merit);
+  const gens = Object.values(s.generals).filter((g) => g.clan === clan && isActive(g) && !isLeader(s, g) && !g.liege && g.id !== s.hero?.id).sort((a, b) => b.merit - a.merit); // 武将で遊ぶの主人公は、自分の道筋（功績・主君の覚え・寄親の推挙）でだけ上がる
   for (const g of gens) {
     const from = g.rank;
     while (g.rank > 0 && g.merit >= R.MERIT_AT[g.rank - 1]) {

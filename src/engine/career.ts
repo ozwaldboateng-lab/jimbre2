@@ -152,8 +152,8 @@ export function grantShiro(s: GameState, c: Castle): CareerEvent {
   c.garrison = Math.max(c.garrison, Math.round(garrisonMax(c) * 0.5));
   addLog(s, `${me.name}が${c.name}を預かった。`, 'info', true);
   const yo = first ? yoriki(s) : null; // 初めて城を預かった時、主君が与力を一人預けてくれる
-  pushKumi(s, { k: 'nyujo', c: c.i }); // 入城の場面（城下の出迎え）
-  { const G = H as unknown as { gon?: object }; if (first && !G.gon) { G.gon = {}; pushKumi(s, { k: 'inkyo' }); } } // 権六の隠居の願い（初めて城を預かった時）
+  if (first) pushKumi(s, { k: 'nyujo', c: c.i }); // 入城の場面（城下の出迎え。初めて城を預かった時だけ）
+  { const G = H as unknown as { gon?: object }; if (first && !G.gon) G.gon = { asked: s.turn - 10 }; } // 権六の隠居の願い: 初めて城を預かって二か月後（入城の月に場面を重ねない。ryokake.ts の gonMonth が出す）
   let back = '';
   if (car.lostKuni && me.rank === 0) { // 国持ちだった者には、二つ目の城も預け直す（国持ちに戻る）
     const c2 = pickCastle(s, c);
