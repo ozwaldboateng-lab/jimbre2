@@ -77,8 +77,8 @@ export function machiHtml(b: Record<Bld, string[]>, v: MachiView, ronin: boolean
   return `<div class="hr-machi${dim ? ' dim' : ''}${v.sp ? ' sp' : ''}"><div class="hr-machi-map" style="background-image:url(${ground.src});aspect-ratio:${L.ratio}">${html}</div></div>`;
 }
 // 右の欄: 今月の用件（あれば）・自分のこと・いる国のこと（hero.ts が作る）・一覧への切り替え
-export function sideHtml(b: Record<Bld, string[]>, info: string) {
-  return `${b.youken.length ? `<h4 class="hr-sub">今月の用件</h4>${b.youken.join('')}` : ''}${info}
+export function sideHtml(b: Record<Bld, string[]>, info: string, strips = '') {
+  return `${strips}${b.youken.length ? `<h4 class="hr-sub">今月の用件</h4>${b.youken.join('')}` : ''}${info}
     <p class="hr-note" style="margin-top:12px"><button class="hr-btn ghost sm" data-h="machi" data-id="list">一覧で表示する</button></p>`;
 }
 export const MACHI_CSS = `

@@ -61,7 +61,7 @@ let pane: 'spots' | 'yashiki' | 'tabi' | 'diary' | 'akinai' | 'shiro' | 'homen' 
 let bg = 'town';
 let say: { who?: string; line?: string; text: string; hold?: boolean; offer?: boolean; kake?: RK.Kake } | null = null; // hold: セリフの窓（押すと閉じる）。offer: 主命を承るか断るか
 let offerMsg = ''; // 誘いの窓に出す、さっきの返事の首尾
-let dlg: { kind: 'person'; id: string } | { kind: 'bld'; id: MC.Bld } | { kind: 'dojo' | 'tera' | 'offers' | 'ronko' | 'gungi' } | null = null;
+let dlg: { kind: 'person'; id: string } | { kind: 'bld'; id: MC.Bld } | { kind: 'cat'; id: Cat } | { kind: 'dojo' | 'tera' | 'offers' | 'ronko' | 'gungi' } | null = null;
 let machiB: Record<MC.Bld, string[]> | null = null; // 城下の町: 建物ごとの行動（描くたびに作り直す）
 let ronkoAlloc: Record<string, number> = {}; // 論功行賞で配る手柄 // 画面に立ち上げる窓（会う相手・道場・寺）
 let heldReport: string[] | null = null, heldBeats: Beat[] | null = null; // セリフの窓を閉じるまで待たせる、月の報告と出世の場面
@@ -152,25 +152,13 @@ function begin(id: string) {
 }
 function render() {
   if (!s || !root) return;
-  const st = s, Hh = st.hero!, me = H.heroOf(st)!, c = st.castles[Hh.town], L = H.lordOf(st);
-  const q = Hh.quest;
-  const next = me.rank > 0 ? R.MERIT_AT[me.rank - 1] : null;
+  const st = s, Hh = st.hero!, me = H.heroOf(st)!, c = st.castles[Hh.town];
   const townArt = !H.inArmy(st) && bg === 'town' && !Hh.field ? ({ ichijodani: SCENE_ART.story_fuchu, nanao: SCENE_ART.story_nanao, kanazawa: SCENE_ART.story_kanazawa, toyama_c: SCENE_ART.story_moriyama } as Record<string, string | undefined>)[c.id] : undefined; // 物語で治める城（府中・七尾）は、その城の絵
   const spotsOut = pane === 'spots' || machiable(st) ? spotsHtml(st) : '';
   machiB = machiable(st) ? MC.split(spotsOut) : null;
   const art = townArt && (Hh.fuchu === Hh.town || (Hh.ryo ?? []).includes(Hh.town)) ? townArt : ART(H.inArmy(st) ? 'jinmaku' : BG[bg] ?? 'ichi');
   root.innerHTML = `<div class="hr-main">
-    <header class="hr-head">
-      <div class="hr-id">${myFace(st, 56)}<div><b>${esc(me.name)}</b><span>${me.clan ? `${clanName(st, me.clan)}家・${R.RANK_NAME[me.rank]}` : '浪人'}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div></div>
-      <div class="hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div>
-      <dl class="hr-stats"><dt>金</dt><dd>${Hh.gold}貫</dd>${Hh.story !== 'toshiie' ? `<dt>名声</dt><dd>${Hh.fame ?? 0}</dd>` : ''}<dt>進物</dt><dd>${Hh.goods}</dd>${Hh.story !== 'toshiie' ? `<dt>体力</dt><dd>${SK.isSick(st) ? '<b style="color:#d26a5c">病</b> ' : ''}${SK.hpOf(st)}／${SK.hpMax(st)}</dd>` : ''}<dt>主君の覚え</dt><dd>${Hh.favor}</dd>${Hh.story !== 'toshiie' && H.heroOf(st)!.clan ? `<dt>率いる兵</dt><dd>${H.heiCap(st).toLocaleString('ja-JP')}まで</dd>` : ''}<dt>功績</dt><dd>${Math.round(me.merit)}${next !== null ? `<small>／${next}で${R.RANK_NAME[me.rank - 1]}</small>` : ''}</dd>
-      <dt>武・知・統・魅</dt><dd>${me.bra}・${me.int}・${me.lea}・${me.cha}</dd>${Hh.ie ? `<dt>${Hh.story === 'toshiie' ? '前田家' : esc(CR.houseName(st))}</dt><dd title="${Hh.story === 'toshiie' ? '荒子衆' : '手勢'}・蔵・家中・村の疲れ">衆${Hh.ie.shu}・蔵${Hh.ie.kura}石・家中${Hh.ie.kachu}・村疲${Hh.ie.mura}${Hh.story !== 'toshiie' && KS.capOf(st) ? `・家臣${KS.retainersOf(st).length}/${KS.capOf(st)}` : ''}</dd>` : ''}</dl>
-      <button class="hr-btn ghost" data-h="quit" title="保存してタイトルへ">中断</button>
-    </header>
-    ${Hh.fuchu !== undefined ? `<div class="hr-quest"><b>${Hh.story !== 'toshiie' ? '領地' : (Hh.storyDone ?? []).includes('ryo') ? '領国' : '府中'}</b> ${esc(M.fuchuText(st))}</div>` : ''}
-    ${CR.freeHero(st) && !Hh.over ? `<div class="hr-quest"><b>目標</b> ${esc(CR.goalText(st))}</div>` : ''}
-    ${YO.needsYori(st) && !Hh.over ? yoriLine(st) : ''}${YO.needsYoriko(st) && !Hh.over ? yorikoLine(st) : ''}
-    <div class="hr-quest">${q ? `<b>主命</b> ${esc(H.QUEST_NAME[q.kind])}：${esc(H.questText(st, q))} <span>${q.done >= q.need ? '<em>果たした。登城して報告せよ</em>' : `期日まで${Math.max(0, q.until - st.turn)}か月`}</span>` : `<b>主命</b> なし。${L ? `主君${esc(L.name)}は${esc(st.castles[L.loc].name)}にいる。登城すれば主命を受けられる。` : ''}`}</div>
+    ${headHtml(st)}${machiB ? '' : stripsHtml(st)}
     <div class="hr-body">
       <section class="hr-scene${mapMode(st) ? ' map' : ''}${machiB ? ' machi' : ''}" style="${art && !mapMode(st) && !machiB ? `background-image:url(${art})` : ''}">
         ${mapMode(st) ? '<div id="hr-mapslot"></div>' : ''}
@@ -180,8 +168,8 @@ function render() {
         ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${machiB && !say.hold ? ' machi' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.kake?.length ? kakeHtml(st, say.kake) : ''}${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
       <aside class="hr-side">
-        <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).filter((k) => !(machiB && k === 'yashiki')).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
-        <div class="hr-pane">${pane === 'spots' ? (machiB ? MC.sideHtml(machiB, meInfo(st) + kuniInfo(st)) : (townish(st) ? '<p class="hr-note"><button class="hr-btn ghost sm" data-h="machi" data-id="machi">町で表示する</button></p>' : '') + spotsOut) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : pane === 'shiro' || pane === 'homen' ? (isRyoOut(st) ? ryoOutNote() : pane === 'shiro' ? castleHtml(st) : homenHtml(st)) : diaryHtml(st)}</div>
+        <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi'] as const).filter((k) => !(machiB && k === 'yashiki')).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅' }[k]}</button>`).join('')}</nav>
+        <div class="hr-pane">${pane === 'spots' ? (machiB ? MC.sideHtml(machiB, meInfo(st) + kuniInfo(st), stripsHtml(st)) : (townish(st) ? '<p class="hr-note"><button class="hr-btn ghost sm" data-h="machi" data-id="machi">町で表示する</button></p>' : '') + spotsOut) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : pane === 'shiro' || pane === 'homen' ? (isRyoOut(st) ? ryoOutNote() : pane === 'shiro' ? castleHtml(st) : homenHtml(st)) : diaryHtml(st)}</div>
       </aside>
     </div>
     ${report ? `<div class="hr-modal"><div class="hr-report"><h3>${Hh.over && CR.freeHero(st) ? '一生の締め' : `${st.year}年${st.month}月を迎えた`}</h3><ul>${report.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>${Hh.over && CR.freeHero(st) && FA.heirSon(st) ? `<button class="hr-btn primary" data-h="succeed">${esc(FA.heirSon(st)!.name)}が家を継いで続ける</button> ` : ''}<button class="hr-btn${Hh.over && FA.heirSon(st) ? '' : ' primary'}" data-h="report-ok">${Hh.over ? '閉じる' : '城下へ'}</button></div></div>` : ''}
@@ -255,6 +243,70 @@ function kuniInfo(st: GameState) {
   ];
   const cs = st.castles.filter((x) => PROVINCES[HEXES[x.hex].p] === pv);
   return `<h4 class="hr-sub">${esc(pv.name)}・${esc(c.name)}</h4><dl class="hr-kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>${cs.length > 1 ? `<ul class="hr-kuni">${cs.map((x) => `<li class="${x.i === c.i ? 'here' : ''}"><span>${esc(x.name)}</span><em>${owner(x)}・${castleKoku(x).toFixed(1)}万石</em></li>`).join('')}</ul>` : ''}`;
+}
+// ───────── 画面上部（大名プレイと同じ作り）: 印・名と日付・数字・札（内政・軍事・人事・外交・商い・記録）・休む ─────────
+// 札は身分と立場で使えるようになる。使えない札は暗くし、押すと理由を出す
+type Cat = 'naisei' | 'gunji' | 'jinji' | 'gaiko' | 'akinai' | 'kiroku';
+const CAT_NAME: Record<Cat, string> = { naisei: '内政', gunji: '軍事', jinji: '人事', gaiko: '外交', akinai: '商い', kiroku: '記録' };
+const GUNJI_H = ['lead', 'gungi-open', 'ronko', 'selfcmd', 'join', 'advance', 'disband'];
+function catWhy(st: GameState, k: Cat): string | null {
+  const me = H.heroOf(st)!, Hh = st.hero!, ronin = RP.isRonin(st) || !me.clan;
+  if (Hh.over) return k === 'kiroku' ? null : 'この一生は終わった。';
+  if (k === 'naisei') return M.canGovern(st) && !isRyoOut(st) ? null : isRyoOut(st) ? '城の政は大名の画面（領）で行う。' : '城を預かると使える。';
+  if (k === 'gunji') return ronin ? '浪人には率いる軍勢がない。' : me.rank <= 1 || CR.homenOf(st) ? null : '侍大将になると使える（総大将として軍勢を率いる）。';
+  if (k === 'jinji') return KS.retainersOf(st).length || YO.yorikoOf(st).length || RP.followersOf(st).length || KS.azukeOf(st).length ? null : '家臣・寄子・配下ができると使える。';
+  if (k === 'gaiko') return ronin ? '浪人には主家がない。' : !CR.freeHero(st) ? '物語の中では使えない。' : me.rank <= 2 ? null : '足軽大将になると使える（主家との縁・謀反の支度）。';
+  if (k === 'akinai') return !Hh.field && !H.inArmy(st) && T.canTrade(st, st.castles[Hh.town]) ? null : '商いのできる町にいる時に使える。';
+  return null;
+}
+function headHtml(st: GameState) {
+  const Hh = st.hero!, me = H.heroOf(st)!;
+  const stat = (k: string, v: string) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+  const hp = SK.hpOf(st);
+  const stats = [
+    `<div class="clan-chip">${me.clan ? `<span class="swatch" style="background:${st.clans[me.clan]?.color ?? '#888'}"></span>${esc(clanName(st, me.clan))}家` : '浪人'}</div>`,
+    stat('金', `${Hh.gold.toLocaleString('ja-JP')}貫`),
+    ...(Hh.story !== 'toshiie' ? [stat('名声', `${Hh.fame ?? 0}`), stat('体力', `${SK.isSick(st) ? '<b style="color:#d26a5c">病</b> ' : ''}${hp}／${SK.hpMax(st)}`)] : []),
+    ...(Hh.story !== 'toshiie' && me.clan ? [stat('率いる兵', `${H.heiCap(st).toLocaleString('ja-JP')}まで`)] : []),
+    ...(Hh.ie ? [stat(Hh.story === 'toshiie' ? '荒子衆' : '手勢', `${Hh.ie.shu}`)] : []),
+  ].join('');
+  const cats = (Object.keys(CAT_NAME) as Cat[]).map((k) => { const w = catWhy(st, k); return `<button type="button" class="plaque${w ? ' off' : ''}" data-h="cat" data-id="${k}" title="${esc(w ?? CAT_NAME[k])}">${CAT_NAME[k]}</button>`; }).join('');
+  const camp = H.inArmy(st) && !HA.leading(st);
+  return `<header class="bar hr-head"><div class="brand"><button type="button" class="seal" data-h="quit" title="保存してタイトルへ">陣</button><div class="brand-text hr-id"><div class="title"><b>${esc(me.name)}</b><span>${me.clan ? `${clanName(st, me.clan)}家・${R.RANK_NAME[me.rank]}` : '浪人'}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div><div class="date hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div></div></div>
+    <dl class="stats hr-stats">${stats}</dl>
+    <nav class="cmds">${cats}<button type="button" class="seal-btn" data-h="${camp ? 'campwait' : 'rest'}" ${Hh.over ? 'disabled' : ''} title="1旬を過ごす">${camp ? '陣中で過ごす' : '休む'}</button></nav></header>`;
+}
+// 目標・寄親/寄子・主命・領地の帯（町の表示では右の欄の上に）
+function stripsHtml(st: GameState) {
+  const Hh = st.hero!, q = Hh.quest, L = H.lordOf(st);
+  return `${Hh.fuchu !== undefined ? `<div class="hr-quest"><b>${Hh.story !== 'toshiie' ? '領地' : (Hh.storyDone ?? []).includes('ryo') ? '領国' : '府中'}</b> ${esc(M.fuchuText(st))}</div>` : ''}
+    ${CR.freeHero(st) && !Hh.over ? `<div class="hr-quest"><b>目標</b> ${esc(CR.goalText(st))}</div>` : ''}
+    ${YO.needsYori(st) && !Hh.over ? yoriLine(st) : ''}${YO.needsYoriko(st) && !Hh.over ? yorikoLine(st) : ''}
+    <div class="hr-quest">${q ? `<b>主命</b> ${esc(H.QUEST_NAME[q.kind])}：${esc(H.questText(st, q))} <span>${q.done >= q.need ? '<em>果たした。登城して報告せよ</em>' : `期日まで${Math.max(0, q.until - st.turn)}か月`}</span>` : `<b>主命</b> なし。${L ? `主君${esc(L.name)}は${esc(st.castles[L.loc].name)}にいる。登城すれば主命を受けられる。` : ''}`}</div>`;
+}
+// 札を押した: 開く欄か窓
+function onCat(st: GameState, k: Cat) {
+  const w = catWhy(st, k);
+  if (w) { say = { text: `${CAT_NAME[k]}: ${w}` }; dlg = null; render(); return; }
+  if (k === 'kiroku') { pane = 'diary'; dlg = null; render(); return; }
+  if (k === 'naisei') { pane = 'shiro'; dlg = null; render(); return; }
+  if (k === 'gaiko') { pane = 'homen'; dlg = null; render(); return; }
+  if (k === 'akinai') { pane = 'akinai'; dlg = null; render(); return; }
+  dlg = { kind: 'cat', id: k }; say = null; render(); showDlg();
+}
+// 軍事・人事の窓
+function catWin(st: GameState, k: Cat) {
+  let body = '';
+  if (k === 'gunji') {
+    const all = spotsHtml(st), xs = [...all.matchAll(/<button[\s\S]*?<\/button>/g)].map((m) => m[0]).filter((x) => GUNJI_H.some((h) => x.includes(`data-h="${h}"`)));
+    const hf = CR.homenOf(st);
+    body = (hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>方針と攻略の目標・与力</span></button>` : '') + (xs.join('') || '<p class="hr-none">いま軍勢についてできることはない。攻略の主命を受けると、軍勢を率いて出陣できる。</p>');
+  } else {
+    const ps = [...KS.retainersOf(st), ...YO.yorikoOf(st), ...RP.followersOf(st)].filter((g, i, a) => a.indexOf(g) === i);
+    const role = (g: General) => KS.retainersOf(st).includes(g) ? '家臣' : YO.yorikoOf(st).includes(g) ? '寄子' : '配下';
+    body = ps.map((g) => `<button class="hr-person hr-meet" data-h="meet" data-id="${g.id}">${face(g.id, 44) || `<span class="hr-noface sm">${esc(g.name.slice(0, 1))}</span>`}<div class="hr-pi"><b>${esc(g.name)}</b><span>${role(g)}・武${g.bra} 知${g.int} 統${g.lea} 魅${g.cha}・親しさ${st.hero!.rel[g.id] ?? 0}</span></div></button>`).join('') + azukeHtml(st);
+  }
+  return `<div class="hr-dlg hr-bldwin"><div class="hr-bldart" style="background-image:url(${ART(k === 'gunji' ? 'jinmaku' : 'zashiki_day') ?? ''})"><h4>${CAT_NAME[k]}<small>${esc(H.heroOf(st)!.name)}</small></h4></div><div class="hr-bldbody">${body}</div><div class="hr-bldfoot"><button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div></div>`;
 }
 // 町の見た目: スマホか・城の大きさ（15万石以上は天守の城）・自分の屋敷（家の格。浪人は長屋）・冬（十二月〜二月は雪）
 const narrow = () => window.matchMedia('(max-width:820px)').matches;
@@ -383,6 +435,7 @@ function dlgHtml(st: GameState) {
 function dlgHtml0(st: GameState) {
   const d = dlg!;
   if (d.kind === 'bld') return bldWin(st, d.id);
+  if (d.kind === 'cat') return catWin(st, d.id);
   if (d.kind === 'gungi') { // 攻略の軍議: 家臣・寄子の進言を聞き、攻め方を決める
     const c = GG.targetCastle(st), why = GG.gungiBlock(st);
     const adv = GG.advisers(st).map((a) => `<div class="hr-who">${face(a.g.id, 48) || ''}<div><b>${esc(a.g.name)}</b>（${GG.SAKU_NAME[a.saku]}）<p class="hr-dsub">「${esc(a.line)}」</p></div></div>`).join('') || '<p class="hr-dsub">進言する家臣・寄子がいない。</p>';
@@ -834,6 +887,7 @@ function onClick(e: Event) {
   if (h === 'meet') { dlg = { kind: 'person', id }; say = null; render(); showDlg(); return; }
   if (h === 'dlg-close') { if (dlg?.kind === 'bld' && !say?.hold) say = null; dlg = null; render(); return; } // 建物の窓で見た結果は、閉じたら町に残さない
   if (h === 'bld') { dlg = { kind: 'bld', id: id as MC.Bld }; say = null; render(); showDlg(); return; } // 町の建物: その建物でできることの窓
+  if (h === 'cat') { onCat(s, id as Cat); return; } // 画面上部の札
   if (h === 'machi') { MC.machiSet(id === 'machi'); dlg = null; render(); return; }
   if (h === 'ban-keiko') { const bn = BP.keikoBan(s); void openBan(bn, `${s.castles[s.hero!.town].name}の道場 ― 盤の稽古`, banColors(s)).then((r) => { dlg = null; say = { text: `盤の稽古を終えた（${{ win: '勝ち', lose: '負け', retreat: '退いた', time: '時切れ' }[r.over ?? 'time']}・討ち取り${r.kills}）。` }; render(); }); return; }
   if (h === 'train') { void act(() => H.train(s!, id as 'dojo' | 'tera'), id); return; }
@@ -989,11 +1043,11 @@ export const CSS = `
 .hr-noface{display:grid;place-items:center;width:96px;height:120px;background:#202023;color:#cfa95e;font-size:24px;border-radius:3px}
 .hr-noface.sm{width:44px;height:55px;font-size:16px}
 .hr-main{min-height:100%;display:flex;flex-direction:column}
-.hr-head{display:flex;align-items:center;gap:16px;padding:8px 14px;border-bottom:1px solid rgba(207,169,94,.28);background:#151517;flex-wrap:wrap}
-.hr-id{display:flex;align-items:center;gap:10px}.hr-id img{border-radius:3px}.hr-id b{display:block;font-size:17px}.hr-id span{font-size:12px;color:#b8ab92}
-.hr-date{font-family:var(--font-display,serif);font-size:22px;color:#cfa95e;display:flex;flex-direction:column;line-height:1.1}.hr-date small{font-size:12px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}
-.hr-stats{display:grid;grid-auto-flow:column;grid-template-rows:auto auto;gap:0 14px;margin:0;flex:1;min-width:0}
-.hr-stats dt{font-size:10.5px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}.hr-stats dd{margin:0;font-family:var(--font-ui,sans-serif);font-size:14px;white-space:nowrap}.hr-stats small{color:#b8ab92;font-size:11px}
+
+
+
+
+
 .hr-quest{padding:8px 14px;background:#1a1712;border-bottom:1px solid rgba(207,169,94,.18);font-size:13.5px;line-height:1.6}
 .hr-quest b{color:#cfa95e;margin-right:6px}.hr-quest span{color:#b8ab92;margin-left:6px}.hr-quest em{color:#8fb36a;font-style:normal}
 .hr-body{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}
@@ -1015,6 +1069,19 @@ export const CSS = `
 .hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}
 .hr-kake{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}.hr-kake .hr-who{margin:0;gap:12px}.hr-kake .hr-who img{width:56px;height:70px}.hr-kake .hr-who p{font-size:16px;line-height:1.6;margin-top:2px}.hr-kake .hr-who b{font-size:13px}.hr-knarr{margin:0;font-size:14px;color:#cfc3a8;font-style:italic}.hr-say.mini .hr-kake{display:none}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}
+/* 画面上部（大名プレイと同じ .bar の作り） */
+#hero .bar.hr-head{flex:none}
+#hero .bar .seal{border:0;cursor:pointer;padding:0}
+#hero .bar .title b{font-weight:400}#hero .bar .title span{font-size:12px;color:var(--paper-dim,#b8ab92);margin-left:8px;letter-spacing:.04em;font-family:var(--font-body,serif)}
+#hero .bar .date{display:flex;gap:6px;align-items:baseline;font-family:var(--font-display,serif);font-size:15px}
+#hero .bar .date small{font-size:12px;color:var(--paper-dim,#b8ab92);font-family:var(--font-ui,sans-serif)}
+#hero .plaque{color:inherit;font:inherit;font-size:13.5px;cursor:pointer}
+#hero .plaque.off{opacity:.38;filter:saturate(.3)}
+#hero .plaque.off:hover{opacity:.55}
+#hero .seal-btn{cursor:pointer;color:#fbeee0}
+#hero .seal-btn:disabled{opacity:.4;cursor:default}
+@media (max-width:560px){#hero .hr-main{padding-bottom:calc(56px + env(safe-area-inset-bottom,0px))}} /* 狭い画面では札の帯が下に固定される（大名プレイと同じ）。その分あける */
+@media (max-width:820px){#hero .bar .stats{order:3;flex-basis:100%}#hero .bar .cmds{margin-left:0}#hero .plaque{padding:5px 8px;font-size:12.5px}#hero .seal-btn{padding:5px 12px;font-size:14px}}
 .hr-tabs{display:flex;border-bottom:1px solid rgba(207,169,94,.2)}
 .hr-tabs button{flex:1;background:none;border:0;padding:10px 0;color:#b8ab92;font-family:var(--font-ui,sans-serif);font-size:13px;border-bottom:2px solid transparent}
 .hr-tabs button.on{color:#ece2cc;border-bottom-color:#cfa95e}
@@ -1039,7 +1106,7 @@ export const CSS = `
 @media (min-width:821px){.hr-main{height:100vh}.hr-body{overflow:hidden}.hr-side{overflow:hidden}.hr-scene{min-height:0}}
 @media (max-width:820px){
   .hr-body{grid-template-columns:1fr}.hr-scene{min-height:360px}.hr-say{padding:14px 14px;width:calc(100% - 20px)}.hr-who{gap:12px}.hr-who img{width:80px;height:100px}.hr-scene.map{min-height:58vh}.hr-who p{font-size:17px}.hr-text{font-size:14px}.hr-side{border-left:0;border-top:1px solid rgba(207,169,94,.2)}
-  .hr-head{gap:10px}.hr-stats{grid-auto-flow:row;grid-template-columns:repeat(5,auto);grid-template-rows:auto;order:3;flex-basis:100%}
-  .hr-stats dt{grid-row:1}.hr-stats dd{grid-row:2;font-size:12.5px}
+
+
 }
 `;
