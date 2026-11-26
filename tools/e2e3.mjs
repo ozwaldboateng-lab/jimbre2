@@ -77,7 +77,7 @@ for (let turn = 0; turn < 8 && fought < 2; turn++) {
     if (btn) {
       await btn.click(); await p.waitForTimeout(150);
       await p.screenshot({ path: `${out}/${pre}19-order.png`, fullPage: mobile });
-      await p.click('#btn-end');
+      await p.waitForFunction(() => !document.getElementById('btn-end').disabled, null, { timeout: 120000 }).catch(() => {}); await p.click('#btn-end'); // 月の処理が終わるまで待つ（遅い時がある）
       for (let k = 0; k < 60 && !(await battleOpen()); k++) await p.waitForTimeout(150);
       if (await battleOpen()) { await fight(`own${fought}`); fought++; }
       for (let k = 0; k < 80; k++) { await p.waitForTimeout(200); if (await battleOpen()) { await fight(`ai${fought}`); fought++; } if (await p.evaluate(() => !document.getElementById('btn-end').disabled)) break; }
@@ -85,7 +85,7 @@ for (let turn = 0; turn < 8 && fought < 2; turn++) {
       continue;
     }
   }
-  await p.click('#btn-end');
+  await p.waitForFunction(() => !document.getElementById('btn-end').disabled, null, { timeout: 120000 }).catch(() => {}); await p.click('#btn-end'); // 月の処理が終わるまで待つ（遅い時がある）
   for (let k = 0; k < 30; k++) { await p.waitForTimeout(300); if (await battleOpen()) { await fight(`ai${fought}`); fought++; } if (await p.evaluate(() => !document.getElementById('btn-end').disabled)) break; }
   await closeModal();
 }

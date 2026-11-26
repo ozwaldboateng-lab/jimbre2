@@ -1,11 +1,12 @@
 // お金（貫）: 商業収入・兵糧の売買・鉄砲・名物
+import { besieger } from './bakufu';
 import { onGift } from './on';
 import { COMMERCE_BONUS, GUN_SOURCES, MEIBUTSU, MINES, PRODUCTS, SAKAI, type ProductKind } from '../data/economy';
 import { CASTLE_TYPE, TSUME } from '../data/castles';
 import { NEIGHBORS } from './map';
 import * as R from './rules';
 import { aiInvest, taxDef } from './invest';
-import { addLog, castleAt, clanArmies, clanCastles, clanName, drillOf, hostile, maxTroops, occupancy } from './state';
+import { addLog, castleAt, clanArmies, clanCastles, clanName, drillOf, maxTroops, occupancy } from './state';
 import type { Army, Castle, GameState, General, Item } from './types';
 
 // 商業（特産品の商いはその城の商業の開発度に応じて上乗せ）
@@ -18,7 +19,7 @@ export const clanMine = (s: GameState, clan: string) => clanCastles(s, clan).red
 export const clanIncome = (s: GameState, clan: string) => Math.round(clanCastles(s, clan).reduce((t, c) => t + castleCom(c), 0) * taxDef(s, clan).income + clanMine(s, clan)); // 商いは年貢の率に従う（鉱山は従わない）
 // 特産品の効き目（家に一つでもあれば）
 export const hasProduct = (s: GameState, clan: string | null, kind: ProductKind) => !!clan && PRODUCTS.some(([id, , k]) => k === kind && s.castles.some((c) => c.id === id && c.owner === clan));
-function besiegedNow(s: GameState, c: Castle) { const occ = occupancy(s); return NEIGHBORS[c.hex].some((j) => { const o = occ.get(j); return !!o && hostile(s, o.clan, c.owner); }); }
+function besiegedNow(s: GameState, c: Castle) { const occ = occupancy(s); return NEIGHBORS[c.hex].some((j) => { const o = occ.get(j); return !!o && besieger(s, o, c); }); }
 const owns = (s: GameState, clan: string, castleId: string) => s.castles.some((c) => c.id === castleId && c.owner === clan);
 
 // ───────── 兵糧の売買 ─────────

@@ -1,3 +1,4 @@
+import { besieger } from './bakufu';
 import { driftAmity } from './diplomacy';
 // 月末処理: 兵站・士気・補充・城兵・内政・収穫
 import { kyoExtraFood } from './bushi';
@@ -12,13 +13,13 @@ import { taxDef } from './invest';
 import { chianDelta, spendBudget } from './policy';
 import { monthIkki } from './ikki';
 import { cutOff, harvestToEnclave, isSupplied, monthlySupply, storeOf } from './supply';
-import { addLog, hostile, occupancy, castleAt, castleKoku, clanArmies, clanAshi, clanCapacity, mobilizeCap, clanCastles, drillOf, farmTroops, garrisonMax, hexOwner, initialMorale, maxTroops , pstats, clanTroops} from './state';
+import { addLog, occupancy, castleAt, castleKoku, clanArmies, clanAshi, clanCapacity, mobilizeCap, clanCastles, drillOf, farmTroops, garrisonMax, hexOwner, initialMorale, maxTroops , pstats, clanTroops} from './state';
 import type { Castle, GameState } from './types';
 import { armyHas, CHIKUJO_REPAIR, govTrait, KENSEI_CAP, KENSEI_DRILL } from './traits';
 
 export function besieged(s: GameState, c: Castle): boolean {
   const occ = occupancy(s);
-  return NEIGHBORS[c.hex].some((j) => { const o = occ.get(j); return !!o && hostile(s, o.clan, c.owner); });
+  return NEIGHBORS[c.hex].some((j) => { const o = occ.get(j); return !!o && besieger(s, o, c); }); // 敵対している家の軍勢が隣にいる時だけ
 }
 
 // 城の月ごとの開発度の伸び（包囲中は0、城主がいなければ半分）。role=com は商業

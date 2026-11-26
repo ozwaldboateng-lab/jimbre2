@@ -70,6 +70,8 @@ export function meibun(s: GameState, att: string, def: string | null, hex?: numb
   if (s.clans[def].splitFrom === att) r.push('逆臣の討伐');
   return { ok: r.length > 0, reasons: r };
 }
+// この軍勢が隣の城を囲んでいるとみなすか（城の開発・商業・鉱山が止まる「包囲」）: 城の持ち主を攻める名分のある家・その城を攻めている家（城攻めが月をまたいで続いている）・一揆勢・国人衆の城なら同盟していない家。名分のない隣国の軍勢が隣にいるだけでは包囲としない
+export const besieger = (s: GameState, o: Army, c: Castle) => hostile(s, o.clan, c.owner) && (!c.owner || !!o.ikki || o.monto || s.sieges?.[c.i]?.clan === o.clan || meibun(s, o.clan, c.owner, c.hex).ok);
 export const meibunLabel = (m: Meibun) => (m.ok ? `名分: ${m.reasons.join('・')}` : '名分なし（私戦）');
 
 // 出陣のとき（orders.resolveOrders から）: 攻めた記録、私戦の咎、将軍の味方を攻めた咎
