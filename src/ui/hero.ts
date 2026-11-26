@@ -180,7 +180,7 @@ function render() {
         ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${machiB && !say.hold ? ' machi' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.kake?.length ? kakeHtml(st, say.kake) : ''}${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
       <aside class="hr-side">
-        <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
+        <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).filter((k) => !(machiB && k === 'yashiki')).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
         <div class="hr-pane">${pane === 'spots' ? (machiB ? MC.sideHtml(machiB, meInfo(st) + kuniInfo(st)) : (townish(st) ? '<p class="hr-note"><button class="hr-btn ghost sm" data-h="machi" data-id="machi">町で表示する</button></p>' : '') + spotsOut) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : pane === 'shiro' || pane === 'homen' ? (isRyoOut(st) ? ryoOutNote() : pane === 'shiro' ? castleHtml(st) : homenHtml(st)) : diaryHtml(st)}</div>
       </aside>
     </div>
