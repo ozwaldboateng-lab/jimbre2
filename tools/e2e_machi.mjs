@@ -17,13 +17,13 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
   await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
   for (const sel of ['#hero [data-h="report-ok"]', '#hero [data-h="say-close"]', '#hero [data-h="q-accept"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(100); } }
-  const blds = await p.$$eval('#hero .hr-machi .hr-bld', (es) => es.map((e) => e.dataset.id + (e.classList.contains('mark') ? '!' : '')));
+  const blds = await p.$$eval('#hero .hr-machi .hr-bldi', (es) => es.map((e) => e.dataset.id + (e.classList.contains('mark') ? '!' : '')));
   console.log(vp.tag, '建物', blds.join(' '));
   console.log(vp.tag, '用件', await p.$eval('#hero .hr-pane', (e) => e.textContent.replace(/\s+/g, ' ').slice(0, 160)));
   await p.screenshot({ path: `${out}/machi-${vp.tag}-0.png` });
   if (blds.length < 4) errors.push(vp.tag + ' 建物が少ない');
   for (const id of blds.map((x) => x.replace('!', ''))) {
-    await p.click(`#hero .hr-machi .hr-bld[data-id="${id}"]`); await p.waitForTimeout(120);
+    await p.click(`#hero .hr-machi .hr-bldi[data-id="${id}"]`); await p.waitForTimeout(120);
     const w = await p.$eval('#hero .hr-bldwin', (e) => ({ h: e.querySelector('h4')?.textContent, n: e.querySelectorAll('button:not(.hr-dclose)').length, t: e.textContent.replace(/\s+/g, ' ').slice(0, 120) })).catch(() => null);
     console.log(vp.tag, id, JSON.stringify(w));
     if (!w || !w.n) errors.push(`${vp.tag} ${id} の窓が空`);
@@ -32,7 +32,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   }
   // 道場（なければ市・茶屋）の窓で行動すると、結果が窓の中に出て、窓は開いたまま
   { const id = ['dojo', 'ichi', 'chaya'].find((k) => blds.some((x) => x.startsWith(k))), h = id === 'dojo' ? 'train' : 'spot';
-    await p.click(`#hero .hr-machi .hr-bld[data-id="${id}"]`); await p.waitForTimeout(100);
+    await p.click(`#hero .hr-machi .hr-bldi[data-id="${id}"]`); await p.waitForTimeout(100);
     const btn = await p.$(`#hero .hr-bldwin [data-h="${h}"]:not([disabled])`);
     if (btn) { await btn.click(); await p.waitForTimeout(500); for (const sel of ['#hero [data-h="report-ok"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(200); } }
       const w = await p.$eval('#hero .hr-bldwin', (e) => e.querySelector('.hr-bldres')?.textContent ?? '(結果なし)').catch(() => null);
@@ -40,7 +40,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
       if (w === null) console.log(vp.tag, '（窓が閉じた: 月をまたいだか）'); else if (w === '(結果なし)') errors.push(vp.tag + ' 結果が窓に出ない');
       const c = await p.$('#hero .hr-bldwin [data-h="dlg-close"]'); if (c) { await c.click(); await p.waitForTimeout(80); } } }
   // 自分の屋敷の窓から休む
-  await p.click('#hero .hr-machi .hr-bld[data-id="ie"]'); await p.waitForTimeout(100);
+  await p.click('#hero .hr-machi .hr-bldi[data-id="ie"]'); await p.waitForTimeout(100);
   const jun0 = await p.$eval('#hero .hr-date', (e) => e.textContent);
   await p.click('#hero .hr-bldwin [data-h="rest"]'); await p.waitForTimeout(600);
   for (const sel of ['#hero [data-h="report-ok"]', '#hero [data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(200); } }

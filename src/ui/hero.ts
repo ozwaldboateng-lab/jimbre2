@@ -41,7 +41,7 @@ import * as R from '../engine/rules';
 import { rankName } from '../engine/ranks';
 import { newGame } from '../engine/setup';
 import { SCENARIOS } from '../data/scenarios';
-import { castleAt, clanCastles, clanName } from '../engine/state';
+import { castleAt, castleKoku, clanCastles, clanName } from '../engine/state';
 import type { GameState, General } from '../engine/types';
 import * as MC from './machi';
 
@@ -91,7 +91,7 @@ export function openHero(f: Face, quit: () => void) {
 function mount() {
   if (!document.getElementById('hero-style')) { const st = document.createElement('style'); st.id = 'hero-style'; st.textContent = CSS + MC.MACHI_CSS; document.head.appendChild(st); }
   root = document.getElementById('hero');
-  if (!root) { root = document.createElement('div'); root.id = 'hero'; document.body.appendChild(root); root.addEventListener('click', onClick); }
+  if (!root) { root = document.createElement('div'); root.id = 'hero'; document.body.appendChild(root); root.addEventListener('click', onClick); window.matchMedia('(max-width:820px)').addEventListener('change', () => { if (root && !root.hidden && s) render(); }); } // 町の並び（横長・縦長）を画面の幅で切り替える
   root.hidden = false;
 }
 function close() { if (root) root.hidden = true; onQuit(); }
@@ -171,10 +171,10 @@ function render() {
     ${YO.needsYori(st) && !Hh.over ? yoriLine(st) : ''}${YO.needsYoriko(st) && !Hh.over ? yorikoLine(st) : ''}
     <div class="hr-quest">${q ? `<b>主命</b> ${esc(H.QUEST_NAME[q.kind])}：${esc(H.questText(st, q))} <span>${q.done >= q.need ? '<em>果たした。登城して報告せよ</em>' : `期日まで${Math.max(0, q.until - st.turn)}か月`}</span>` : `<b>主命</b> なし。${L ? `主君${esc(L.name)}は${esc(st.castles[L.loc].name)}にいる。登城すれば主命を受けられる。` : ''}`}</div>
     <div class="hr-body">
-      <section class="hr-scene${mapMode(st) ? ' map' : ''}" style="${art && !mapMode(st) ? `background-image:url(${art})` : ''}">
+      <section class="hr-scene${mapMode(st) ? ' map' : ''}${machiB ? ' machi' : ''}" style="${art && !mapMode(st) && !machiB ? `background-image:url(${art})` : ''}">
         ${mapMode(st) ? '<div id="hr-mapslot"></div>' : ''}
         <div class="hr-town">${H.inArmy(st) ? (() => { const a = H.inArmy(st)!; return `<b>${esc(st.generals[a.main]?.name ?? '')}の陣中</b><span>${esc(castleAt(st, a.hex)?.name ?? PROVINCES[HEXES[a.hex].p].name + 'の野')}・兵${a.troops.toLocaleString('ja-JP')}・士気${a.morale.toFixed(2)}</span>`; })() : Hh.field ? `<b>${esc(PROVINCES[HEXES[Hh.hex].p].name)}の野</b><span>旅の途中</span>` : `<b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span>`}</div>
-        ${machiB && !dlg && !report ? MC.machiHtml(machiB, RP.isRonin(st), !!say?.hold) : ''}
+        ${machiB && !report ? MC.machiHtml(machiB, machiView(st), RP.isRonin(st), !!say?.hold || !!dlg) : ''}
         ${dlg && !report ? dlgHtml(st) : ''}
         ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${machiB && !say.hold ? ' machi' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.kake?.length ? kakeHtml(st, say.kake) : ''}${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
@@ -218,6 +218,12 @@ function onHex(hex: number) {
 // 城下の町（建物）で見せる時: 町にいて、陣中・旅の途中・総大将・陣借りでない時
 const townish = (st: GameState) => !st.hero!.over && !st.hero!.field && !H.inArmy(st) && !HA.leading(st) && !st.hero!.merc && !mapMode(st);
 const machiable = (st: GameState) => MC.machiOn() && townish(st);
+// 町の見た目: スマホか・城の大きさ（15万石以上は天守の城）・自分の屋敷（家の格。浪人は長屋）・冬（十二月〜二月は雪）
+const narrow = () => window.matchMedia('(max-width:820px)').matches;
+function machiView(st: GameState): MC.MachiView {
+  const c = st.castles[st.hero!.town], k = CR.freeHero(st) && st.hero!.ie ? MB.kakuOf(st) : 1;
+  return { sp: narrow(), castle: castleKoku(c) >= 15 ? 'l' : 's', ie: RP.isRonin(st) ? 'nagaya' : k >= 4 ? 'l' : k >= 2 ? 'm' : 's', snow: st.month === 12 || st.month <= 2 };
+}
 // 建物の窓: 一覧から振り分けたボタンに、道場・寺の稽古、武家屋敷の顔ぶれ、自分の屋敷の家のことを添える
 function bldWin(st: GameState, id: MC.Bld) {
   const b = machiB ?? MC.split(spotsHtml(st)), ronin = RP.isRonin(st);
