@@ -99,8 +99,12 @@ export const MACHI_CSS = `
 .hr-scene.machi>.hr-dlg{position:absolute;inset:10px;margin:auto;height:fit-content;max-height:calc(100% - 20px);z-index:3}
 @media (max-width:820px){.hr-scene.machi{container-type:normal;min-height:0}.hr-machi{position:relative}.hr-machi-map{width:100%}.hr-bldtag{font-size:11px;padding:1px 6px}.hr-scene.machi>.hr-dlg{inset:6px;max-height:calc(100% - 12px)}}
 .hr-say.machi{position:absolute;right:12px;top:12px;width:min(440px,calc(100% - 200px));margin:0;z-index:2;font-size:14px}
-.hr-scene.machi>.hr-say:not(.machi){position:absolute;left:12px;right:12px;bottom:12px;margin:0;z-index:3;max-height:calc(100% - 24px);overflow:auto} /* セリフ・掛け合い・主命などの知らせは、町の上に重ねる（町の絵の下に隠れないよう） */
-@media (max-width:820px){.hr-say.machi{position:static;width:auto;margin:8px}.hr-scene.machi>.hr-say:not(.machi){left:6px;right:6px;bottom:6px;max-height:calc(100% - 12px)}}
+.hr-scene.machi>.hr-say.scene{cursor:pointer;position:absolute;inset:12px;margin:auto;height:fit-content;width:min(760px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;z-index:3;padding-top:0;animation:none;transform:none}
+.hr-sayart{height:clamp(130px,30vh,250px);margin:0 -24px 14px;background:#222 center/cover no-repeat;position:relative}
+.hr-sayart::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(10,10,10,.84) 100%)}
+@media (max-width:820px){.hr-sayart{margin:0 -14px 10px}.hr-scene.machi>.hr-say.scene{inset:6px;width:calc(100% - 12px)}}
+.hr-scene.machi>.hr-say:not(.machi):not(.scene){position:absolute;left:12px;right:12px;bottom:12px;margin:0;z-index:3;max-height:calc(100% - 24px);overflow:auto} /* セリフ・掛け合い・主命などの知らせは、町の上に重ねる（町の絵の下に隠れないよう） */
+@media (max-width:820px){.hr-say.machi{position:static;width:auto;margin:8px}.hr-scene.machi>.hr-say:not(.machi):not(.scene){left:6px;right:6px;bottom:6px;max-height:calc(100% - 12px)}}
 .hr-dlg.hr-bldwin{padding:0;width:min(900px,calc(100% - 24px));max-height:calc(100% - 20px);display:flex;flex-direction:column;overflow:hidden}
 .hr-bldart{flex:none;height:clamp(120px,30vh,240px);background:#222 center/cover no-repeat;position:relative;display:flex;align-items:flex-end}
 .hr-bldart::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(10,10,10,.92) 100%)}

@@ -651,7 +651,7 @@ export function heroMonth(s: GameState): string[] {
   // 取り立て（功績が満ちて、主君の覚えがよく、寄親の推挙があれば）
   { const sb = me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10 ? suisenBlock(s) : null; if (sb) { out.push(`功績は満ちたが、取り立てられない: ${sb}。`); const KX = H as unknown as { kkSuisen?: number }; if (KX.kkSuisen !== me.rank) { KX.kkSuisen = me.rank; pushKumi(s, { k: 'suisen' }); } } } // 寄親の言い分は身分ごとに一度
   while (me.rank > 0 && me.merit >= R.MERIT_AT[me.rank - 1] && H.favor >= 40 + (3 - me.rank) * 10 && !suisenBlock(s)) {
-    me.rank--; H.favor = clamp(H.favor - 10); if (me.rank >= 1) pushKumi(s, { k: 'promote', rank: me.rank });
+    me.rank--; H.favor = clamp(H.favor - 10); pushKumi(s, { k: 'promote', rank: me.rank }); // 宿老に上がる時も取り立ての場面
     { const Y = (H as unknown as { yk?: { kumi?: boolean } }).yk; if (me.rank === 1 && !Y?.kumi) pushKumi(s, { k: 'yokichi' }); } // 侍大将に上がる時、まだなら権六が「組を与吉に」と願い出る（出世が早くても物語が途切れないよう） // 取り立ての場面（侍大将まで。寄親・同輩のいる身分から）
     out.push(`${R.RANK_NAME[me.rank]}に取り立てられた！`); note(s, `${R.RANK_NAME[me.rank]}に取り立てられた。`);
     addLog(s, `${me.name}が${R.RANK_NAME[me.rank]}に取り立てられた。`, 'info', true);

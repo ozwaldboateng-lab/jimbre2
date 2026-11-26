@@ -156,6 +156,8 @@ function render() {
   const townArt = !H.inArmy(st) && bg === 'town' && !Hh.field ? ({ ichijodani: SCENE_ART.story_fuchu, nanao: SCENE_ART.story_nanao, kanazawa: SCENE_ART.story_kanazawa, toyama_c: SCENE_ART.story_moriyama } as Record<string, string | undefined>)[c.id] : undefined; // 物語で治める城（府中・七尾）は、その城の絵
   const spotsOut = pane === 'spots' || machiable(st) ? spotsHtml(st) : '';
   machiB = machiable(st) ? MC.split(spotsOut) : null;
+  // 町の表示で、場面のある行動（主命の普請・偵察・献上など）の結果は、その場面の絵を添えて町の上に出す（町の絵が場面の代わりになったので）
+  const sayArt = machiB && say && !dlg && bg !== 'town' && BG[bg] ? ART(BG[bg]) : undefined;
   const art = townArt && (Hh.fuchu === Hh.town || (Hh.ryo ?? []).includes(Hh.town)) ? townArt : ART(H.inArmy(st) ? 'jinmaku' : BG[bg] ?? 'ichi');
   root.innerHTML = `<div class="hr-main">
     ${headHtml(st)}${machiB ? '' : stripsHtml(st)}
@@ -165,7 +167,7 @@ function render() {
         <div class="hr-town">${H.inArmy(st) ? (() => { const a = H.inArmy(st)!; return `<b>${esc(st.generals[a.main]?.name ?? '')}の陣中</b><span>${esc(castleAt(st, a.hex)?.name ?? PROVINCES[HEXES[a.hex].p].name + 'の野')}・兵${a.troops.toLocaleString('ja-JP')}・士気${a.morale.toFixed(2)}</span>`; })() : Hh.field ? `<b>${esc(PROVINCES[HEXES[Hh.hex].p].name)}の野</b><span>旅の途中</span>` : `<b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span>`}</div>
         ${machiB && !report ? MC.machiHtml(machiB, machiView(st), RP.isRonin(st), !!say?.hold || !!dlg) : ''}
         ${dlg && !report ? dlgHtml(st) : ''}
-        ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${machiB && !say.hold ? ' machi' : ''}${say.hold && !say.offer ? ' hold' : ''}"${say.hold && !say.offer ? ' data-h="say-close"' : ''}>${say.kake?.length ? kakeHtml(st, say.kake) : ''}${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
+        ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${sayArt ? ' scene' : machiB && !say.hold ? ' machi' : ''}${say.hold && !say.offer ? ' hold' : ''}"${sayArt && !say.offer ? ' data-h="scene-close"' : say.hold && !say.offer ? ' data-h="say-close"' : ''}>${sayArt ? `<div class="hr-sayart" style="background-image:url(${sayArt})"></div>` : ''}${say.kake?.length ? kakeHtml(st, say.kake) : ''}${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold || sayArt ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi'] as const).filter((k) => !(machiB && k === 'yashiki')).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅' }[k]}</button>`).join('')}</nav>
@@ -660,12 +662,13 @@ async function act(fn: () => H.Act, scene?: string, allowSick = false, kk?: (r: 
   if (heldReport) { report = heldReport; heldReport = null; render(); return; } // 閉じずに次へ進もうとした: 先に月の報告を見せる
   const r = fn();
   if (!r.ok) { say = { text: r.text }; if (keep && machiable(s)) dlg = { kind: 'bld', id: keep }; render(); return; }
-  if (scene && !keep) bg = scene; // 建物の窓からの行動では、町の画面はそのまま
+  if (scene) bg = keep ? 'town' : scene; // 建物の窓からの行動では、町の画面はそのまま（場面の絵も添えない）
   const kake = kk && kakeOn() ? kk(r) : undefined; // 浪人の掛け合い（顔とセリフを二、三行）
   const hold = (!!(r.who && r.line) || !!kake?.length) && !mapMode(s);
   say = kake?.length ? { text: r.text, hold, kake } : { who: r.who, line: r.line, text: r.text, hold, offer: hold && r.offer };
   if (keep && !hold && s.hero!.jun < H.HERO.JUN && machiable(s)) dlg = { kind: 'bld', id: keep };
   await advance();
+  if (machiB && say && !dlg && narrow()) root?.querySelector('.hr-scene')?.scrollIntoView({ block: 'start' }); // スマホ: 右の欄の下から行動しても、結果（町の上の知らせ）が見える所へ
 }
 // 3旬が過ぎたら1か月を進める。月をまたぐ旅は続ける
 // 1か月を進める（大名たちの月の処理）。主人公が死ぬか家が滅べば終わりの言葉を返す
@@ -893,6 +896,7 @@ function onClick(e: Event) {
   if (h === 'train') { void act(() => H.train(s!, id as 'dojo' | 'tera'), id); return; }
   if (h === 'report-ok') { report = null; render(); playHeld(); return; }
   if (h === 'say-close') { closeSay(); return; }
+  if (h === 'scene-close') { bg = 'town'; if (say?.hold) closeSay(); else { say = null; render(); } return; } // 場面の絵つきの知らせを閉じて町へ
   if (h === 'q-accept') { if (say) say.text = say.text.replace('主命を申し付けられた。', '主命を承った。'); closeSay(); return; }
   if (h === 'q-pick') { const r = H.chooseQuest(s, +id); say = { who: r.who, line: r.line, text: r.text, hold: r.ok }; if (heldReport && !r.ok) closeSay(); save(); render(); return; }
   if (h === 'q-decline') { const r = H.declineQuest(s); say = { who: r.who, line: r.line, text: r.text, hold: r.ok }; save(); render(); return; }
