@@ -14,6 +14,7 @@ export const MACHI_ART: Record<string, { src: string; w: number; h: number }> = 
   nanban: { w: 533, h: 318, src: 'tiles/machi/nanban.webp' },
   kaido: { w: 527, h: 360, src: 'tiles/machi/kaido.webp' },
   mura: { w: 705, h: 338, src: 'tiles/machi/mura.webp' },
+  machiya2: { w: 279, h: 253, src: 'tiles/machi/machiya2.webp' },
   machiya: { w: 307, h: 178, src: 'tiles/machi/machiya.webp' },
   kura: { w: 221, h: 265, src: 'tiles/machi/kura.webp' },
   matsu: { w: 191, h: 224, src: 'tiles/machi/matsu.webp' },

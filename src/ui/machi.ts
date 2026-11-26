@@ -8,17 +8,16 @@ export const BLD_SUB: Record<Bld, string> = { shiro: '登城・仕官・城の�
 type Slot = { k: Exclude<Bld, 'youken'> | null; art?: string; x: number; y: number; s?: number; alt?: string };
 const LAYOUT: Record<'pc' | 'sp', { gw: number; ratio: number; slots: Slot[] }> = {
   pc: { gw: 2048, ratio: 16 / 10, slots: [
-    { k: null, art: 'kodachi', x: 12, y: 24 }, { k: null, art: 'matsu', x: 40, y: 22 }, { k: 'shiro', x: 56, y: 36 }, { k: 'tera', x: 82, y: 38, alt: 'kodachi' },
-    { k: null, art: 'matsu', x: 4, y: 40 }, { k: 'buke', x: 20, y: 45, alt: 'machiya' }, { k: null, art: 'machiya', x: 30, y: 47 }, { k: null, art: 'machiya', x: 40, y: 47 }, { k: 'ie', x: 66, y: 47 },
-    { k: null, art: 'kodachi', x: 95, y: 52 }, { k: null, art: 'yanagi', x: 62, y: 62 }, { k: null, art: 'machiya', x: 22, y: 66 }, { k: null, art: 'ido', x: 56, y: 66 },
-    { k: 'dojo', x: 8, y: 70, alt: 'machiya' }, { k: 'chaya', x: 36, y: 70, alt: 'machiya' }, { k: 'nanban', x: 72, y: 72, alt: 'machiya' },
-    { k: 'ichi', x: 48, y: 88, alt: 'kura' }, { k: null, art: 'kura', x: 28, y: 90 }, { k: null, art: 'taru', x: 37, y: 92 }, { k: null, art: 'kuruma', x: 61, y: 92 },
-    { k: 'kaido', x: 10, y: 97 }, { k: 'mura', x: 90, y: 98, alt: 'kodachi' },
+    { k: null, art: 'matsu', x: 44, y: 17 }, { k: null, art: 'machiya2', x: 33, y: 30 }, { k: null, art: 'kodachi', x: 9, y: 32 }, { k: 'shiro', x: 53, y: 33, s: 0.68 }, { k: 'tera', x: 85, y: 38, alt: 'kodachi' },
+    { k: 'buke', x: 19, y: 45, alt: 'machiya' }, { k: null, art: 'matsu', x: 3, y: 46 }, { k: null, art: 'machiya', x: 31, y: 47 }, { k: 'ie', x: 71, y: 47 },
+    { k: null, art: 'kodachi', x: 95, y: 56 }, { k: null, art: 'yanagi', x: 63, y: 63 }, { k: null, art: 'machiya2', x: 25, y: 65 }, { k: 'chaya', x: 41, y: 66, alt: 'machiya2' }, { k: null, art: 'ido', x: 56, y: 67 },
+    { k: 'nanban', x: 77, y: 72, alt: 'machiya' }, { k: 'dojo', x: 30, y: 82, alt: 'machiya' }, { k: null, art: 'taru', x: 66, y: 88 },
+    { k: 'ichi', x: 52, y: 93, alt: 'kura' }, { k: null, art: 'kuruma', x: 62, y: 95 }, { k: 'kaido', x: 7, y: 98 }, { k: 'mura', x: 90, y: 98, alt: 'kodachi' },
   ] },
   sp: { gw: 1280, ratio: 4 / 5, slots: [
-    { k: null, art: 'kodachi', x: 10, y: 24 }, { k: null, art: 'matsu', x: 92, y: 20 }, { k: 'shiro', x: 50, y: 32 }, { k: 'tera', x: 82, y: 40, alt: 'kodachi' }, { k: 'buke', x: 20, y: 45, alt: 'machiya' },
-    { k: 'ie', x: 80, y: 62 }, { k: 'chaya', x: 40, y: 64, alt: 'machiya' }, { k: 'dojo', x: 16, y: 66, alt: 'machiya' }, { k: null, art: 'ido', x: 62, y: 70 },
-    { k: 'nanban', x: 82, y: 80, alt: 'machiya' }, { k: 'ichi', x: 50, y: 84, alt: 'kura' }, { k: 'kaido', x: 16, y: 97 }, { k: 'mura', x: 86, y: 98, alt: 'kodachi' },
+    { k: null, art: 'matsu', x: 90, y: 12 }, { k: null, art: 'kodachi', x: 9, y: 30 }, { k: 'shiro', x: 52, y: 30, s: 0.75 }, { k: 'tera', x: 84, y: 40, alt: 'kodachi' }, { k: 'buke', x: 20, y: 45, alt: 'machiya' },
+    { k: 'ie', x: 30, y: 61 }, { k: 'chaya', x: 52, y: 66, alt: 'machiya2' }, { k: 'nanban', x: 80, y: 70, alt: 'machiya' }, { k: 'dojo', x: 28, y: 81, alt: 'machiya' },
+    { k: 'ichi', x: 54, y: 91, alt: 'kura' }, { k: 'kaido', x: 10, y: 98 }, { k: 'mura', x: 88, y: 98, alt: 'kodachi' },
   ] },
 };
 const K = 0.6; // 絵の縮尺 → 地面の縮尺
