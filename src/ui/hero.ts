@@ -44,6 +44,7 @@ import { SCENARIOS } from '../data/scenarios';
 import { castleAt, castleKoku, clanCastles, clanName } from '../engine/state';
 import type { GameState, General } from '../engine/types';
 import * as MC from './machi';
+import { castleCom } from '../engine/money';
 
 const KEY = 'sengoku-hero-auto';
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -180,7 +181,7 @@ function render() {
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅', diary: '日記' }[k]}</button>`).join('')}</nav>
-        <div class="hr-pane">${pane === 'spots' ? (machiB ? MC.sideHtml(machiB, RP.isRonin(st)) : (townish(st) ? '<p class="hr-note"><button class="hr-btn ghost sm" data-h="machi" data-id="machi">町で表示する</button></p>' : '') + spotsOut) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : pane === 'shiro' || pane === 'homen' ? (isRyoOut(st) ? ryoOutNote() : pane === 'shiro' ? castleHtml(st) : homenHtml(st)) : diaryHtml(st)}</div>
+        <div class="hr-pane">${pane === 'spots' ? (machiB ? MC.sideHtml(machiB, meInfo(st) + kuniInfo(st)) : (townish(st) ? '<p class="hr-note"><button class="hr-btn ghost sm" data-h="machi" data-id="machi">町で表示する</button></p>' : '') + spotsOut) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : pane === 'shiro' || pane === 'homen' ? (isRyoOut(st) ? ryoOutNote() : pane === 'shiro' ? castleHtml(st) : homenHtml(st)) : diaryHtml(st)}</div>
       </aside>
     </div>
     ${report ? `<div class="hr-modal"><div class="hr-report"><h3>${Hh.over && CR.freeHero(st) ? '一生の締め' : `${st.year}年${st.month}月を迎えた`}</h3><ul>${report.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>${Hh.over && CR.freeHero(st) && FA.heirSon(st) ? `<button class="hr-btn primary" data-h="succeed">${esc(FA.heirSon(st)!.name)}が家を継いで続ける</button> ` : ''}<button class="hr-btn${Hh.over && FA.heirSon(st) ? '' : ' primary'}" data-h="report-ok">${Hh.over ? '閉じる' : '城下へ'}</button></div></div>` : ''}
@@ -218,6 +219,43 @@ function onHex(hex: number) {
 // 城下の町（建物）で見せる時: 町にいて、陣中・旅の途中・総大将・陣借りでない時
 const townish = (st: GameState) => !st.hero!.over && !st.hero!.field && !H.inArmy(st) && !HA.leading(st) && !st.hero!.merc && !mapMode(st);
 const machiable = (st: GameState) => MC.machiOn() && townish(st);
+// 右の欄（町の表示）: 自分のこと。顔・名・家と身分・歳・主君・寄親/寄子・家臣、功績（次の身分まで）・体力・主君の覚え・名声のつまみ
+const bar = (v: number, max: number, cls = '') => `<span class="hr-bar${cls}"><i style="width:${Math.max(0, Math.min(100, (v / Math.max(1, max)) * 100)).toFixed(0)}%"></i></span>`;
+function meInfo(st: GameState) {
+  const Hh = st.hero!, me = H.heroOf(st)!, L = H.lordOf(st), ronin = RP.isRonin(st);
+  const age = me.born ? `${st.year - me.born}歳` : '';
+  const next = me.clan && me.rank > 0 ? R.MERIT_AT[me.rank - 1] : null;
+  const yo = Hh.yorioya ? st.generals[Hh.yorioya] : null, yk = YO.yorikoOf(st), rs = KS.retainersOf(st), cap = KS.capOf(st);
+  const sks = (Object.keys(SK.SKILL_NAME) as SK.SkillKey[]).filter((k) => SK.expOf(st, k) > 0).map((k) => `${SK.SKILL_NAME[k]}${SK.lv(st, k)}`).join('・');
+  const fd = ronin ? MS.fudaOf(st) : [];
+  const hp = SK.hpOf(st), hpm = SK.hpMax(st);
+  const rows: [string, string][] = [
+    ...(L && L.id !== me.id ? [['主君', esc(L.name)] as [string, string]] : []),
+    ...(yo ? [['寄親', `${esc(yo.name)}（親しさ${Hh.rel[yo.id] ?? 0}）`] as [string, string]] : []),
+    ...(yk.length ? [['寄子', yk.map((g) => esc(g.name)).join('・')] as [string, string]] : []),
+    ...(cap || rs.length ? [['家臣', `${rs.length}／${cap}人`] as [string, string]] : []),
+    ...(next !== null ? [['功績', `${Math.round(me.merit)}／${next}（${R.RANK_NAME[me.rank - 1]}まで）${bar(me.merit, next)}`] as [string, string]] : me.clan ? [['功績', `${Math.round(me.merit)}`] as [string, string]] : []),
+    ['体力', `${SK.isSick(st) ? '<b style="color:#d26a5c">病</b> ' : ''}${hp}／${hpm}${bar(hp, hpm, hp <= SK.HP.TIRED ? ' low' : ' hp')}`],
+    ...(L && L.id !== me.id ? [['主君の覚え', `${Hh.favor}${bar(Hh.favor, 100)}`] as [string, string]] : []),
+    ...(Hh.story !== 'toshiie' ? [['名声', `${Hh.fame ?? 0}${fd.length ? `・札${fd.map((x) => `「${esc(x.name)}」`).join('')}` : ''}`] as [string, string]] : []),
+    ...(sks ? [['技能', sks] as [string, string]] : []),
+  ];
+  return `<h4 class="hr-sub">わが身</h4><div class="hr-me">${myFace(st, 72)}<div><b>${esc(me.name)}</b><span>${me.clan ? `${esc(clanName(st, me.clan))}家・${R.RANK_NAME[me.rank]}` : '浪人'}${Hh.title ? `・${esc(Hh.title)}` : ''}${age ? `・${age}` : ''}</span><span>武${me.bra}・知${me.int}・統${me.lea}・魅${me.cha}</span><span>手元${Hh.gold.toLocaleString('ja-JP')}貫・進物${Hh.goods}</span></div></div><dl class="hr-kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+}
+// 右の欄（町の表示）: いる国のこと。この城（持ち主・城主・石高・城兵・治安・商業・城の種類）と、同じ国の城の持ち主
+function kuniInfo(st: GameState) {
+  const c = st.castles[st.hero!.town], pv = PROVINCES[HEXES[c.hex].p];
+  const gov = c.governor ? st.generals[c.governor] : null;
+  const owner = (x: typeof c) => (x.owner ? `${esc(clanName(st, x.owner))}家` : '国衆');
+  const rows: [string, string][] = [
+    ['持ち主', owner(c)], ...(gov ? [['城主', esc(gov.name)] as [string, string]] : []),
+    ['石高', `${castleKoku(c).toFixed(1)}万石`], ['城兵', `${Math.round(c.garrison).toLocaleString('ja-JP')}`],
+    ['治安', `${Math.round(c.chian)}${bar(c.chian, 100)}`], ['商業', `月${Math.round(castleCom(c)).toLocaleString('ja-JP')}貫`],
+    ['城', `${R.CASTLE_KIND[c.kind ?? 'hira'].name}`],
+  ];
+  const cs = st.castles.filter((x) => PROVINCES[HEXES[x.hex].p] === pv);
+  return `<h4 class="hr-sub">${esc(pv.name)}・${esc(c.name)}</h4><dl class="hr-kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>${cs.length > 1 ? `<ul class="hr-kuni">${cs.map((x) => `<li class="${x.i === c.i ? 'here' : ''}"><span>${esc(x.name)}</span><em>${owner(x)}・${castleKoku(x).toFixed(1)}万石</em></li>`).join('')}</ul>` : ''}`;
+}
 // 町の見た目: スマホか・城の大きさ（15万石以上は天守の城）・自分の屋敷（家の格。浪人は長屋）・冬（十二月〜二月は雪）
 const narrow = () => window.matchMedia('(max-width:820px)').matches;
 function machiView(st: GameState): MC.MachiView {

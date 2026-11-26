@@ -76,11 +76,9 @@ export function machiHtml(b: Record<Bld, string[]>, v: MachiView, ronin: boolean
     : `<img class="hr-fill" src="${MACHI_ART[key!].src}" style="${pos(key!, sl)}" alt="">`).join('');
   return `<div class="hr-machi${dim ? ' dim' : ''}${v.sp ? ' sp' : ''}"><div class="hr-machi-map" style="background-image:url(${ground.src});aspect-ratio:${L.ratio}">${html}</div></div>`;
 }
-// 右の欄: 今月の用件と、建物の一覧（町の絵が小さい時の近道）
-export function sideHtml(b: Record<Bld, string[]>, ronin: boolean) {
-  const ks = (['shiro', 'buke', 'ie', 'dojo', 'tera', 'chaya', 'ichi', 'nanban', 'kaido', 'mura'] as Bld[]).filter((k) => b[k].length);
-  return `<h4 class="hr-sub">今月の用件</h4>${b.youken.length ? b.youken.join('') : '<p class="hr-none">差し迫った用件はない。町の建物を押して過ごし方を選ぶ。</p>'}
-    <h4 class="hr-sub">町</h4><div class="hr-bldlist">${ks.map((k) => `<button class="hr-btn sm${hasMain(b[k]) ? ' primary' : ''}" data-h="bld" data-id="${k}">${esc(k === 'ie' ? ieName(ronin) : BLD_NAME[k])}</button>`).join('')}</div>
+// 右の欄: 今月の用件（あれば）・自分のこと・いる国のこと（hero.ts が作る）・一覧への切り替え
+export function sideHtml(b: Record<Bld, string[]>, info: string) {
+  return `${b.youken.length ? `<h4 class="hr-sub">今月の用件</h4>${b.youken.join('')}` : ''}${info}
     <p class="hr-note" style="margin-top:12px"><button class="hr-btn ghost sm" data-h="machi" data-id="list">一覧で表示する</button></p>`;
 }
 export const MACHI_CSS = `
@@ -116,5 +114,18 @@ export const MACHI_CSS = `
 .hr-bldfoot{flex:none;padding:0 18px 12px;text-align:right}
 .hr-bldfoot .hr-dclose{float:none}
 @media (max-width:820px){.hr-dlg.hr-bldwin{width:calc(100% - 12px);max-height:calc(100% - 12px)}.hr-bldbody{grid-template-columns:1fr;padding:10px 12px}}
+.hr-me{display:flex;gap:12px;align-items:flex-start;margin:4px 0 8px}
+.hr-me .face,.hr-me .hr-noface{flex:none;width:72px;height:90px;border:1px solid rgba(207,169,94,.5)}
+.hr-me b{font-family:var(--font-display,serif);font-weight:400;font-size:18px;display:block}
+.hr-me span{display:block;font-size:12px;color:#b8ab92;line-height:1.55}
+.hr-kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:4px 0 10px;font-size:12.5px;align-items:center}
+.hr-kv dt{color:#b8ab92;white-space:nowrap}.hr-kv dd{margin:0;min-width:0}
+.hr-bar{display:block;height:5px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;margin-top:3px}
+.hr-bar i{display:block;height:100%;background:#cfa95e}
+.hr-bar.hp i{background:#7fae6a}.hr-bar.low i{background:#c0604b}
+.hr-kuni{list-style:none;margin:2px 0 8px;padding:0;font-size:12.5px}
+.hr-kuni li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.hr-kuni li.here{color:#f1d58e}
+.hr-kuni em{font-style:normal;color:#b8ab92;white-space:nowrap}
 .hr-bldlist{display:flex;flex-wrap:wrap;gap:6px}
 `;
