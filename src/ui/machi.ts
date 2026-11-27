@@ -64,15 +64,17 @@ export function split(html: string): Record<Bld, string[]> {
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const hasMain = (xs: string[]) => xs.some((x) => /class="hr-spot main"/.test(x) && !/disabled/.test(x));
 // 町: 地面の上に、奥（上）から順に建物と埋め草を並べる。建物は押せる（名札と、急ぎの用の印）
-export function machiHtml(b: Record<Bld, string[]>, v: MachiView, ronin: boolean, dim: boolean, teh: Set<string> = new Set()) {
+// opt: 物語（利家の第一幕）から使う時の、建物の名札・絵の差し替えと、押した時の印（data-s）
+export type MachiOpt = { labels?: Partial<Record<Bld, string>>; arts?: Partial<Record<Bld, string>>; ds?: boolean };
+export function machiHtml(b: Record<Bld, string[]>, v: MachiView, ronin: boolean, dim: boolean, teh: Set<string> = new Set(), opt: MachiOpt = {}) {
   const L = LAYOUT[v.sp ? 'sp' : 'pc'];
   const ground = MACHI_ART[v.snow && !v.sp ? 'ground_snow' : v.sp ? 'ground_sp' : 'ground_pc'];
   const artOf = (k: Bld) => (k === 'shiro' ? (v.castle === 'yake' ? 'shiro_yake' : v.castle === 'l' ? 'shiro_l' : 'shiro_s') : k === 'ie' ? (v.ie === 'nagaya' ? 'nagaya' : `ie_${v.ie}`) : k);
   // 城は用がなくても描く（押せない）
-  const items = L.slots.map((sl) => { const on = sl.k && b[sl.k]?.length; const key = on || sl.k === 'shiro' ? artOf(sl.k!) : sl.k ? sl.alt : sl.art; return { sl, on: !!on, key }; }).filter((x) => x.key && MACHI_ART[x.key]).sort((a, c) => a.sl.y - c.sl.y);
+  const items = L.slots.map((sl) => { const on = sl.k && b[sl.k]?.length; const key = on || sl.k === 'shiro' ? opt.arts?.[sl.k!] ?? artOf(sl.k!) : sl.k ? sl.alt : sl.art; return { sl, on: !!on, key }; }).filter((x) => x.key && MACHI_ART[x.key]).sort((a, c) => a.sl.y - c.sl.y);
   const pos = (key: string, sl: Slot) => { const a = MACHI_ART[key]; return `left:${sl.x}%;top:${sl.y}%;width:${((a.w * K * (sl.s ?? 1)) / L.gw * 100).toFixed(2)}%`; };
   const html = items.map(({ sl, on, key }) => on
-    ? `<button class="hr-bldi${hasMain(b[sl.k!]) ? ' mark' : ''}${teh.has(sl.k!) ? ' teh' : ''}" data-h="bld" data-id="${sl.k}" style="${pos(key!, sl)}" title="${esc(BLD_SUB[sl.k!])}"><img src="${MACHI_ART[key!].src}" alt=""><b class="hr-bldtag">${esc(sl.k === 'ie' ? ieName(ronin) : BLD_NAME[sl.k!])}</b></button>`
+    ? `<button class="hr-bldi${hasMain(b[sl.k!]) ? ' mark' : ''}${teh.has(sl.k!) ? ' teh' : ''}" ${opt.ds ? 'data-s' : 'data-h'}="bld" data-id="${sl.k}" style="${pos(key!, sl)}" title="${esc(BLD_SUB[sl.k!])}"><img src="${MACHI_ART[key!].src}" alt=""><b class="hr-bldtag">${esc(opt.labels?.[sl.k!] ?? (sl.k === 'ie' ? ieName(ronin) : BLD_NAME[sl.k!]))}</b></button>`
     : `<img class="hr-fill" src="${MACHI_ART[key!].src}" style="${pos(key!, sl)}" alt="">`).join('');
   return `<div class="hr-machi${dim ? ' dim' : ''}${v.sp ? ' sp' : ''}"><div class="hr-machi-map" style="background-image:url(${ground.src});aspect-ratio:${L.ratio}">${html}</div></div>`;
 }

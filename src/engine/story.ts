@@ -2,6 +2,7 @@
 // 大名たちの GameState とは別の軽い状態で動かし、帰参したら1560年の世界（武将で遊ぶ）に切り替える
 import * as D from '../data/story_toshiie';
 import type { Beat, Choice } from '../data/story_toshiie';
+import { newBan, type Ban, type BKind } from './ban';
 
 export type Place = 'arako' | 'kiyosu' | 'atsuta' | 'fukushima';
 export const PLACE_NAME: Record<Place, string> = { arako: '荒子', kiyosu: '清洲の城下', atsuta: '熱田', fukushima: '福島の屋敷' };
@@ -12,7 +13,7 @@ export interface StoryState {
   rel: Record<string, number>; flags: Record<string, boolean | number | string>;
   idx: Record<string, number>; // まつ・兄・清洲の話をどこまで見たか
   diary: { date: string; text: string }[];
-  battle?: { kind: 'okehazama' | 'moribe'; step: number; score: number };
+  battle?: { kind: 'okehazama' | 'moribe'; step: number; score: number; ban?: boolean }; // ban: 読む・決める・飛び込むのあと、槍働きの盤を待っている
   done?: 'okehazama' | 'moribe';
   seed: number;
 }
@@ -181,6 +182,24 @@ export function battleChoose(s: StoryState, id: string): Show {
   b.score += c.score({ bra: s.bra, sense: s.sense, fame: s.fame });
   b.step++;
   if (b.step < stepsOf(s).length) return { beats: [] };
+  b.ban = true; // 飛び込んだ先で、自分の槍を振るう（槍働きの盤）。盤が済めば battleFinish
+  return { beats: [] };
+}
+// 槍働きの盤: 敵の先手、中ほどに名のある侍（桶狭間は今川の旗本、森部は足立六兵衛）
+export function battleBanOf(s: StoryState): Ban {
+  const b = s.battle!, mob = (k: BKind) => ({ kind: k, who: null });
+  const sho = b.kind === 'moribe' ? { name: '足立六兵衛', bra: 78, int: 50, lea: 60, sho: true } : { name: '今川の旗本', bra: 70, int: 55, lea: 62, sho: true };
+  return newBan({
+    me: [{ kind: 'kiba', who: { name: '前田利家', bra: s.bra, int: 65, lea: 72, hero: true, yari: 2 } }, mob('ashi'), mob('ashi')],
+    foe: (['ashi', 'ashi', 'yumi'] as BKind[]).map(mob), seed: Math.floor(rnd(s) * 1e9),
+    mid: [{ kind: 'kiba', who: sho }, mob('ashi')], end: 'oiuchi', late: [mob('ashi'), mob('ashi')],
+  });
+}
+// 盤の首尾を点に足して、戦を締める（勝ち・名のある将を討つ・手柄で点が増える。負けても戦は終わる）
+export function battleFinish(s: StoryState, ban: Ban | null): Show {
+  const b = s.battle!;
+  if (ban) b.score += (ban.over === 'win' ? 1 : 0) + (ban.duelWon?.length || ban.log.some((x) => /討ち取った/.test(x) && /旗本|六兵衛/.test(x)) ? 2 : 0) + Math.min(2, Math.floor(ban.tegara / 3));
+  b.ban = false;
   // 戦の終わり
   const kind = b.kind, great = kind === 'moribe' || b.score >= 8;
   s.battle = undefined;

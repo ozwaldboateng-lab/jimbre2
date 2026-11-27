@@ -1097,16 +1097,6 @@ export const CSS = `
 .hr-say.mini .hr-who{display:none}.hr-say.mini .hr-text{font-size:14px}
 .hr-kake{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}.hr-kake .hr-who{margin:0;gap:12px}.hr-kake .hr-who img{width:56px;height:70px}.hr-kake .hr-who p{font-size:16px;line-height:1.6;margin-top:2px}.hr-kake .hr-who b{font-size:13px}.hr-knarr{margin:0;font-size:14px;color:#cfc3a8;font-style:italic}.hr-say.mini .hr-kake{display:none}
 .hr-side{border-left:1px solid rgba(207,169,94,.2);background:#111113;display:flex;flex-direction:column;min-height:0}
-/* 物語（前田利家）の画面上部: 武将で遊ぶの上部を .bar にしたので、物語の画面だけにこれまでの作りを残す */
-#story .hr-head{display:flex;align-items:center;gap:16px;padding:8px 14px;border-bottom:1px solid rgba(207,169,94,.28);background:#151517;flex-wrap:wrap}
-#story .hr-id{display:flex;align-items:center;gap:10px}#story .hr-id img{border-radius:3px}#story .hr-id b{display:block;font-size:17px}#story .hr-id span{font-size:12px;color:#b8ab92}
-#story .hr-date{font-family:var(--font-display,serif);font-size:22px;color:#cfa95e;display:flex;flex-direction:column;line-height:1.1}#story .hr-date small{font-size:12px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}
-#story .hr-stats{display:grid;grid-auto-flow:column;grid-template-rows:auto auto;gap:0 14px;margin:0;flex:1;min-width:0}
-#story .hr-stats dt{font-size:10.5px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}#story .hr-stats dd{margin:0;font-family:var(--font-ui,sans-serif);font-size:14px;white-space:nowrap}#story .hr-stats small{color:#b8ab92;font-size:11px}
-@media (max-width:820px){
-  #story .hr-head{gap:10px}#story .hr-stats{grid-auto-flow:row;grid-template-columns:repeat(5,auto);grid-template-rows:auto;order:3;flex-basis:100%}
-  #story .hr-stats dt{grid-row:1}#story .hr-stats dd{grid-row:2;font-size:12.5px}
-}
 /* 画面上部（大名プレイと同じ .bar の作り） */
 #hero .bar.hr-head{flex:none}
 #hero .bar .seal{border:0;cursor:pointer;padding:0}

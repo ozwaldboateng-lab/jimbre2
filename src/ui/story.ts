@@ -13,6 +13,8 @@ import { heroEnd, startHero } from '../engine/hero';
 import { newGame } from '../engine/setup';
 import type { GameState } from '../engine/types';
 import { CSS, openHeroWith, setTheater } from './hero';
+import * as MC from './machi';
+import { openBan } from './ban';
 
 const KEY = 'sengoku-story-toshiie';
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -31,13 +33,14 @@ let pane: 'acts' | 'yashiki' | 'tabi' | 'diary' = 'acts';
 let busy = '';
 let bg = 'arako';
 let lastArt: string | undefined;
+let win: MC.Bld | null = null, catNote = ''; // 第一幕の町: 開いている建物の窓・札を押した時の一言
 
 export const storySaved = () => { try { return !!localStorage.getItem(KEY); } catch { return false; } };
 function save() { try { if (st) localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* 続ける */ } }
 
 function ensureRoot() {
-  if (!document.getElementById('hero-style')) { const x = document.createElement('style'); x.id = 'hero-style'; x.textContent = CSS; document.head.appendChild(x); }
-  if (!document.getElementById('story-style')) { const x = document.createElement('style'); x.id = 'story-style'; x.textContent = CSS.split('#hero').join('#story') + STORY_CSS; document.head.appendChild(x); } // 同じ見た目を #story にも
+  if (!document.getElementById('hero-style')) { const x = document.createElement('style'); x.id = 'hero-style'; x.textContent = CSS + MC.MACHI_CSS; document.head.appendChild(x); }
+  if (!document.getElementById('story-style')) { const x = document.createElement('style'); x.id = 'story-style'; x.textContent = (CSS + MC.MACHI_CSS).split('#hero').join('#story') + STORY_CSS; document.head.appendChild(x); } // 同じ見た目を #story にも
   root = document.getElementById('story');
   if (!root) { root = document.createElement('div'); root.id = 'story'; root.className = 'story-root'; document.body.appendChild(root); root.addEventListener('click', onClick); }
   root.hidden = false;
@@ -80,35 +83,95 @@ function faceOf(id: string, w: number) {
   if (src) return `<img class="face" src="${src}" width="${w}" height="${Math.round(w * 1.25)}" alt="">`;
   return `<span class="hr-noface" style="width:${w}px;height:${Math.round(w * 1.25)}px;font-size:${Math.round(w / 4)}px">${esc(nameOf(id).slice(0, 3))}</span>`;
 }
+// ───────── 第一幕の町（武将で遊ぶと同じ作り。行いと出来事は engine/story.ts のまま） ─────────
+type B1 = { label: string; place: S.Place; art: string; bg: string; acts: S.ActId[]; sub: string };
+function blds1(s: S.StoryState): Partial<Record<MC.Bld, B1>> {
+  const f = s.flags, o: Partial<Record<MC.Bld, B1>> = {};
+  o.shiro = { label: '清洲城', place: 'kiyosu', art: 'shiro_l', bg: 'kiyosu_niwa', acts: [], sub: '追われた身。門は開かない' };
+  o.ie = { label: '荒子の屋敷', place: 'arako', art: 'ie_s', bg: 'arako_night', acts: [...S.yashikiActs(s), 'suburi', ...(f.waitMoribe ? ['wait' as S.ActId] : []), 'rest'], sub: '荒子' };
+  o.mura = { label: '荒子の村', place: 'arako', art: 'mura', bg: 'arako', acts: ['aruku', 'sakaya'], sub: '荒子' };
+  o.ichi = { label: '清洲の辻', place: 'kiyosu', art: 'ichi', bg: 'kiyosu_tsuji', acts: ['tsuji'], sub: '清洲の城下' };
+  o.chaya = { label: '清洲の酒屋', place: 'kiyosu', art: 'chaya', bg: 'sakaya', acts: ['kiyosu_sakaya'], sub: '清洲の城下' };
+  o.nanban = { label: '熱田の湊', place: 'atsuta', art: 'nanban', bg: 'atsuta', acts: [...(f.koshin ? ['yojinbo' as S.ActId] : []), 'minato'], sub: '熱田' };
+  if (f.irai) o.buke = { label: '福島の屋敷', place: 'fukushima', art: 'buke', bg: 'fukushima', acts: f.night2 ? [] : ['mihari'], sub: '福島' };
+  return o;
+}
+const ACT1_LABEL: Partial<Record<S.ActId, string>> = { aruku: '村を歩く', sakaya: '荒子の酒屋で飲む', suburi: '庭で素振り', rest: '休む（1旬）', kiyosu_sakaya: '清洲の酒屋で飲む' };
+function townB(s: S.StoryState): Record<MC.Bld, string[]> {
+  const b = Object.fromEntries((['shiro', 'buke', 'ie', 'dojo', 'tera', 'chaya', 'ichi', 'nanban', 'kaido', 'mura', 'youken'] as MC.Bld[]).map((k) => [k, [] as string[]])) as Record<MC.Bld, string[]>;
+  for (const [k, v] of Object.entries(blds1(s))) b[k as MC.Bld] = v!.acts.some((a) => a === 'mihari') ? ['<button class="hr-spot main" data-s="x"></button>'] : ['x']; // 福島の頼みは急ぎの印
+  return b;
+}
+const townView = (s: S.StoryState): MC.MachiView => ({ sp: window.matchMedia('(max-width:820px)').matches, castle: 'l', ie: 's', snow: s.month === 12 || s.month <= 2 });
+function winHtml(s: S.StoryState, k: MC.Bld) {
+  const B = blds1(s)[k]; if (!B) return '';
+  const art = ART(B.bg) ?? '';
+  const acts = B.acts.map((a) => `<button class="hr-spot${a === 'mihari' ? ' main' : a === 'rest' ? ' dim' : ''}" data-s="wact" data-id="${B.place}:${a}"><b>${esc(ACT1_LABEL[a] ?? S.ACT_NAME[a][0])}</b><span>${esc(S.ACT_NAME[a][1])}${a === 'matsu_t' ? `（親しさ ${s.rel.matsu ?? 0}）` : ''}</span></button>`).join('');
+  return `<div class="hr-dlg hr-bldwin"><div class="hr-bldart" style="${art ? `background-image:url(${art})` : ''}"><h4>${esc(B.label)}<small>${esc(B.sub)}</small></h4></div><div class="hr-bldbody">${acts || `<p class="hr-none">${esc(B.sub)}。</p>`}</div><div class="hr-bldfoot"><button class="hr-btn hr-dclose" data-s="dlg-close">町へ戻る</button></div></div>`;
+}
+// 画面上部（武将で遊ぶ・大名プレイと同じ作り）。浪人の身なので、記録のほかの札は使えない
+const CAT1: [string, string, string][] = [['naisei', '内政', '城を預かると使える。'], ['gunji', '軍事', '浪人には率いる軍勢がない。'], ['jinji', '人事', '家臣ができると使える。'], ['gaiko', '外交', '浪人には主家がない。'], ['akinai', '商い', '商いの荷を扱う身ではない。'], ['kiroku', '記録', '']];
+function headHtml(s: S.StoryState, pro: boolean, locked: boolean) {
+  const stat = (k: string, v: string) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+  return `<header class="bar"><div class="brand"><button type="button" class="seal" data-s="quit" title="保存してタイトルへ">陣</button><div class="brand-text hr-id"><div class="title"><b>前田利家</b><span>${s.done ? '帰参' : '浪人（前田家の四男）'}</span></div><div class="date hr-date">${pro ? '序幕' : S.JUN[s.jun]}<small>${pro ? '犬千代の若き日' : `${s.year}年${s.month}月`}</small></div></div></div>
+    <dl class="stats hr-stats">${stat('金', `${s.gold}貫`)}${stat('名', `${s.fame}`)}${stat('噂を読む', `${s.sense}`)}${stat('武勇', `${s.bra}`)}${stat('まつ', `${s.rel.matsu ?? 0}`)}</dl>
+    <nav class="cmds">${CAT1.map(([k, n, w]) => `<button type="button" class="plaque${w ? ' off' : ''}" data-s="cat" data-id="${k}" title="${esc(w || n)}">${n}</button>`).join('')}<button type="button" class="seal-btn" data-s="rest1" ${locked || s.done ? 'disabled' : ''} title="1旬を過ごす">休む</button></nav></header>`;
+}
+// 手ほどき（第一幕）: やってみる目標。済んだ印は st.flags['teh:<行い>']
+const TEH1: { id: string; label: string; hint: string; keys: S.ActId[]; bld: MC.Bld }[] = [
+  { id: 'matsu', label: '屋敷でまつと話す', hint: '荒子の屋敷の窓から。話すほど親しくなる', keys: ['matsu_t'], bld: 'ie' },
+  { id: 'suburi', label: '庭で素振りをする', hint: '荒子の屋敷の窓から。武勇が上がることがある', keys: ['suburi'], bld: 'ie' },
+  { id: 'sakaya', label: '酒屋で噂を聞く', hint: '荒子の村か清洲の酒屋。噂を読む力が上がり、戦の時と場所が見えてくる', keys: ['sakaya', 'kiyosu_sakaya'], bld: 'mura' },
+  { id: 'tsuji', label: '清洲の辻を歩く', hint: '清洲の辻の窓から。昔の仲間に会えることがある', keys: ['tsuji'], bld: 'ichi' },
+  { id: 'yojinbo', label: '熱田の湊で用心棒をする', hint: '屋敷の古参の話を聞くと、熱田に口が見つかる。金と名が入る', keys: ['yojinbo'], bld: 'nanban' },
+  { id: 'rest', label: '休んで旬を送る', hint: '上の「休む」。三旬で一か月。戦の噂は時とともに近づく', keys: ['rest'], bld: 'ie' },
+];
+const tehOn1 = () => { try { return localStorage.getItem('sengoku-teh') !== 'off'; } catch { return true; } };
+const teh1Done = (s: S.StoryState, g: (typeof TEH1)[number]) => g.keys.some((k) => !!s.flags[`teh:${k}`]);
+const tehMarks1 = (s: S.StoryState) => new Set<string>(tehOn1() ? TEH1.filter((g) => !teh1Done(s, g)).map((g) => g.bld) : []);
+let teh1New = '';
+function tehDo1(s: S.StoryState, a: S.ActId) {
+  const before = TEH1.filter((g) => teh1Done(s, g)).length;
+  s.flags[`teh:${a}`] = true;
+  const nw = TEH1.filter((g) => teh1Done(s, g) && g.keys.includes(a) && !s.flags[`tehg:${g.id}`]);
+  for (const g of nw) { s.flags[`tehg:${g.id}`] = true; s.gold += 5; teh1New = `手ほどき「${g.label}」を済ませた（金+5）。`; }
+  void before;
+}
+function side1(s: S.StoryState, locked: boolean) {
+  if (pane === 'diary') return `<p class="hr-note"><button class="hr-btn ghost sm" data-s="pane" data-id="acts">← 町へ</button></p><ol class="hr-diary">${[...s.diary].reverse().map((x) => `<li><small>${esc(x.date)}</small>${esc(x.text)}</li>`).join('')}</ol>`;
+  const teh = !tehOn1() ? '<p class="hr-note"><button class="hr-btn ghost sm" data-s="teh-on">手ほどきを出す</button></p>' : `<div class="hr-teh"><h4 class="hr-sub">手ほどき ― 第一幕 浪人<span>${(() => { const n = TEH1.filter((g) => !teh1Done(s, g)).length; return n ? `あと${n}` : 'すべて済んだ'; })()}</span></h4>${teh1New ? `<p class="hr-tehnew">${esc(teh1New)}</p>` : ''}<ul>${TEH1.map((g) => { const d = teh1Done(s, g); return `<li class="${d ? 'done' : ''}"><b>${d ? '✓' : '・'} ${esc(g.label)}</b>${d ? '' : `<span>${esc(g.hint)}</span>`}</li>`; }).join('')}</ul><button class="hr-btn ghost sm" data-s="teh-off">手ほどきを消す</button></div>`;
+  return `${catNote ? `<p class="hr-tehnew">${esc(catNote)}</p>` : ''}${locked ? `<p class="hr-note">${s.battle ? '戦の只中。読む・決める・飛び込む。' : '場面の途中。'}</p>` : ''}${teh}
+    <div class="hr-quest"><b>${s.flags.waitMoribe ? '目当て' : '第一幕'}</b> ${esc(goalText(s))}</div>
+    <h4 class="hr-sub">わが身</h4><div class="hr-me">${faceOf('maeda_toshiie', 72)}<div><b>前田利家</b><span>浪人（前田家の四男）・${s.year - 1538}歳</span><span>武勇${s.bra}・名${s.fame}・噂を読む${s.sense}</span><span>手元${s.gold}貫</span></div></div>
+    <dl class="hr-kv"><dt>まつ</dt><dd>親しさ${s.rel.matsu ?? 0}</dd><dt>兄・利久</dt><dd>親しさ${s.rel.toshihisa ?? 0}</dd></dl>
+    <p class="hr-note" style="margin-top:12px"><button class="hr-btn ghost sm" data-s="machi" data-id="list">一覧で表示する</button></p>`;
+}
 function render() {
   if (!st || !root) return;
   const b = queue[0];
   if (b?.bg) bg = b.bg;
   else if (!b && !pending) bg = S.PLACE_BG[st.place]; // 選択の間は直前の場面の絵のまま
   const art = ART(bg);
-  const step = st.battle && !queue.length ? S.stepsOf(st)[st.battle.step] : null;
+  const step = st.battle && !st.battle.ban && !queue.length ? S.stepsOf(st)[st.battle.step] : null;
   const pro = queue.includes(D.EV_RETURN[0]) && queue[0] !== D.EV_RETURN[0]; // 序幕の間は日付を出さない
   if (step) bg = step.bg;
   const sceneArt = step ? ART(step.bg) : art;
   const changed = sceneArt !== lastArt; // 絵が替わったときだけ、ゆっくり浮かび上がらせる
+  const locked = queue.length > 0 || !!pending || !!st.battle;
+  const town = MC.machiOn() && !locked && !st.done && !busy; // 場面がない時は、第一幕の町（荒子・清洲・熱田・福島を一つの町に）
   lastArt = sceneArt;
   root.innerHTML = `<div><div class="hr-main">
-    <header class="hr-head">
-      <div class="hr-id">${faceOf('maeda_toshiie', 56)}<div><b>前田利家</b><span>${st.done ? '帰参' : '浪人（前田家の四男）'}</span></div></div>
-      <div class="hr-date">${pro ? '序幕' : S.JUN[st.jun]}<small>${pro ? '犬千代の若き日' : `${st.year}年${st.month}月`}</small></div>
-      <dl class="hr-stats"><dt>金</dt><dd>${st.gold}貫</dd><dt>名</dt><dd>${st.fame}</dd><dt>噂を読む</dt><dd>${st.sense}</dd><dt>武勇</dt><dd>${st.bra}</dd><dt>まつ</dt><dd>${st.rel.matsu ?? 0}</dd></dl>
-      <button class="hr-btn ghost" data-s="quit" title="保存してタイトルへ">中断</button>
-    </header>
-    <div class="hr-quest"><b>${st.done ? '第一幕　了' : st.flags.waitMoribe ? '目当て' : '第一幕'}</b> ${esc(goalText(st))}</div>
+    ${headHtml(st, pro, locked)}
+    ${town ? '' : `<div class="hr-quest"><b>${st.done ? '第一幕　了' : st.flags.waitMoribe ? '目当て' : '第一幕'}</b> ${esc(goalText(st))}</div>`}
     <div class="hr-body">
-      <section class="hr-scene st-scene">
+      ${town ? `<section class="hr-scene st-scene machi">${MC.machiHtml(townB(st), townView(st), true, !!win, tehMarks1(st), { labels: Object.fromEntries(Object.entries(blds1(st)).map(([k, v]) => [k, v!.label])), arts: Object.fromEntries(Object.entries(blds1(st)).map(([k, v]) => [k, v!.art])), ds: true })}<div class="hr-town"><b>尾張</b><span>${esc(S.dateLabel(st))}</span></div>${win ? winHtml(st, win) : ''}</section>` : `<section class="hr-scene st-scene">
         <div class="st-bg${pro ? ' memory' : ''}${changed ? ' fadein' : ''}" style="${sceneArt ? `background-image:url(${sceneArt})` : ''}"></div>${pro ? '<div class="st-haze"></div>' : ''}
         ${b?.kind ? fxHtml(b) : `<div class="hr-town"><b>${b?.head ? esc(b.head) : step ? esc(step.head) : esc((b || pending ? BG_NAME[bg] : undefined) ?? S.PLACE_NAME[st.place])}</b><span>${pro ? '序幕' : esc(S.dateLabel(st))}</span></div>
         ${b ? beatHtml(b) : step ? stepHtml(step) : pending ? choiceHtml(pending) : ''}`}
-      </section>
+      </section>`}
       <aside class="hr-side">
-        <nav class="hr-tabs">${(['acts', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-s="pane" data-id="${k}">${{ acts: S.PLACE_NAME[st!.place], yashiki: '屋敷', tabi: '道', diary: '日記' }[k]}</button>`).join('')}</nav>
-        <div class="hr-pane">${sideHtml(st)}</div>
+        ${town || (MC.machiOn() && !st.done) ? `<div class="hr-pane">${side1(st, locked)}</div>` : `<nav class="hr-tabs">${(['acts', 'yashiki', 'tabi', 'diary'] as const).map((k) => `<button class="${pane === k ? 'on' : ''}" data-s="pane" data-id="${k}">${{ acts: S.PLACE_NAME[st!.place], yashiki: '屋敷', tabi: '道', diary: '日記' }[k]}</button>`).join('')}</nav>
+        <div class="hr-pane">${sideHtml(st)}</div>`}
       </aside>
     </div>
     ${busy ? `<div class="hr-modal"><div class="hr-busy">${esc(busy)}</div></div>` : ''}
@@ -191,15 +254,29 @@ function renderTheater() {
 setTheater(playTheater); // 武将で遊ぶから呼べるように
 
 // ───────── 動き ─────────
-function show(r: S.Show) { queue.push(...r.beats); if (r.choice) pending = r.choice; if (st && S.moribeDue(st) && !pending) show(S.startMoribe(st)); save(); render(); }
+// 合戦の盤: 読む・決める・飛び込むのあと、槍働きの盤を開く。閉じたら戦を締める
+let banOpen = false;
+function maybeBan() {
+  if (!st?.battle?.ban || banOpen || queue.length || pending) return;
+  banOpen = true;
+  const kind = st.battle.kind;
+  void openBan(S.battleBanOf(st), kind === 'moribe' ? '森部 ― 槍働き' : '桶狭間 ― 槍働き', { me: '#c0483b', foe: '#3f6aa8' }).then((b) => { banOpen = false; if (!st) return; show(S.battleFinish(st, b)); });
+}
+function show(r: S.Show) { queue.push(...r.beats); if (r.choice) pending = r.choice; if (st && S.moribeDue(st) && !pending) show(S.startMoribe(st)); save(); render(); maybeBan(); }
 function onClick(e: Event) {
   const t = (e.target as HTMLElement).closest('[data-s]') as HTMLElement | null;
   if (!t || busy) return;
   const a = t.dataset.s!, id = t.dataset.id ?? '';
   if (a === 'quit') { save(); close(); return; }
+  if (a === 'bld') { win = id as MC.Bld; catNote = ''; render(); return; }
+  if (a === 'dlg-close') { win = null; render(); return; }
+  if (a === 'cat') { const c = CAT1.find((x) => x[0] === id); if (id === 'kiroku') { pane = 'diary'; catNote = ''; } else catNote = `${c?.[1]}: ${c?.[2]}`; render(); return; }
+  if (a === 'teh-off' || a === 'teh-on') { try { localStorage.setItem('sengoku-teh', a === 'teh-on' ? 'on' : 'off'); } catch { /* 続ける */ } render(); return; }
+  if (a === 'machi') { MC.machiSet(id === 'machi'); render(); return; }
+  if ((a === 'wact' || a === 'rest1') && st && !queue.length && !pending && !st.battle) { const [pl, ac] = a === 'rest1' ? [st.place, 'rest'] : id.split(':'); st.place = pl as S.Place; win = null; catNote = ''; teh1New = ''; tehDo1(st, ac as S.ActId); show(S.act(st, ac as S.ActId)); return; }
   if (a === 'new') { begin(false); return; }
   if (a === 'new-skip') { begin(true); return; }
-  if (a === 'continue') { try { st = JSON.parse(localStorage.getItem(KEY)!); } catch { st = null; } if (st) { queue = []; pending = st.battle ? null : S.pendingChoice(st) ?? null; render(); } return; }
+  if (a === 'continue') { try { st = JSON.parse(localStorage.getItem(KEY)!); } catch { st = null; } if (st) { queue = []; pending = st.battle ? null : S.pendingChoice(st) ?? null; render(); maybeBan(); } return; }
   if (a === 'ask' && theaterDone) { const b = queue.shift(); const more = theaterChoose?.(t.dataset.k ?? b?.ask ?? '', id) ?? []; queue.unshift(...more); renderTheater(); return; }
   if (theaterDone && (a === 'next' || a === 'skip')) { // 問いのある場面は飛ばさない
     if (a === 'next') { e.stopPropagation(); if (!queue[0]?.ask) queue.shift(); }
@@ -211,7 +288,7 @@ function onClick(e: Event) {
   if (a === 'skip') { queue = []; render(); return; }
   if (a === 'pane') { pane = id as typeof pane; render(); return; }
   if (a === 'go') { st.place = id as S.Place; pane = 'acts'; bg = S.PLACE_BG[st.place]; render(); return; }
-  if (a === 'act') { pane = id.endsWith('_t') ? 'yashiki' : 'acts'; show(S.act(st, id as S.ActId)); return; }
+  if (a === 'act') { pane = id.endsWith('_t') ? 'yashiki' : 'acts'; teh1New = ''; tehDo1(st, id as S.ActId); show(S.act(st, id as S.ActId)); return; }
   if (a === 'choose' && pending) { const k = pending.key; pending = null; show(S.choose(st, k, id)); return; }
   if (a === 'bchoose') { show(S.battleChoose(st, id)); return; }
   if (a === 'tohero') { void toHero(); return; }
@@ -243,6 +320,7 @@ async function toHero() {
 
 // 物語の文字: 地の文もセリフと同じ書体・大きさで、一文ごとに改行
 const STORY_CSS = `
+#story .hr-scene.machi .hr-town{position:absolute;top:0;left:0;z-index:2}
 #story .st-narr{margin:0;font-family:var(--font-display,serif);font-size:20px;line-height:1.9;color:#ece2cc;letter-spacing:.02em}
 #story .st-line{margin:6px 0 0;font-size:21px;line-height:1.75;font-family:var(--font-display,serif)}
 #story .hr-say{max-height:calc(100% - 90px);overflow:auto}

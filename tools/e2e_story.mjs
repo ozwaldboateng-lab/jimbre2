@@ -21,13 +21,14 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await snap('prologue4');
   await p.click('[data-s="skip"]'); await p.waitForTimeout(100);
   const plan = ['sakaya', 'yashiki:koshin_t', 'go:atsuta', 'yojinbo', 'minato', 'go:kiyosu', 'tsuji', 'kiyosu_sakaya', 'go:arako', 'yashiki:matsu_t', 'suburi', 'sakaya', 'go:fukushima', 'mihari', 'mihari', 'go:arako', 'yashiki:matsu_t'];
-  let k = 0;
+  let k = 0, banSeen = 0;
   for (let it = 0; it < 500; it++) {
     const has = async (sel) => !!(await p.$(sel));
-    if (await has('#story [data-s="tohero"]')) { await snap('done'); const t0 = Date.now(); await p.click('#story [data-s="tohero"]'); await p.waitForSelector('#hero .hr-date', { timeout: 180000 }); console.log(vp.tag, 'tohero ms', Date.now() - t0); break; }
+    if (await has('#story [data-s="tohero"]')) { await snap('done'); const t0 = Date.now(); await p.click('#story [data-s="tohero"]'); await p.waitForSelector('#hero .hr-date', { timeout: 180000 }); console.log(vp.tag, 'tohero ms', Date.now() - t0, '盤', banSeen); if (!banSeen) errors.push(vp.tag + ' 桶狭間の盤が開かない'); break; }
     if (await has('#story .st-fx')) { const k2 = await p.$eval('#story .st-fx', (e) => e.className); if (shot < 34) await snap(k2.replace(/\s+/g, '-')); await p.click('#story .st-fx'); await p.waitForTimeout(60); continue; }
     if (await has('#story .hr-say [data-s="next"]')) { const txt = await p.$eval('#story .hr-say', (e) => e.textContent); if (/桶狭間|森部|帰参|第一幕　了|父の死|浪人の槍|利益/.test(txt) && shot < 30) await snap('scene'); await p.click('#story .hr-say button[data-s="next"]'); await p.waitForTimeout(40); continue; }
     if (await has('#story [data-s="choose"]')) { await snap('choice'); await p.click('#story [data-s="choose"]'); await p.waitForTimeout(60); continue; }
+    if (await has('#ban:not([hidden])')) { await snap('ban'); await p.click('#ban [data-b="auto"]'); await p.waitForTimeout(300); await p.click('#ban [data-b="close"]'); await p.waitForTimeout(300); banSeen++; continue; } // 桶狭間・森部の槍働きの盤
     if (await has('#story [data-s="bchoose"]')) { await snap('battle'); const bs = await p.$$('#story [data-s="bchoose"]'); await bs[bs.length > 2 ? 1 : 0].click(); await p.waitForTimeout(60); continue; }
     const step = plan[k % plan.length]; k++;
     const pl = k > plan.length ? (['go:kiyosu', 'tsuji', 'kiyosu_sakaya', 'go:arako', 'wait', 'yashiki:matsu_t'][k % 6]) : step;
