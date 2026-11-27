@@ -12,7 +12,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.addInitScript(() => { try { localStorage.setItem('sengoku-machi', 'machi'); localStorage.removeItem('sengoku-teh'); localStorage.removeItem('sengoku-story-toshiie'); } catch { /* */ } });
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-story"]'); await p.waitForTimeout(300);
-  await p.click('#story [data-s="new-skip"]'); await p.waitForTimeout(300);
+  await p.click('#story [data-s="new"]'); await p.waitForTimeout(300); for (let k = 0; k < 6 && !(await p.$('#story [data-s="skip"]')); k++) { const fx = await p.$('#story .st-fx'); if (fx) await fx.click(); await p.waitForTimeout(150); } await p.click('#story [data-s="skip"]'); await p.waitForTimeout(300); // 章の扉を送ってから、序幕は「場面をとばす」で
   // 場面を送る（問いがあれば最初の答え）
   const scenes = async () => { let n = 0; for (; n < 80; n++) { if (await p.$('#story .hr-machi')) break; const x = await p.$('#story [data-s="choose"]') ?? await p.$('#story [data-s="bchoose"]') ?? await p.$('#story .st-fx') ?? await p.$('#story .hr-say button[data-s="next"]'); if (!x) break; await x.click(); await p.waitForTimeout(60); } return n; };
   console.log(vp.tag, '帰参の場面まで送った', await scenes());

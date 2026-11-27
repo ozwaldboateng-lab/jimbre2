@@ -57,12 +57,29 @@ export function resumeStory(f: Face, quit: () => void) { openStory(f, quit); con
 export function storySaveLabel(): string | null { try { const x = JSON.parse(localStorage.getItem(KEY) ?? 'null') as S.StoryState | null; return x ? `物語「残り火」・前田利家（${x.done ? '帰参' : '浪人'}） ${x.year}年${x.month}月` : null; } catch { return null; } }
 
 function renderTitle() {
-  root!.innerHTML = `<div><div class="hr-pick">
-    <div class="hr-top"><button class="hr-btn ghost" data-s="quit">← タイトルへ</button><span class="hr-tag">物語・武将として遊ぶの手ほどき</span></div>
-    <h2>前田利家 ― 残り火</h2>
-    <p class="hr-lede">尾張荒子の前田家の四男、犬千代。長すぎる槍と、信長の庭。拾阿弥を斬って清洲を追われた男は、浪人の身から、もう一度あの庭へ戻れるか。<br>第一部「戻る道」: 序幕（犬千代の若き日）→ 第一幕「こぼれた火」（荒子の浪人）→ 無断参戦 → 帰参 → 家督。<br>第二部「北へ立つ」: 前田家を率いて金ヶ崎・姉川へ。そして越前府中の城主に（府中三人衆）。<br>第三部「裂け目」: 七尾落城・手取川・能登の国主・本能寺、そして賤ヶ岳。<br>第四部「根を張る」: 加賀・末森の後詰め・さらさら越え・富山の役・守山城。<br>第五部「残り火」: 太閤の世・利益という風・秀頼・家康・遺言・最期、そして終章。原作: 小説『残り火』。</p>
-    <div class="hr-cont">${storySaved() ? '<button class="hr-btn primary" data-s="continue">続きから</button> ' : ''}<button class="hr-btn${storySaved() ? '' : ' primary'}" data-s="new">はじめから（序幕）</button> <button class="hr-btn ghost" data-s="new-skip">序幕をとばす</button></div>
-    <div style="margin-top:18px">${face('maeda_toshiie', 160)}</div>
+  const parts: [string, string, string][] = [
+    ['第一部', '戻る道', '荒子の浪人から、桶狭間の無断参戦、帰参、家督まで'],
+    ['第二部', '北へ立つ', '前田家を率いて金ヶ崎・姉川へ。越前府中の城主に'],
+    ['第三部', '裂け目', '七尾落城・手取川・能登の国主・本能寺、そして賤ヶ岳'],
+    ['第四部', '根を張る', '加賀へ。末森の籠城と後詰め、北陸の大名に'],
+    ['第五部', '残り火', '天下の静けさと、利家の最期'],
+  ];
+  root!.innerHTML = `<div><div class="hr-pick st-entry">
+    <div class="hr-top"><button class="hr-btn ghost" data-s="quit">← タイトルへ</button><span class="hr-tag">物語</span></div>
+    <div class="st-entry-main">
+      <div class="st-entry-face">${face('maeda_toshiie', 200)}</div>
+      <div>
+        <h2>前田利家 ― 残り火</h2>
+        <p class="hr-lede">尾張荒子の前田家の四男、犬千代。長すぎる槍と、信長の庭。拾阿弥を斬って清洲を追われた男は、浪人の身から、もう一度あの庭へ戻れるか。</p>
+        <div class="st-entry-about">
+          <div><b>前田利家の半生を生きる</b><span>荒子の浪人から加賀百万石まで。小説の筋に沿った場面と問いで、利家の一生を追う。答え方で前田家と領国の行く末が変わる。</span></div>
+          <div><b>武将として遊ぶの手ほどき</b><span>章ごとに、その身分で使えるようになる仕組み（町と旬、主命と出世、槍働き、家と家臣、城の政、領主）を、画面右の「手ほどき」で一つずつ覚える。終えれば「武将として遊ぶ」で、どの時代・どの家の武将でも同じように遊べる。</span></div>
+        </div>
+        <ol class="st-entry-parts">${parts.map(([n, t, d]) => `<li><b>${n}「${t}」</b><span>${d}</span></li>`).join('')}</ol>
+      </div>
+    </div>
+    ${storySaved() ? '<p class="hr-note st-entry-warn">出陣すると、物語ははじめから（序幕から）になる。前の続きは、タイトルの「続きから」で遊べる。</p>' : ''}
+    <button type="button" class="seal-btn st-entry-go" data-s="new">出陣</button>
   </div></div>`;
 }
 
@@ -323,6 +340,21 @@ async function toHero() {
 
 // 物語の文字: 地の文もセリフと同じ書体・大きさで、一文ごとに改行
 const STORY_CSS = `
+#story .st-entry{max-width:960px}
+#story .st-entry-main{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start;margin-top:8px}
+#story .st-entry-face img{border-radius:4px;box-shadow:0 0 0 1px rgba(207,169,94,.5),0 8px 24px rgba(0,0,0,.5)}
+#story .st-entry-about{display:grid;gap:8px;margin:14px 0}
+#story .st-entry-about div{border-left:3px solid #cfa95e;background:rgba(207,169,94,.07);padding:8px 12px}
+#story .st-entry-about div:nth-child(2){border-left-color:#8fc3e8;background:rgba(143,195,232,.07)}
+#story .st-entry-about b{display:block;font-family:var(--font-display,serif);font-weight:400;font-size:17px;letter-spacing:.06em;margin-bottom:2px}
+#story .st-entry-about span{font-size:13px;line-height:1.7;color:#d9ccb0}
+#story .st-entry-parts{list-style:none;padding:0;margin:0;display:grid;gap:4px}
+#story .st-entry-parts li{display:grid;grid-template-columns:11em 1fr;gap:8px;font-size:13px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+#story .st-entry-parts b{font-weight:500;color:#e8c070}
+#story .st-entry-parts span{color:#b8ab92}
+#story .st-entry-warn{margin:14px 0 0}
+#story .st-entry-go{display:block;width:min(360px,100%);margin:18px auto 0;font-size:22px;padding:12px;letter-spacing:.4em;cursor:pointer}
+@media (max-width:820px){#story .st-entry-main{grid-template-columns:1fr}#story .st-entry-face img{width:140px;height:175px;margin:0 auto}#story .st-entry-parts li{grid-template-columns:1fr}#story .st-entry-go{position:sticky;bottom:8px}}
 #story .hr-scene.machi .hr-town{position:absolute;top:0;left:0;z-index:2}
 #story .st-narr{margin:0;font-family:var(--font-display,serif);font-size:20px;line-height:1.9;color:#ece2cc;letter-spacing:.02em}
 #story .st-line{margin:6px 0 0;font-size:21px;line-height:1.75;font-family:var(--font-display,serif)}
