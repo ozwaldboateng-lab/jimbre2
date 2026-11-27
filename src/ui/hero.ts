@@ -44,6 +44,7 @@ import { SCENARIOS } from '../data/scenarios';
 import { castleAt, castleKoku, clanCastles, clanName } from '../engine/state';
 import type { GameState, General } from '../engine/types';
 import * as MC from './machi';
+import * as TH from '../engine/tehodoki';
 import { castleCom } from '../engine/money';
 
 const KEY = 'sengoku-hero-auto';
@@ -62,7 +63,8 @@ let bg = 'town';
 let say: { who?: string; line?: string; text: string; hold?: boolean; offer?: boolean; kake?: RK.Kake } | null = null; // hold: セリフの窓（押すと閉じる）。offer: 主命を承るか断るか
 let offerMsg = ''; // 誘いの窓に出す、さっきの返事の首尾
 let dlg: { kind: 'person'; id: string } | { kind: 'bld'; id: MC.Bld } | { kind: 'cat'; id: Cat } | { kind: 'dojo' | 'tera' | 'offers' | 'ronko' | 'gungi' } | null = null;
-let machiB: Record<MC.Bld, string[]> | null = null; // 城下の町: 建物ごとの行動（描くたびに作り直す）
+let machiB: Record<MC.Bld, string[]> | null = null;
+let tehKey: string | null = null, tehNew: string[] = []; // 手ほどき: いま押した行いの印・新しく済んだ目標の知らせ // 城下の町: 建物ごとの行動（描くたびに作り直す）
 let ronkoAlloc: Record<string, number> = {}; // 論功行賞で配る手柄 // 画面に立ち上げる窓（会う相手・道場・寺）
 let heldReport: string[] | null = null, heldBeats: Beat[] | null = null; // セリフの窓を閉じるまで待たせる、月の報告と出世の場面
 let busy = false;
@@ -165,13 +167,13 @@ function render() {
       <section class="hr-scene${mapMode(st) ? ' map' : ''}${machiB ? ' machi' : ''}" style="${art && !mapMode(st) && !machiB ? `background-image:url(${art})` : ''}">
         ${mapMode(st) ? '<div id="hr-mapslot"></div>' : ''}
         <div class="hr-town">${H.inArmy(st) ? (() => { const a = H.inArmy(st)!; return `<b>${esc(st.generals[a.main]?.name ?? '')}の陣中</b><span>${esc(castleAt(st, a.hex)?.name ?? PROVINCES[HEXES[a.hex].p].name + 'の野')}・兵${a.troops.toLocaleString('ja-JP')}・士気${a.morale.toFixed(2)}</span>`; })() : Hh.field ? `<b>${esc(PROVINCES[HEXES[Hh.hex].p].name)}の野</b><span>旅の途中</span>` : `<b>${esc(c.name)}の城下</b><span>${c.owner ? `${esc(clanName(st, c.owner))}家の城` : '国人の城'}${c.owner && c.owner !== me.clan ? '（他国）' : ''}</span>`}</div>
-        ${machiB ? MC.machiHtml(machiB, machiView(st), RP.isRonin(st), !!say?.hold || !!dlg || !!report) : ''}
+        ${machiB ? MC.machiHtml(machiB, machiView(st), RP.isRonin(st), !!say?.hold || !!dlg || !!report, tehMarks(st).bld) : ''}
         ${dlg && !report ? dlgHtml(st) : ''}
         ${say && !dlg ? `<div class="hr-say${mapMode(st) ? ' mini' : ''}${sayArt ? ' scene' : machiB && !say.hold ? ' machi' : ''}${say.hold && !say.offer ? ' hold' : ''}"${sayArt && !say.offer ? ' data-h="scene-close"' : say.hold && !say.offer ? ' data-h="say-close"' : ''}>${sayArt ? `<div class="hr-sayart" style="background-image:url(${sayArt})"></div>` : ''}${say.kake?.length ? kakeHtml(st, say.kake) : ''}${say.who && say.line ? `<div class="hr-who">${face(say.who, 128) || ''}<div><b>${esc(st.generals[say.who]?.name ?? '')}</b><p>「${esc(say.line)}」</p></div></div>` : ''}<p class="hr-text">${esc(say.text)}</p>${say.offer ? hyojoHtml(st) : say.hold || sayArt ? '<span class="hr-close">▼ 押して閉じる</span>' : ''}</div>` : ''}
       </section>
       <aside class="hr-side">
         <nav class="hr-tabs">${(['spots', 'yashiki', 'tabi'] as const).filter((k) => !(machiB && k === 'yashiki')).map((k) => `<button class="${pane === k ? 'on' : ''}" data-h="pane" data-id="${k}">${{ spots: '城下', yashiki: '屋敷', tabi: '旅' }[k]}</button>`).join('')}</nav>
-        <div class="hr-pane">${pane === 'spots' ? (machiB ? MC.sideHtml(machiB, meInfo(st) + kuniInfo(st), stripsHtml(st)) : (townish(st) ? '<p class="hr-note"><button class="hr-btn ghost sm" data-h="machi" data-id="machi">町で表示する</button></p>' : '') + spotsOut) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : pane === 'shiro' || pane === 'homen' ? (isRyoOut(st) ? ryoOutNote() : pane === 'shiro' ? castleHtml(st) : homenHtml(st)) : diaryHtml(st)}</div>
+        <div class="hr-pane">${pane === 'spots' ? (machiB ? MC.sideHtml(machiB, meInfo(st) + kuniInfo(st), tehHtml(st) + stripsHtml(st)) : tehHtml(st) + (townish(st) ? '<p class="hr-note"><button class="hr-btn ghost sm" data-h="machi" data-id="machi">町で表示する</button></p>' : '') + spotsOut) : pane === 'yashiki' ? peopleHtml(st) : pane === 'tabi' ? travelHtml(st) : pane === 'akinai' ? tradeHtml(st) : pane === 'shiro' || pane === 'homen' ? (isRyoOut(st) ? ryoOutNote() : pane === 'shiro' ? castleHtml(st) : homenHtml(st)) : diaryHtml(st)}</div>
       </aside>
     </div>
     ${report ? `<div class="hr-modal"><div class="hr-report"><h3>${Hh.over && CR.freeHero(st) ? '一生の締め' : `${st.year}年${st.month}月を迎えた`}</h3><ul>${report.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>${Hh.over && CR.freeHero(st) && FA.heirSon(st) ? `<button class="hr-btn primary" data-h="succeed">${esc(FA.heirSon(st)!.name)}が家を継いで続ける</button> ` : ''}<button class="hr-btn${Hh.over && FA.heirSon(st) ? '' : ' primary'}" data-h="report-ok">${Hh.over ? '閉じる' : '城下へ'}</button></div></div>` : ''}
@@ -272,7 +274,8 @@ function headHtml(st: GameState) {
     ...(Hh.story !== 'toshiie' && me.clan ? [stat('率いる兵', `${H.heiCap(st).toLocaleString('ja-JP')}まで`)] : []),
     ...(Hh.ie ? [stat(Hh.story === 'toshiie' ? '荒子衆' : '手勢', `${Hh.ie.shu}`)] : []),
   ].join('');
-  const cats = (Object.keys(CAT_NAME) as Cat[]).map((k) => { const w = catWhy(st, k); return `<button type="button" class="plaque${w ? ' off' : ''}" data-h="cat" data-id="${k}" title="${esc(w ?? CAT_NAME[k])}">${CAT_NAME[k]}</button>`; }).join('');
+  const tm = tehMarks(st);
+  const cats = (Object.keys(CAT_NAME) as Cat[]).map((k) => { const w = catWhy(st, k); return `<button type="button" class="plaque${w ? ' off' : ''}${!w && tm.cat.has(k) ? ' teh' : ''}" data-h="cat" data-id="${k}" title="${esc(w ?? CAT_NAME[k])}">${CAT_NAME[k]}</button>`; }).join('');
   const camp = H.inArmy(st) && !HA.leading(st);
   return `<header class="bar hr-head"><div class="brand"><button type="button" class="seal" data-h="quit" title="保存してタイトルへ">陣</button><div class="brand-text hr-id"><div class="title"><b>${esc(me.name)}</b><span>${me.clan ? `${clanName(st, me.clan)}家・${R.RANK_NAME[me.rank]}` : '浪人'}${Hh.title ? `・${esc(Hh.title)}` : ''}</span></div><div class="date hr-date">${H.JUN_NAME[Math.min(2, Hh.jun)]}<small>${st.year}年${st.month}月</small></div></div></div>
     <dl class="stats hr-stats">${stats}</dl>
@@ -310,6 +313,19 @@ function catWin(st: GameState, k: Cat) {
   }
   return `<div class="hr-dlg hr-bldwin"><div class="hr-bldart" style="background-image:url(${ART(k === 'gunji' ? 'jinmaku' : 'zashiki_day') ?? ''})"><h4>${CAT_NAME[k]}<small>${esc(H.heroOf(st)!.name)}</small></h4></div><div class="hr-bldbody">${body}</div><div class="hr-bldfoot"><button class="hr-btn hr-dclose" data-h="dlg-close">閉じる</button></div></div>`;
 }
+// ───────── 手ほどき（前田利家の物語の中だけ） ─────────
+const TEH_KEY = 'sengoku-teh';
+const tehOn = () => { try { return localStorage.getItem(TEH_KEY) !== 'off'; } catch { return true; } };
+function tehSet(on: boolean) { try { localStorage.setItem(TEH_KEY, on ? 'on' : 'off'); } catch { /* 続ける */ } }
+const TEH_NOW = new Set(['q-pick', 'q-accept', 'gungi-open', 'ryo-back', 'myhyo', 'meet']); // 窓を開くだけの行い（act を通らない）は押した時に記録
+function tehRecord(st: GameState) { if (!tehKey) return; TH.did(st, tehKey); tehKey = null; const n = TH.sync(st); if (n.length) { tehNew = n; for (const x of n) H.note(st, x); } }
+function tehHtml(st: GameState) {
+  const gs = TH.goalsOf(st); if (!gs) return '';
+  if (!tehOn()) return '<p class="hr-note"><button class="hr-btn ghost sm" data-h="teh-on">手ほどきを出す</button></p>';
+  const left = gs.list.filter((x) => !x.done).length;
+  return `<div class="hr-teh"><h4 class="hr-sub">手ほどき ― ${TH.CHAP_NAME[gs.chap]}<span>${left ? `あと${left}` : 'すべて済んだ'}</span></h4>${tehNew.length ? `<p class="hr-tehnew">${tehNew.map(esc).join('<br>')}</p>` : ''}<ul>${gs.list.map(({ g, done }) => `<li class="${done ? 'done' : ''}"><b>${done ? '✓' : '・'} ${esc(g.label)}</b>${done ? '' : `<span>${esc(g.hint)}</span>`}</li>`).join('')}</ul><button class="hr-btn ghost sm" data-h="teh-off">手ほどきを消す</button></div>`;
+}
+const tehMarks = (st: GameState) => (tehOn() ? TH.marks(st) : { bld: new Set<string>(), cat: new Set<string>() });
 // 町の見た目: スマホか・城の大きさ（15万石以上は天守の城）・自分の屋敷（家の格。浪人は長屋）・冬（十二月〜二月は雪）
 const narrow = () => window.matchMedia('(max-width:820px)').matches;
 function machiView(st: GameState): MC.MachiView {
@@ -662,6 +678,7 @@ async function act(fn: () => H.Act, scene?: string, allowSick = false, kk?: (r: 
   if (heldReport) { report = heldReport; heldReport = null; render(); return; } // 閉じずに次へ進もうとした: 先に月の報告を見せる
   const r = fn();
   if (!r.ok) { say = { text: r.text }; if (keep && machiable(s)) dlg = { kind: 'bld', id: keep }; render(); return; }
+  tehRecord(s);
   if (scene) bg = keep ? 'town' : scene; // 建物の窓からの行動では、町の画面はそのまま（場面の絵も添えない）
   const kake = kk && kakeOn() ? kk(r) : undefined; // 浪人の掛け合い（顔とセリフを二、三行）
   const hold = (!!(r.who && r.line) || !!kake?.length) && !mapMode(s);
@@ -877,6 +894,10 @@ function onClick(e: Event) {
   if (!b || busy) return;
   const h = b.dataset.h!, id = b.dataset.id ?? '';
   if (h === 'quit') { save(); s = null; close(); return; }
+  if (h === 'teh-off' || h === 'teh-on') { tehSet(h === 'teh-on'); render(); return; }
+  if (!['pane', 'cat', 'bld', 'dlg-close', 'say-close', 'scene-close', 'report-ok'].includes(h)) tehNew = []; // 前の知らせは、次の行いで消す
+  tehKey = h === 'spot' ? `spot:${id}` : h === 'train' ? `train:${id}` : h; // 手ほどき: 行いが通ったら記録する
+  if (s && TEH_NOW.has(h)) tehRecord(s);
   if (h === 'pick') { begin(id); return; }
   if (h === 'pscen') { pickScen = id; pickClan = null; renderPick(); return; }
   if (h === 'pclan') { pickClan = id; renderPick(); return; }

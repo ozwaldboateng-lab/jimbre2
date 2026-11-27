@@ -64,7 +64,7 @@ export function split(html: string): Record<Bld, string[]> {
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const hasMain = (xs: string[]) => xs.some((x) => /class="hr-spot main"/.test(x) && !/disabled/.test(x));
 // 町: 地面の上に、奥（上）から順に建物と埋め草を並べる。建物は押せる（名札と、急ぎの用の印）
-export function machiHtml(b: Record<Bld, string[]>, v: MachiView, ronin: boolean, dim: boolean) {
+export function machiHtml(b: Record<Bld, string[]>, v: MachiView, ronin: boolean, dim: boolean, teh: Set<string> = new Set()) {
   const L = LAYOUT[v.sp ? 'sp' : 'pc'];
   const ground = MACHI_ART[v.snow && !v.sp ? 'ground_snow' : v.sp ? 'ground_sp' : 'ground_pc'];
   const artOf = (k: Bld) => (k === 'shiro' ? (v.castle === 'yake' ? 'shiro_yake' : v.castle === 'l' ? 'shiro_l' : 'shiro_s') : k === 'ie' ? (v.ie === 'nagaya' ? 'nagaya' : `ie_${v.ie}`) : k);
@@ -72,7 +72,7 @@ export function machiHtml(b: Record<Bld, string[]>, v: MachiView, ronin: boolean
   const items = L.slots.map((sl) => { const on = sl.k && b[sl.k]?.length; const key = on || sl.k === 'shiro' ? artOf(sl.k!) : sl.k ? sl.alt : sl.art; return { sl, on: !!on, key }; }).filter((x) => x.key && MACHI_ART[x.key]).sort((a, c) => a.sl.y - c.sl.y);
   const pos = (key: string, sl: Slot) => { const a = MACHI_ART[key]; return `left:${sl.x}%;top:${sl.y}%;width:${((a.w * K * (sl.s ?? 1)) / L.gw * 100).toFixed(2)}%`; };
   const html = items.map(({ sl, on, key }) => on
-    ? `<button class="hr-bldi${hasMain(b[sl.k!]) ? ' mark' : ''}" data-h="bld" data-id="${sl.k}" style="${pos(key!, sl)}" title="${esc(BLD_SUB[sl.k!])}"><img src="${MACHI_ART[key!].src}" alt=""><b class="hr-bldtag">${esc(sl.k === 'ie' ? ieName(ronin) : BLD_NAME[sl.k!])}</b></button>`
+    ? `<button class="hr-bldi${hasMain(b[sl.k!]) ? ' mark' : ''}${teh.has(sl.k!) ? ' teh' : ''}" data-h="bld" data-id="${sl.k}" style="${pos(key!, sl)}" title="${esc(BLD_SUB[sl.k!])}"><img src="${MACHI_ART[key!].src}" alt=""><b class="hr-bldtag">${esc(sl.k === 'ie' ? ieName(ronin) : BLD_NAME[sl.k!])}</b></button>`
     : `<img class="hr-fill" src="${MACHI_ART[key!].src}" style="${pos(key!, sl)}" alt="">`).join('');
   return `<div class="hr-machi${dim ? ' dim' : ''}${v.sp ? ' sp' : ''}"><div class="hr-machi-map" style="background-image:url(${ground.src});aspect-ratio:${L.ratio}">${html}</div></div>`;
 }
@@ -131,5 +131,18 @@ export const MACHI_CSS = `
 .hr-kuni li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .hr-kuni li.here{color:#f1d58e}
 .hr-kuni em{font-style:normal;color:#b8ab92;white-space:nowrap}
+.hr-bldi.teh .hr-bldtag{border-color:#8fc3e8;box-shadow:0 0 0 2px rgba(143,195,232,.5),0 0 10px rgba(143,195,232,.7);animation:tehPulse 1.6s ease-in-out infinite}
+@keyframes tehPulse{50%{box-shadow:0 0 0 3px rgba(143,195,232,.25),0 0 4px rgba(143,195,232,.3)}}
+#hero .plaque.teh{border-color:#8fc3e8;box-shadow:0 0 0 1px rgba(143,195,232,.6),0 0 8px rgba(143,195,232,.6)}
+.hr-teh{border:1px solid rgba(143,195,232,.45);background:rgba(143,195,232,.06);border-radius:4px;padding:6px 10px 8px;margin:4px 0 10px}
+.hr-teh h4{display:flex;justify-content:space-between;align-items:baseline;color:#9fcbe8!important;margin:2px 0 4px}
+.hr-teh h4 span{font-size:11px;color:#b8ab92;font-family:var(--font-ui,sans-serif)}
+.hr-teh ul{list-style:none;margin:0 0 6px;padding:0}
+.hr-teh li{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.hr-teh li b{font-weight:500;font-size:13px}
+.hr-teh li span{display:block;font-size:11.5px;color:#b8ab92;margin:1px 0 0 14px;line-height:1.5}
+.hr-teh li.done b{color:#8fbf7a;opacity:.85}
+.hr-tehnew{margin:4px 0 6px;padding:5px 8px;background:rgba(143,191,122,.14);border-left:3px solid #8fbf7a;font-size:12.5px}
+@media (prefers-reduced-motion: reduce){.hr-bldi.teh .hr-bldtag{animation:none}}
 .hr-bldlist{display:flex;flex-wrap:wrap;gap:6px}
 `;
