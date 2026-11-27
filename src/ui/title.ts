@@ -19,8 +19,15 @@ export interface TitleDeps {
   face: (id: string | null | undefined, w: number) => string;
   start: (clan: string, diff: R.Difficulty, scen: string) => void;
   resume: () => void;
-  hero: () => void; // 武将で遊ぶ（試作）
-  story: () => void; // 前田利家 ― 残り火
+  hero: () => void; // 武将として遊ぶ
+  story: () => void; // 物語「前田利家 ― 残り火」（武将として遊ぶの手ほどき）
+  heroLabel: string | null; storyLabel: string | null; last: string; // 武将・物語の保存の名と、最後に遊んだもの（daimyo・hero・story）
+  resumeHero: () => void; resumeStory: () => void;
+}
+// 保存の一覧（最後に遊んだものを先に）
+function savesOf(d: TitleDeps): { key: string; label: string; act: string }[] {
+  const xs = [...(d.auto ? [{ key: 'daimyo', label: d.autoLabel, act: 'resume' }] : []), ...(d.heroLabel ? [{ key: 'hero', label: d.heroLabel, act: 'resume-hero' }] : []), ...(d.storyLabel ? [{ key: 'story', label: d.storyLabel, act: 'resume-story' }] : [])];
+  return xs.sort((a, b) => Number(b.key === d.last) - Number(a.key === d.last));
 }
 
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -30,7 +37,7 @@ const kanjiNum = (n: number) => [...String(n)].map((d) => '〇一二三四五六
 const ERA_KANJI: Record<string, string> = { '1536': '天文五年', '1552': '天文二十一年', '1560': '永禄三年', '1582': '天正十年', '1600': '慶長五年', '1572': '元亀三年' };
 const DIFF_NOTE: Record<R.Difficulty, string> = { easy: 'AIは慎重に攻め、動員も控えめ。', normal: '標準。', hard: 'AIは攻め気が強く、囲みを狙う。', veryhard: 'AIの見積もりが鋭く、隙を見逃さない。' };
 
-type Screen = 'top' | 'era' | 'clan' | 'help' | 'opening';
+type Screen = 'top' | 'era' | 'clan' | 'help' | 'opening' | 'cont';
 let view: MapView | null = null;
 let screen: Screen = 'top';
 let scen = '1560';
@@ -119,7 +126,7 @@ function choose(id: string, move: boolean) {
 function back() {
   if (screen === 'opening') { endOpening(); return; }
   if (screen === 'clan') go('era');
-  else if (screen === 'era' || screen === 'help') go('top');
+  else if (screen === 'era' || screen === 'help' || screen === 'cont') go('top');
 }
 
 function onClick(e: Event) {
@@ -129,7 +136,8 @@ function onClick(e: Event) {
   if (act === 't-new') go('era');
   else if (act === 't-hero') { closeTitleScreen(); deps.hero(); }
   else if (act === 't-story') { closeTitleScreen(); deps.story(); }
-  else if (act === 't-continue') { closeTitleScreen(); deps.resume(); }
+  else if (act === 't-continue') { const xs = savesOf(deps); if (xs.length > 1) go('cont'); else if (xs[0]) runSave(deps, xs[0].act); }
+  else if (act === 'cont-pick') runSave(deps, id);
   else if (act === 't-help') go('help');
   else if (act === 't-back') back();
   else if (act === 'pick-scen') { scen = id; setPreview(); if (OPENINGS[scen]?.length && openingOn() && !opSeen.has(scen)) { opSeen.add(scen); startOpening(); } else go('clan'); } // 時代を選んだら、まず序幕（同じ時代は一度だけ）
@@ -140,11 +148,16 @@ function onClick(e: Event) {
   else if (act === 'op-skip') endOpening();
 }
 
+function runSave(d: TitleDeps, act: string) { closeTitleScreen(); if (act === 'resume-hero') d.resumeHero(); else if (act === 'resume-story') d.resumeStory(); else d.resume(); }
+function contHtml() {
+  return `<div class="ttl-era"><button type="button" class="ttl-back" data-act="t-back">← 戻る</button><h2>続きから</h2><p class="era-l" style="margin:0 0 12px">最後に遊んだものが先頭。</p><nav class="ttl-menu static">${savesOf(deps!).map((x, i) => `<button type="button" class="ttl-item" data-act="cont-pick" data-id="${x.act}"><b>${i === 0 ? '最後に遊んだもの' : { daimyo: '大名として遊ぶ', hero: '武将として遊ぶ', story: '物語「残り火」' }[x.key]}</b><span>${esc(x.label)}</span></button>`).join('')}</nav></div>`;
+}
 function render() {
   const body = $('ttl-body');
   if (screen === 'opening') { body.innerHTML = openingHtml(); body.scrollTop = 0; $('title').scrollTop = 0; return; } // 押した札へのフォーカスで画面がずれないよう戻す
   if (screen === 'top') body.innerHTML = topHtml();
   else if (screen === 'era') body.innerHTML = eraHtml();
+  else if (screen === 'cont') body.innerHTML = contHtml();
   else if (screen === 'help') body.innerHTML = `<div class="ttl-help"><button type="button" class="ttl-back" data-act="t-back">← 戻る</button><h2>遊び方</h2>${deps!.help(preview!)}</div>`;
   else {
     const keep = body.querySelector('.ttl-feat')?.scrollTop ?? 0;
@@ -161,10 +174,11 @@ function topHtml() {
   const d = deps!;
   return `${brand()}
   <nav class="ttl-menu" aria-label="タイトル">
-    <button type="button" class="ttl-item" data-act="t-new"><b>新しく始める</b><span>時代と家を選んで出陣する</span></button>
-    <button type="button" class="ttl-item" data-act="t-story"><b>前田利家 ― 残り火</b><span>浪人の身から、もう一度信長の庭へ。そして北へ（物語・全五部）</span></button>
-    <button type="button" class="ttl-item" data-act="t-hero"><b>武将で遊ぶ<small>（試作）</small></b><span>大名家の家臣か浪人として城下を歩き、出世を目指す</span></button>
-    ${d.auto ? `<button type="button" class="ttl-item" data-act="t-continue"><b>続きから</b><span>${esc(d.autoLabel)}</span></button>` : ''}
+    ${(() => { const xs = savesOf(d); return xs.length ? `<button type="button" class="ttl-item cont" data-act="t-continue"><b>続きから</b><span>${esc(xs[0].label)}${xs.length > 1 ? `（ほか${xs.length - 1}つ）` : ''}</span></button><hr class="ttl-sep">` : ''; })()}
+    <button type="button" class="ttl-item" data-act="t-new"><b>大名として遊ぶ</b><span>時代と家を選び、家を率いて天下を目指す</span></button>
+    <button type="button" class="ttl-item" data-act="t-hero"><b>武将として遊ぶ</b><span>一人の武将（または浪人）として城下に生き、出世を目指す</span></button>
+    <hr class="ttl-sep">
+    <button type="button" class="ttl-item" data-act="t-story"><b>物語「前田利家 ― 残り火」<small>はじめての方に</small></b><span>武将として遊ぶ仕組みを、利家の一生で覚える（全五部）</span></button>
     <button type="button" class="ttl-item" data-act="t-help"><b>遊び方</b><span>操作・用語・仕組み</span></button>
   </nav>
   <p class="ttl-foot">戦の前に兵を召し集める触れを「陣触」という。</p>`;

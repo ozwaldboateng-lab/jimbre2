@@ -765,3 +765,8 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 /* 領主: 城の治め（内政の表の治安の欄） */
 .naisei-tbl .osame { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 3px; justify-content: flex-end; }
 .naisei-tbl .osame .mini { padding: 1px 5px; font-size: 11px; }
+/* タイトルの区切りと「続きから」・「はじめての方に」 */
+.ttl-sep { border: 0; border-top: 1px solid var(--hair); margin: 4px 0; opacity: 0.6; }
+.ttl-item.cont { border-left-color: var(--vermilion); }
+.ttl-item b small { font-family: var(--font-body); font-size: 11px; letter-spacing: 0.05em; color: #9fcbe8; border: 1px solid rgba(143, 195, 232, 0.5); border-radius: 3px; padding: 1px 6px; margin-left: 10px; vertical-align: middle; }
+.ttl-menu.static { position: static; width: auto; }

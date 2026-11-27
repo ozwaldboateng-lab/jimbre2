@@ -1,4 +1,4 @@
-// 武将プレイ（試作）の画面: 城下の一枚絵・行ける所・人の一覧・言葉の窓・日記。旅は日本地図の上を部隊の移動と同じように進む
+// 武将として遊ぶの画面: 城下の一枚絵・行ける所・人の一覧・言葉の窓・日記。旅は日本地図の上を部隊の移動と同じように進む
 import { SCENE_ART } from '../data/sceneArt';
 import { MINATO_ART } from '../data/scenes';
 import { runClanAI } from '../engine/ai';
@@ -82,7 +82,7 @@ const mapMode = (st: GameState) => pane === 'tabi' || (!!st.hero!.field && !H.in
 export function heroSaved(): boolean { try { return !!localStorage.getItem(KEY); } catch { return false; } }
 // 合戦の采配の既定: 自ら（自動テストの間は任せる）
 function cmdDefault(st: GameState) { if (st.hero && st.hero.selfCommand === undefined) { let ask = true; try { ask = !navigator.webdriver || localStorage.getItem('sengoku-herobattle') === 'ask'; } catch { /* 続ける */ } st.hero.selfCommand = ask; } }
-function save() { try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 保存できなくても続ける */ } }
+function save() { try { if (s) { localStorage.setItem(KEY, JSON.stringify(s)); localStorage.setItem('sengoku-last', 'hero'); } } catch { /* 保存できなくても続ける */ } }
 
 // 入り口: 主人公を選ぶ画面から
 export function openHero(f: Face, quit: () => void) {
@@ -91,6 +91,15 @@ export function openHero(f: Face, quit: () => void) {
   s = null; pane = 'spots'; say = null; report = null; heldReport = null; heldBeats = null;
   renderPick();
 }
+// 続きから（タイトルの「続きから」からも）
+function contHero() { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { cmdDefault(s); s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; if (CR.freeHero(s) && !s.hero!.over && s.hero!.mode === 'ryoshu' && maybeRyoshu(s)) return; render(); runStory(); }}
+export function resumeHero(f: Face, quit: () => void) { openHero(f, quit); contHero(); }
+// タイトルの「続きから」に出す名: 武将・木下藤吉郎（織田家・侍大将） 1562年3月。利家の物語の中なら「物語」
+export function heroSaveLabel(): string | null {
+  try { const x = JSON.parse(localStorage.getItem(KEY) ?? 'null') as GameState | null; if (!x?.hero) return null; const g = x.generals[x.hero.id]; return `${x.hero.story === 'toshiie' ? '物語「残り火」' : '武将'}・${g.name}（${g.clan ? `${clanName(x, g.clan)}家・${R.RANK_NAME[g.rank]}` : '浪人'}） ${x.year}年${x.month}月`; } catch { return null; }
+}
+let storyLink: (() => void) | null = null; // 時代選びの「はじめての方は利家の物語から」（app.ts が渡す）
+export function setStoryLink(f: () => void) { storyLink = f; }
 function mount() {
   if (!document.getElementById('hero-style')) { const st = document.createElement('style'); st.id = 'hero-style'; st.textContent = CSS + MC.MACHI_CSS; document.head.appendChild(st); }
   root = document.getElementById('hero');
@@ -105,10 +114,11 @@ const pickReady = () => { if (!pickState || pickState.scenario !== pickScen) { l
 const candOf = (st: GameState, clan: string) => Object.values(st.generals).filter((g) => (clan === 'ronin' ? !g.clan && g.status === 'ronin' : g.clan === clan && st.clans[clan].leader !== g.id) && g.status !== 'young' && g.status !== 'dead' && g.status !== 'captive' && !g.ikki)
   .sort((a, b) => a.rank - b.rank || (b.bra + b.int + b.lea + b.cha) - (a.bra + a.int + a.lea + a.cha));
 function renderPick() {
-  const top = `<div class="hr-top"><button class="hr-btn ghost" data-h="${pickScen ? 'pback' : 'quit'}">${pickScen ? '← 戻る' : '← タイトルへ'}</button><span class="hr-tag">武将で遊ぶ</span></div>`;
+  const top = `<div class="hr-top"><button class="hr-btn ghost" data-h="${pickScen ? 'pback' : 'quit'}">${pickScen ? '← 戻る' : '← タイトルへ'}</button><span class="hr-tag">武将として遊ぶ</span></div>`;
   const cont = heroSaved() ? '<div class="hr-cont"><button class="hr-btn primary" data-h="continue">続きから</button></div>' : '';
   if (!pickScen) { // 年代
-    root!.innerHTML = `<div class="hr-pick">${top}<h2>どの時代に生きるか</h2><p class="hr-lede">大名の家は大名（AI）が動かす。あなたは家臣の一人（または浪人）として城下を歩き、主命を果たし、人と交わって出世を目指す。謀反・出奔・仕官・旗揚げもできる。1か月は上旬・中旬・下旬の3旬。1旬に一つ行う。</p>${cont}
+    const guide = storyLink ? '<button class="hr-card hr-guide" data-h="tostory"><b>はじめての方は、物語「前田利家 ― 残り火」から</b><span class="hr-st">荒子の浪人から加賀百万石まで、利家の一生を追いながら、町・主命・槍働き・家・城・領主の遊び方を章ごとに覚える。</span></button>' : '';
+    root!.innerHTML = `<div class="hr-pick">${top}${guide}<h2>どの時代に生きるか</h2><p class="hr-lede">大名の家は大名（AI）が動かす。あなたは家臣の一人（または浪人）として城下を歩き、主命を果たし、人と交わって出世を目指す。謀反・出奔・仕官・旗揚げもできる。1か月は上旬・中旬・下旬の3旬。1旬に一つ行う。</p>${cont}
       <div class="hr-grid">${[...SCENARIOS].sort((a, b) => a.year - b.year).map((x) => `<button class="hr-card hr-era" data-h="pscen" data-id="${x.id}"><b>${esc(x.title)}</b><span>${x.year}年${x.month}月</span><span class="hr-st">${esc(x.lede)}</span></button>`).join('')}</div></div>`;
     return;
   }
@@ -714,7 +724,7 @@ async function advance() {
     busy = true; render();
     const end = await monthStep(st, lines);
     busy = false;
-    if (end) { report = [...lines, end, CR.freeHero(st) ? '一生を終えた。' : '試作はここまで。']; render(); try { localStorage.removeItem(KEY); } catch { /* 続ける */ } return; }
+    if (end) { report = [...lines, end, CR.freeHero(st) ? '一生を終えた。' : '物語はここまで。']; render(); try { localStorage.removeItem(KEY); } catch { /* 続ける */ } return; }
   }
   if (monthPassed && FA.inherited(st)) { save(); render(); inherit(st, lines); return; } // 主家の家督を継いだ: 大名プレイへ
   const hadShiro = CR.hasStep(st, 'shiro');
@@ -897,6 +907,7 @@ function onClick(e: Event) {
   if (!b || busy) return;
   const h = b.dataset.h!, id = b.dataset.id ?? '';
   if (h === 'quit') { save(); s = null; close(); return; }
+  if (h === 'tostory' && storyLink) { if (root) root.hidden = true; storyLink(); return; }
   if (h === 'teh-off' || h === 'teh-on') { tehSet(h === 'teh-on'); render(); return; }
   if (!['pane', 'cat', 'bld', 'dlg-close', 'say-close', 'scene-close', 'report-ok'].includes(h)) tehNew = []; // 前の知らせは、次の行いで消す
   tehKey = h === 'spot' ? `spot:${id}` : h === 'train' ? `train:${id}` : h; // 手ほどき: 行いが通ったら記録する
@@ -905,7 +916,7 @@ function onClick(e: Event) {
   if (h === 'pscen') { pickScen = id; pickClan = null; renderPick(); return; }
   if (h === 'pclan') { pickClan = id; renderPick(); return; }
   if (h === 'pback') { if (pickClan) pickClan = null; else pickScen = ''; renderPick(); return; }
-  if (h === 'continue') { try { s = JSON.parse(localStorage.getItem(KEY)!); } catch { s = null; } if (s) { cmdDefault(s); s.hero!.hex ??= s.castles[s.hero!.town].hex; bg = 'town'; pane = 'spots'; recenter = true; say = { text: `${s.castles[s.hero!.town].name}の城下に戻った。` }; if (CR.freeHero(s) && !s.hero!.over && s.hero!.mode === 'ryoshu' && maybeRyoshu(s)) return; render(); runStory(); } return; }
+  if (h === 'continue') { contHero(); return; }
   if (!s) return;
   if (h === 'succeed') { const r = FA.succeedSon(s); report = null; pane = 'spots'; bg = 'town'; say = { text: r.text }; H.note(s, r.text); save(); render(); return; }
   if (s.hero?.over && !['pane', 'report-ok'].includes(h)) return; // 終わったあとは見るだけ
@@ -1110,6 +1121,7 @@ export const CSS = `
 #hero .seal-btn:disabled{opacity:.4;cursor:default}
 @media (max-width:560px){#hero .hr-main{padding-bottom:calc(56px + env(safe-area-inset-bottom,0px))}} /* 狭い画面では札の帯が下に固定される（大名プレイと同じ）。その分あける */
 @media (max-width:820px){#hero .bar .stats{order:3;flex-basis:100%}#hero .bar .cmds{margin-left:0}#hero .plaque{padding:5px 8px;font-size:12.5px}#hero .seal-btn{padding:5px 12px;font-size:14px}}
+.hr-guide{display:block;width:100%;text-align:left;margin:0 0 16px;border-color:rgba(143,195,232,.55)!important;background:rgba(143,195,232,.07)!important}.hr-guide b{color:#9fcbe8}
 .hr-tabs{display:flex;border-bottom:1px solid rgba(207,169,94,.2)}
 .hr-tabs button{flex:1;background:none;border:0;padding:10px 0;color:#b8ab92;font-family:var(--font-ui,sans-serif);font-size:13px;border-bottom:2px solid transparent}
 .hr-tabs button.on{color:#ece2cc;border-bottom-color:#cfa95e}

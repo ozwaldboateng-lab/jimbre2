@@ -15,7 +15,8 @@ await p.click('[data-act="t-new"]'); await p.click('[data-act="pick-scen"][data-
 await p.click('[data-act="start"]');
 await p.waitForTimeout(300);
 const battleOpen = () => p.evaluate(() => !document.getElementById('battle').hidden);
-const closeModal = () => p.evaluate(() => document.querySelector('#modal:not([hidden]) [data-act="close"]')?.click());
+// 窓を閉じる。答えの要る窓（家中の不和など、閉じる×のない窓）は、目立つ答え（なければ最初の答え）を押す
+const closeModal = () => p.evaluate(() => { const m = document.querySelector('#modal:not([hidden])'); if (!m) return; const x = m.querySelector('[data-act="close"]'); if (x && x.offsetParent) { x.click(); return; } const b = m.querySelector(".actions button.primary, .actions button"); b?.click(); });
 // プレイヤー側の合戦を1手番分操作: 選択中部隊に行動があれば最初の選択肢を実行
 async function playPhase(shot) {
   for (let k = 0; k < 12; k++) {
@@ -77,7 +78,7 @@ for (let turn = 0; turn < 8 && fought < 2; turn++) {
     if (btn) {
       await btn.click(); await p.waitForTimeout(150);
       await p.screenshot({ path: `${out}/${pre}19-order.png`, fullPage: mobile });
-      await p.waitForFunction(() => !document.getElementById('btn-end').disabled, null, { timeout: 120000 }).catch(() => {}); await p.click('#btn-end'); // 月の処理が終わるまで待つ（遅い時がある）
+      await closeModal(); await p.waitForFunction(() => !document.getElementById('btn-end').disabled, null, { timeout: 120000 }).catch(() => {}); await closeModal(); await p.click('#btn-end'); // 月の処理が終わるまで待つ（遅い時がある）
       for (let k = 0; k < 60 && !(await battleOpen()); k++) await p.waitForTimeout(150);
       if (await battleOpen()) { await fight(`own${fought}`); fought++; }
       for (let k = 0; k < 80; k++) { await p.waitForTimeout(200); if (await battleOpen()) { await fight(`ai${fought}`); fought++; } if (await p.evaluate(() => !document.getElementById('btn-end').disabled)) break; }
@@ -85,7 +86,7 @@ for (let turn = 0; turn < 8 && fought < 2; turn++) {
       continue;
     }
   }
-  await p.waitForFunction(() => !document.getElementById('btn-end').disabled, null, { timeout: 120000 }).catch(() => {}); await p.click('#btn-end'); // 月の処理が終わるまで待つ（遅い時がある）
+  await closeModal(); await p.waitForFunction(() => !document.getElementById('btn-end').disabled, null, { timeout: 120000 }).catch(() => {}); await closeModal(); await p.click('#btn-end'); // 月の処理が終わるまで待つ（遅い時がある）
   for (let k = 0; k < 30; k++) { await p.waitForTimeout(300); if (await battleOpen()) { await fight(`ai${fought}`); fought++; } if (await p.evaluate(() => !document.getElementById('btn-end').disabled)) break; }
   await closeModal();
 }

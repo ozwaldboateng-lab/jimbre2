@@ -1,5 +1,5 @@
 // 画面の組み立てと操作
-import { openHero, openHeroWith, setDaimyo, setRyoshu } from './hero';
+import { heroSaveLabel, openHero, openHeroWith, resumeHero, setDaimyo, setRyoshu, setStoryLink } from './hero';
 import * as RY from '../engine/ryoshu';
 import * as KS from '../engine/kashin';
 import * as RH from '../engine/ryohyojo';
@@ -14,7 +14,7 @@ import { RELNAME } from '../engine/hero';
 import * as SKL from '../engine/skill';
 import * as CR from '../engine/career';
 import { runClanAI } from '../engine/ai';
-import { openStory, playTheater } from './story';
+import { openStory, playTheater, resumeStory, storySaveLabel } from './story';
 import * as KK from '../engine/kumikake';
 import * as RYK from '../engine/ryokake';
 import * as TK from '../engine/tosyukake';
@@ -126,6 +126,7 @@ let busy = false;
 let picker: null | 'governor' | 'form' | 'plot' = null;
 
 function store(key: string, value: string | null) {
+  if (key === AUTO_KEY && value) { try { localStorage.setItem('sengoku-last', 'daimyo'); } catch { /* 続ける */ } }
   try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); return true; } catch { return false; }
 }
 function load(key: string): GameState | null {
@@ -1472,12 +1473,16 @@ function reopen() {
   else if (menuShown) openMenu();
 }
 
+setStoryLink(() => openStory((id, w) => face(id, w), () => openTitle())); // 武将として遊ぶの時代選びから、利家の物語へ
 function openTitle() {
   const auto = load(AUTO_KEY);
   mood('title');
   closeModal();
   openTitleScreen({
-    auto, autoLabel: auto ? `${dateLabel(auto)}・${auto.clans[auto.player].name}家` : '',
+    auto, autoLabel: auto ? (auto.hero ? `武将・${auto.generals[auto.hero.id]?.name ?? ''}（${auto.clans[auto.player].name}家の領主） ${dateLabel(auto)}` : `大名・${auto.clans[auto.player].name}家 ${dateLabel(auto)}`) : '',
+    heroLabel: heroSaveLabel(), storyLabel: storySaveLabel(), last: (() => { try { return localStorage.getItem('sengoku-last') ?? ''; } catch { return ''; } })(),
+    resumeHero: () => resumeHero((id, w) => face(id, w), () => openTitle()),
+    resumeStory: () => resumeStory((id, w) => face(id, w), () => openTitle()),
     help: (st) => TABS.help(st), face: (id, w) => face(id, w),
     start: (clan, diff, scen) => { startWith(newGame(clan, diff, undefined, scen, campStart())); store(AUTO_KEY, JSON.stringify(s)); if (s && kidachiOn()) { const st = s; const b = kidachiBeats(st); if (b.length) playScene(view, st, `${st.clans[st.player].name}家、起つ`, b, (id, w) => face(id, w), () => { mapMood(st); const c = capital(st, st.player); if (c) view.centerOn(c.hex, Math.min(2.4, Math.max(1.4, view.w / 520))); refresh(); }); } },
     resume: () => { if (auto) startWith(auto); },
@@ -2695,7 +2700,7 @@ const TABS: Record<string, (st: GameState) => string> = {
       <div class="actions"><button class="act" data-act="army-style" aria-pressed="${view.armyStyle === 'hayashi'}">地図の部隊の印: ${view.armyStyle === 'hayashi' ? '幟の林（兵が多いほど幟が増える）' : '丸（武将名と兵数の弧）'}</button></div>
     </section></div>`;
   },
-  help: () => `<nav class="help-toc">${[['keys', '操作'], ['words', '用語集'], ['g0', '合戦と城攻め'], ['g1', '内政'], ['g2', '軍事'], ['g3', '人事'], ['g4', '外交'], ['g5', '商い・南蛮']].map(([k, l]) => `<button type="button" class="mini" data-act="help-go" data-id="help-${k}">${l}</button>`).join('')}</nav><h3 class="sect-h" id="help-keys">操作</h3>${KEYS_HTML}<h3 class="sect-h" id="help-words">用語集</h3>${GLOSSARY_HTML}<h3 class="sect-h" id="help-g0">合戦と城攻め</h3>` + helpList([
+  help: () => `<nav class="help-toc">${[['keys', '操作'], ['words', '用語集'], ['g0', '合戦と城攻め'], ['g1', '内政'], ['g2', '軍事'], ['g3', '人事'], ['g4', '外交'], ['g5', '商い・南蛮'], ['bushou', '武将として遊ぶ']].map(([k, l]) => `<button type="button" class="mini" data-act="help-go" data-id="help-${k}">${l}</button>`).join('')}</nav><h3 class="sect-h" id="help-keys">操作</h3>${KEYS_HTML}<h3 class="sect-h" id="help-words">用語集</h3>${GLOSSARY_HTML}<h3 class="sect-h" id="help-g0">合戦と城攻め</h3>` + helpList([
     `1ターン＝1か月。軍団は移動力${R.MOVE_POINTS}（平地1・森/川2・山3・城1）。敵軍に隣接すると止まる。1ヘックスに1軍団。`,
     `隣接する敵軍・城を攻撃すると、その月の会戦を最大${R.ROUNDS}合で解決。損害は相手の戦闘力に比例し、兵が多いほど有利。`,
     '兵科はない。武将の能力が部隊の性格になる。攻撃力＝0.5＋(武勇×0.6＋統率×0.4)÷100、防御力＝0.5＋(統率×0.6＋知略×0.2＋魅力×0.2)÷100、壊乱閾値＝0.60−(魅力×0.2＋統率×0.1)÷100。補佐は知略を補い（高いほうを使う）、武勇は主将との差の半分だけ補う。',
@@ -2722,6 +2727,14 @@ const TABS: Record<string, (st: GameState) => string> = {
     '本願寺だけは他家の城に一向一揆を起こせる（城の画面）。一揆勢は攻め込まれたのと同じ扱いで、討った分だけその城の開発と治安が下がる。忠誠・治安でも金でも防げない。',
   ]) + `<h3 class="sect-h" id="help-g5">商い・南蛮</h3>` + helpList([
     `南蛮貿易と布教: 毎年${R.SHIP_MONTH}月に南蛮船が南蛮港（平戸・府内・坊津・堺、1570年から長崎）に来て、港の持ち主に南蛮市が開く（鉄砲が安く、大筒と南蛮の品が買える）。宣教師が布教の許しを願い出てくる。許せば商業と来航が伸びるが寺社が反発し、禁じれば洗礼を受けた家臣が去ることがある（「外交」の布教）。`,
+  ]) + `<h3 class="sect-h" id="help-bushou">武将として遊ぶ</h3>` + helpList([
+    'はじめての方は、タイトルの物語「前田利家 ― 残り火」から。利家の一生を追いながら、章ごとに「手ほどき」の欄（画面右）で、やってみることと、そのやり方を覚えられる。手ほどきは欄の「手ほどきを消す」で消せる。',
+    '一人の武将（または浪人）として遊ぶ。大名の家は大名（AI）が動かす。1か月は上旬・中旬・下旬の3旬で、1旬に一つ行う。上の「休む」で1旬を送る。三旬で月が変わり、俸禄と世の中の動きの報告が来る。',
+    '城下の町: 建物を押すと、その建物でできることの窓が開く。城（登城・評定・主命の報告・茶会）、武家屋敷（人を訪ねる・進物）、自分の屋敷（休む・家中の進言・屋敷の普請）、道場（稽古・独学）、寺（学問・連歌）、茶屋（噂・名人の居所）、市（進物・商い・名物）、街道口（旅・陣に加わる・用心棒）。浪人には町はずれの村（野盗退治・国衆の城）。急ぎの用がある建物には金の印。',
+    '画面上部の札（内政・軍事・人事・外交・商い・記録）は、身分と立場で使えるようになる。使えない札は暗く、押すと理由が出る。内政は城を預かってから、軍事は侍大将から、人事は家臣・寄子ができてから、外交は足軽大将から。',
+    '右の欄: 今月の用件（主命を果たす・出陣など）、わが身（身分・功績と次の身分まで・体力・主君の覚え・名声・技能）、いる国（城の持ち主・石高・治安など）。',
+    '出世: 主命を果たして功績を積み、主君の覚えを保つ。足軽組頭・足軽大将の間は、寄親の推挙がなければ取り立てられない（寄親を訪ねて親しくなる）。侍大将で家を立て、城を預かれば領主として大名の画面で自分の領を治める（内政の表の治安の欄に、城ごとの治め）。',
+    '合戦: 自分の部隊が戦った月は、槍働きの盤で自ら槍を振るう（一番槍・一騎討ち・首級）。侍大将からは軍勢を率いて出陣し、合戦の画面で采配する。',
   ]) + ``,
 };
 

@@ -36,7 +36,7 @@ let lastArt: string | undefined;
 let win: MC.Bld | null = null, catNote = ''; // 第一幕の町: 開いている建物の窓・札を押した時の一言
 
 export const storySaved = () => { try { return !!localStorage.getItem(KEY); } catch { return false; } };
-function save() { try { if (st) localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* 続ける */ } }
+function save() { try { if (st) { localStorage.setItem(KEY, JSON.stringify(st)); localStorage.setItem('sengoku-last', 'story'); } } catch { /* 続ける */ } }
 
 function ensureRoot() {
   if (!document.getElementById('hero-style')) { const x = document.createElement('style'); x.id = 'hero-style'; x.textContent = CSS + MC.MACHI_CSS; document.head.appendChild(x); }
@@ -52,10 +52,13 @@ export function openStory(f: Face, quit: () => void) {
   renderTitle();
 }
 function close() { if (root) root.hidden = true; onQuit(); }
+function contStory() { try { st = JSON.parse(localStorage.getItem(KEY)!); } catch { st = null; } if (st) { queue = []; pending = st.battle ? null : S.pendingChoice(st) ?? null; render(); maybeBan(); }}
+export function resumeStory(f: Face, quit: () => void) { openStory(f, quit); contStory(); }
+export function storySaveLabel(): string | null { try { const x = JSON.parse(localStorage.getItem(KEY) ?? 'null') as S.StoryState | null; return x ? `物語「残り火」・前田利家（${x.done ? '帰参' : '浪人'}） ${x.year}年${x.month}月` : null; } catch { return null; } }
 
 function renderTitle() {
   root!.innerHTML = `<div><div class="hr-pick">
-    <div class="hr-top"><button class="hr-btn ghost" data-s="quit">← タイトルへ</button><span class="hr-tag">武将で遊ぶ・物語</span></div>
+    <div class="hr-top"><button class="hr-btn ghost" data-s="quit">← タイトルへ</button><span class="hr-tag">物語・武将として遊ぶの手ほどき</span></div>
     <h2>前田利家 ― 残り火</h2>
     <p class="hr-lede">尾張荒子の前田家の四男、犬千代。長すぎる槍と、信長の庭。拾阿弥を斬って清洲を追われた男は、浪人の身から、もう一度あの庭へ戻れるか。<br>第一部「戻る道」: 序幕（犬千代の若き日）→ 第一幕「こぼれた火」（荒子の浪人）→ 無断参戦 → 帰参 → 家督。<br>第二部「北へ立つ」: 前田家を率いて金ヶ崎・姉川へ。そして越前府中の城主に（府中三人衆）。<br>第三部「裂け目」: 七尾落城・手取川・能登の国主・本能寺、そして賤ヶ岳。<br>第四部「根を張る」: 加賀・末森の後詰め・さらさら越え・富山の役・守山城。<br>第五部「残り火」: 太閤の世・利益という風・秀頼・家康・遺言・最期、そして終章。原作: 小説『残り火』。</p>
     <div class="hr-cont">${storySaved() ? '<button class="hr-btn primary" data-s="continue">続きから</button> ' : ''}<button class="hr-btn${storySaved() ? '' : ' primary'}" data-s="new">はじめから（序幕）</button> <button class="hr-btn ghost" data-s="new-skip">序幕をとばす</button></div>
@@ -276,7 +279,7 @@ function onClick(e: Event) {
   if ((a === 'wact' || a === 'rest1') && st && !queue.length && !pending && !st.battle) { const [pl, ac] = a === 'rest1' ? [st.place, 'rest'] : id.split(':'); st.place = pl as S.Place; win = null; catNote = ''; teh1New = ''; tehDo1(st, ac as S.ActId); show(S.act(st, ac as S.ActId)); return; }
   if (a === 'new') { begin(false); return; }
   if (a === 'new-skip') { begin(true); return; }
-  if (a === 'continue') { try { st = JSON.parse(localStorage.getItem(KEY)!); } catch { st = null; } if (st) { queue = []; pending = st.battle ? null : S.pendingChoice(st) ?? null; render(); maybeBan(); } return; }
+  if (a === 'continue') { contStory(); return; }
   if (a === 'ask' && theaterDone) { const b = queue.shift(); const more = theaterChoose?.(t.dataset.k ?? b?.ask ?? '', id) ?? []; queue.unshift(...more); renderTheater(); return; }
   if (theaterDone && (a === 'next' || a === 'skip')) { // 問いのある場面は飛ばさない
     if (a === 'next') { e.stopPropagation(); if (!queue[0]?.ask) queue.shift(); }
