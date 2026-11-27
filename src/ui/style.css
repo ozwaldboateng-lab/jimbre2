@@ -761,3 +761,7 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 .bt-koe.end b{color:inherit;opacity:.8}
 @keyframes btKoeIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){.bt-koe{animation:none}}
+
+/* 領主: 城の治め（内政の表の治安の欄） */
+.naisei-tbl .osame { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 3px; justify-content: flex-end; }
+.naisei-tbl .osame .mini { padding: 1px 5px; font-size: 11px; }

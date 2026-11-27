@@ -180,3 +180,32 @@ export function gunyakuBattle(s: GameState, armies: { front?: number; clan: stri
   const f = ryoshuOf(s), g = gunyakuOf(s);
   if (f && g && !g.done && foeClan === g.clan && armies.some((a) => a.front === f.id)) g.done = true;
 }
+
+// ───────── 領の城の治め（大名の画面の内政から。同じ城には月に一度） ─────────
+// 物語の府中の治め（maeda.ts の govern）と同じ効き目。旬の代わりに、城ごとに月一度
+export type Osame = 'mimawari' | 'shimeru' | 'hodokosu' | 'hidane';
+export const OSAME: Record<Osame, { name: string; note: string }> = {
+  mimawari: { name: '見回り', note: '治安+3・残り火−2' },
+  shimeru: { name: '締める', note: '治安+8・残り火−5。開発が4%痩せる' },
+  hodokosu: { name: '施す', note: '領の兵糧60石で、治安+1・残り火−4' },
+  hidane: { name: '火元', note: '知略しだいで残り火を減らす' },
+};
+type OsX = { osame?: Record<number, number> };
+export function osameBlock(s: GameState, c: Castle, k: Osame): string | null {
+  const f = ryoshuOf(s) as (Front & OsX) | undefined;
+  if (!f || !f.castles.includes(c.i)) return '自分の領の城だけ';
+  if (f.osame?.[c.i] === s.turn) return 'この城は今月治めた（月に一度）';
+  if (k === 'hodokosu' && (f.food ?? 0) < 60) return '領の兵糧が60石要る';
+  return null;
+}
+export function osame(s: GameState, c: Castle, k: Osame): string {
+  const why = osameBlock(s, c, k); if (why) return why;
+  const f = ryoshuOf(s)! as Front & OsX, me = s.generals[X(s)!.id];
+  const cl = (v: number) => Math.max(0, Math.min(100, v));
+  if (k === 'mimawari') { c.chian = cl(c.chian + 3); c.ember = cl((c.ember ?? 0) - 2); }
+  else if (k === 'shimeru') { c.chian = cl(c.chian + 8); c.ember = cl((c.ember ?? 0) - 5); c.dev = Math.max(0.2, c.dev * 0.96); }
+  else if (k === 'hodokosu') { f.food = (f.food ?? 0) - 60; c.chian = cl(c.chian + 1); c.ember = cl((c.ember ?? 0) - 4); }
+  else { c.ember = cl((c.ember ?? 0) - Math.round(3 + me.int / 15 + rand(s) * 3)); }
+  (f.osame ??= {})[c.i] = s.turn;
+  return `${c.name}を${OSAME[k].name}（治安${Math.round(c.chian)}・残り火${Math.round(c.ember ?? 0)}）。`;
+}

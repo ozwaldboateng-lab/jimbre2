@@ -998,6 +998,7 @@ function onPanelClick(e: Event) {
     nextOrRefresh();
     return;
   }
+  if (act === 'osame') { const c = st.castles[+(btn.dataset.id ?? -1)]; if (c) { toast(RY.osame(st, c, (btn.dataset.k ?? 'mimawari') as RY.Osame)); refresh(); if (menuShown) reopen(); } return; } // 領主: 城の治め（月に一度）
   if (act === 'inv-agri' || act === 'inv-com' || act === 'shinden' || act === 'fort') {
     const c = st.castles[+(btn.dataset.id ?? -1)];
     if (c) {
@@ -1896,7 +1897,7 @@ const TABS: Record<string, (st: GameState) => string> = {
     const table = (xs: Castle[]) => `<div class="tbl-wrap"><table class="naisei-tbl"><thead><tr><th>城</th><th>城主</th><th class="n">石高</th><th class="n">治安</th><th class="n">治水</th><th>開発</th><th>商業</th><th>新田開発</th><th>普請</th><th>楽市楽座</th><th>重点</th></tr></thead><tbody>
       ${xs.map((c) => `<tr><td><button class="mini" data-act="goto-castle" data-id="${c.i}" title="地図でこの城へ">${esc(c.name)}</button>${besieged(st, c) ? ' <span class="pill bad">包囲</span>' : ''}</td>
         <td>${c.governor ? nameLink(st.generals[c.governor]) : '<span class="warn">不在</span>'}</td>
-        <td class="n">${man(castleKoku(c))}</td><td class="n">${Math.round(c.chian)}</td><td class="n">${Math.round(c.chisui)}</td>
+        <td class="n">${man(castleKoku(c))}</td><td class="n">${Math.round(c.chian)}${RY.isRyoshu(st) ? `<div class="osame">${(Object.keys(RY.OSAME) as RY.Osame[]).map((k) => b('osame', c, RY.OSAME[k].name, RY.osameBlock(st, c, k), RY.OSAME[k].note).replace('data-act="osame"', `data-act="osame" data-k="${k}"`)).join('')}</div>` : ''}</td><td class="n">${Math.round(c.chisui)}</td>
         <td>${cell(c, 'agri')}</td>
         <td>月${fmt(Math.round(castleCom(c)))}貫 ${cell(c, 'com')}</td>
         <td>${c.shinden ? `<span class="pill good">工事中</span> あと${c.shinden.until - st.turn}か月` : shindenDone(c) >= R.SHINDEN_MAX ? `${R.SHINDEN_MAX}度済み` : `${shindenDone(c)}/${R.SHINDEN_MAX} ${b('shinden', c, `始める（${fmt(shindenCost(c))}貫）`, RY.withFiefGold(st, () => shindenBlock(st, st.player, c)), `${R.SHINDEN_MONTHS}か月・成れば石高+${(c.baseKoku * R.SHINDEN_GAIN).toFixed(1)}万石`)}`}</td>
@@ -3080,7 +3081,7 @@ function onModalClick(e: Event) {
   if (act === 'stance') { const r = stanceResolve; stanceResolve = null; closeModal(); r?.(id as Stance); return; }
   if (act === 'ask-yes' || act === 'ask-no') { const r = askResolve; askResolve = null; closeModal(); r?.(act === 'ask-yes'); return; }
   if (act === 'close') { closeModal(); return; }
-  if (['inv-agri', 'inv-com', 'shinden', 'fort', 'rakuichi', 'focus-toggle'].includes(act)) { onPanelClick(e); return; } // 内政 › 領内の表の操作は城の画面と同じ処理
+  if (['inv-agri', 'inv-com', 'shinden', 'fort', 'rakuichi', 'focus-toggle', 'osame'].includes(act)) { onPanelClick(e); return; } // 内政 › 領内の表の操作は城の画面と同じ処理
   if (act === 'newgame') { store(AUTO_KEY, null); s = null; openTitle(); return; }
   if (act === 'end-new' || act === 'end-close') { $('ending').hidden = true; if (act === 'end-new') { store(AUTO_KEY, null); s = null; openTitle(); } return; }
   if (!s) return;
