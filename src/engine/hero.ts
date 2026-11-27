@@ -28,7 +28,7 @@ import { addMerit } from './ranks';
 import * as R from './rules';
 import { attach, attachAuto, leaveArmy, membersOf } from './corps';
 import { removeArmy } from './ops';
-import { captureCastle } from './ops';
+import { captureCastle, nearestOwnCastle } from './ops';
 import { addLog, castleAt, castleKoku, clanCastles, clanName, garrisonMax, hostile, learnCastle, rand } from './state';
 import type { Army, Castle, GameState, General } from './types';
 
@@ -616,6 +616,7 @@ function chased(s: GameState, text: string): Act {
 
 // ───────── 月の終わり（3旬が過ぎたら、大名たちの1か月の前に） ─────────
 export function heroMonth(s: GameState): string[] {
+  { const L = lordOf(s); if (L && L.clan && L.status !== 'captive' && s.castles[L.loc]?.owner !== L.clan) { const h = nearestOwnCastle(s, L.clan, s.castles[L.loc]?.hex ?? 0); if (h) L.loc = h.i; } } // 主君の居所が他家の城のままなら、自家の城へ（古い保存の直し）
   const out: string[] = [...storyGuard(s)];
   const H = s.hero!, me = heroOf(s)!;
   if (!me || me.status === 'dead') return out;

@@ -145,6 +145,8 @@ export function captureCastle(s: GameState, c: Castle, clan: string) {
   // 城にいた武将（未配属）も退去
   for (const g of Object.values(s.generals)) if (g.status === 'free' && g.loc === c.i && g.clan === old) sendHome(s, g, c.hex);
   for (const g of Object.values(s.generals)) if ((g.status === 'tsukai' || g.status === 'bugyo' || g.status === 'young') && g.loc === c.i && g.clan === old) { const h = nearestOwnCastle(s, old!, c.hex); if (h) g.loc = h.i; }
+  // 陣中・出陣中の武将（当主など）の居所がこの城なら、近くの自家の城へ移す（敵の城に居ることにしない。武将で遊ぶの「主君は〜にいる」・登城の行き先）
+  for (const g of Object.values(s.generals)) if (g.loc === c.i && g.clan === old && old && !['captive', 'dead', 'ronin'].includes(g.status)) { const h = nearestOwnCastle(s, old, c.hex); if (h) g.loc = h.i; }
   c.garrison = Math.round(garrisonMax(c) * 0.3);
   c.chian = Math.min(c.chian ?? R.CHIAN_START, R.CHIAN_CAPTURED); // 新しい領地は治安が低い
   if (old && s.clans[old]?.focus === c.i) s.clans[old].focus = null;
