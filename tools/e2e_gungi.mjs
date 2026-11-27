@@ -13,8 +13,8 @@ for (const [vp, saku] of [[{ width: 1360, height: 820, tag: 'pc' }, 'choryaku'],
   p.on('console', (m) => { if (m.type() === 'error') errors.push(vp.tag + ' ' + m.text()); });
   await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'off'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
-  await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-  await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
+  await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+  await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(300);
   const say = () => p.$eval('#hero .hr-text', (e) => e.textContent).catch(() => '');
   const ok = async () => { for (let k = 0; k < 40 && await p.$('#story:not([hidden]) .st-scene'); k++) { const sk = await p.$('#story [data-s="skip"]'); await (sk ?? await p.$('#story .st-scene')).click().catch(() => {}); await p.waitForTimeout(120); } for (const sel of ['#hero [data-h="q-pick"]', '#hero [data-h="q-accept"]', '#hero [data-h="say-close"]', '#hero [data-h="report-ok"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(60); } } };
   await p.click('#hero [data-h="lead"]'); await p.waitForTimeout(200);

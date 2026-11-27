@@ -14,7 +14,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.screenshot({ path: `${out}/title-${vp.tag}.png` });
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(400);
   await p.screenshot({ path: `${out}/pick-${vp.tag}.png` });
-  await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200); await p.click('[data-h="pick"][data-id="kinoshita_tokichiro"]'); await p.waitForTimeout(300);
+  await p.click('#title [data-act="pick-scen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200); await p.click('[data-h="pick"][data-id="kinoshita_tokichiro"]'); await p.waitForTimeout(300);
   await p.screenshot({ path: `${out}/start-${vp.tag}.png` });
   // 物語の場面（出世の節目など）: 問いは最初の答え、あとは送る
   const theater = async () => { for (let n = 0; n < 60 && await p.$('#story:not([hidden]) .st-scene'); n++) { const nx = await p.$('#story [data-s="ask"]') ?? await p.$('#story .st-fx') ?? await p.$('#story .hr-say[data-s="next"]'); if (!nx) break; await nx.click(); await p.waitForTimeout(60); } };

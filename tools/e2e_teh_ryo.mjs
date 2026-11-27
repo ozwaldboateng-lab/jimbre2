@@ -11,8 +11,8 @@ const errs = []; p.on('pageerror', (e) => errs.push(e.message));
 const json = readFileSync(save, 'utf8');
 await p.addInitScript((j) => { localStorage.setItem('sengoku-kake', 'on'); localStorage.setItem('sengoku-machi', 'machi'); localStorage.removeItem('sengoku-teh'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } }, json);
 await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
-await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
+await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(300);
 const theater = async () => { const seen = []; for (let n = 0; n < 60; n++) { const on = await p.evaluate(() => { const r = document.getElementById('story'); return !!r && !r.hidden && !!r.querySelector('.st-scene'); }); if (!on) break; seen.push(await p.evaluate(() => (document.querySelector('#story .hr-town b')?.textContent ?? '') + '｜' + (document.querySelector('#story .hr-say, #story .st-fx')?.textContent.replace(/\s+/g, ' ').slice(0, 50) ?? ''))); const x = await p.$('#story [data-s="ask"]') ?? await p.$('#story .st-fx') ?? await p.$('#story .hr-say button[data-s="next"]'); if (!x) break; await x.click(); await p.waitForTimeout(80); } return seen; };
 const close = async () => { for (const sel of ['#hero [data-h="report-ok"]', '#hero [data-h="say-close"]', '#hero [data-h="scene-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(150); } } };
 // 休んで物語を進める（場面と章の一言を見る）

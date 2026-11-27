@@ -13,8 +13,8 @@ for (const vp of [{ width: 390, height: 844, tag: 'sp' }, { width: 1360, height:
   p.on('console', (m) => { if (m.type() === 'error') errors.push(vp.tag + ' ' + m.text()); });
   await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'on'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
-  await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-  await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(400);
+  await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+  await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(400);
   const idle = () => p.waitForFunction(() => !document.querySelector('.hr-busy'), null, { timeout: 120000 }).catch(() => {});
   const scene = () => p.$('#story:not([hidden]) .st-scene');
   const closeAll = async () => { for (let k = 0; k < 6; k++) { let hit = false; for (const sel of ['[data-h="q-pick"]', '[data-h="q-accept"]', '[data-h="say-close"]', '[data-h="report-ok"]', '[data-h="pupil-no"]']) { const x = await p.$(sel); if (x && await x.isVisible()) { await x.click().catch(() => {}); await p.waitForTimeout(100); hit = true; } } if (!hit) break; } };

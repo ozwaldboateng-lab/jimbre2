@@ -16,8 +16,8 @@ for (let k = 0; k < 8 && !done; k++) {
   p.on('pageerror', (e) => errors.push(e.message));
   await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
-  await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-  await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
+  await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+  await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(300);
   await p.click('#hero [data-h="rest"]'); await p.waitForFunction(() => !document.querySelector('#hero .hr-busy'), null, { timeout: 120000 }); await p.waitForTimeout(300);
   const say = () => p.$eval('#hero .hr-say', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => '');
   const duel = await p.$('#hero [data-h="duel-yes"]');

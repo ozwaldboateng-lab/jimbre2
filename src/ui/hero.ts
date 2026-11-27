@@ -85,6 +85,9 @@ function cmdDefault(st: GameState) { if (st.hero && st.hero.selfCommand === unde
 function save() { try { if (s) { localStorage.setItem(KEY, JSON.stringify(s)); localStorage.setItem('sengoku-last', 'hero'); } } catch { /* 保存できなくても続ける */ } }
 
 // 入り口: 主人公を選ぶ画面から
+// 武将として遊ぶ: タイトルの時代選び（大名と同じ画面）で時代を選んだあと、仕える家と武将を選ぶ画面から。戻るとタイトルの時代選びへ
+let eraBack: (() => void) | null = null;
+export function openHeroAt(f: Face, quit: () => void, scen: string, back: () => void) { openHero(f, quit); eraBack = back; pickScen = scen; pickClan = null; renderPick(); }
 export function openHero(f: Face, quit: () => void) {
   face = withStory(f); onQuit = quit;
   mount();
@@ -915,7 +918,7 @@ function onClick(e: Event) {
   if (h === 'pick') { begin(id); return; }
   if (h === 'pscen') { pickScen = id; pickClan = null; renderPick(); return; }
   if (h === 'pclan') { pickClan = id; renderPick(); return; }
-  if (h === 'pback') { if (pickClan) pickClan = null; else pickScen = ''; renderPick(); return; }
+  if (h === 'pback') { if (pickClan) pickClan = null; else if (eraBack) { const b = eraBack; eraBack = null; if (root) root.hidden = true; b(); return; } else pickScen = ''; renderPick(); return; }
   if (h === 'continue') { contHero(); return; }
   if (!s) return;
   if (h === 'succeed') { const r = FA.succeedSon(s); report = null; pane = 'spots'; bg = 'town'; say = { text: r.text }; H.note(s, r.text); save(); render(); return; }

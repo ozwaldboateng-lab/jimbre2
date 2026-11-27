@@ -12,8 +12,8 @@ const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'off'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
 await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
-await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(800);
+await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(800);
 for (let k = 0; k < 4; k++) { const ok = await p.evaluate(() => { const x = document.querySelector('#modal:not([hidden]) [data-act="close"]'); if (x) { x.click(); return true; } return false; }); if (!ok) break; await p.waitForTimeout(150); }
 await p.click('#btn-naisei'); await p.waitForTimeout(400);
 const chian = () => p.$$eval('#modal .naisei-tbl tbody tr', (es) => es.map((e) => +e.children[3].firstChild.textContent));

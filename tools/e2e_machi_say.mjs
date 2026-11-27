@@ -13,8 +13,8 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   p.on('pageerror', (e) => errors.push(vp.tag + ' pageerror ' + e.message));
   await p.addInitScript((j) => { localStorage.setItem('sengoku-kake', 'on'); localStorage.setItem('sengoku-machi', 'machi'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
-  await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-  await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
+  await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+  await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(300);
   for (const sel of ['#hero [data-h="report-ok"]', '#hero [data-h="say-close"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(100); } }
   await p.click('#hero .hr-bldi[data-id="kaido"]'); await p.waitForTimeout(150);
   await p.click('#hero .hr-bldwin [data-h="yojinbo"]'); await p.waitForTimeout(600);

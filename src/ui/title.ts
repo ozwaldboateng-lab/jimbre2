@@ -23,6 +23,7 @@ export interface TitleDeps {
   story: () => void; // 物語「前田利家 ― 残り火」（武将として遊ぶの手ほどき）
   heroLabel: string | null; storyLabel: string | null; last: string; // 武将・物語の保存の名と、最後に遊んだもの（daimyo・hero・story）
   resumeHero: () => void; resumeStory: () => void;
+  heroScen: (scen: string) => void; // 武将として遊ぶ: 時代を選んだあと、仕える家と武将を選ぶ画面へ
 }
 // 保存の一覧（最後に遊んだものを先に）
 function savesOf(d: TitleDeps): { key: string; label: string; act: string }[] {
@@ -40,6 +41,7 @@ const DIFF_NOTE: Record<R.Difficulty, string> = { easy: 'AIは慎重に攻め、
 type Screen = 'top' | 'era' | 'clan' | 'help' | 'opening' | 'cont';
 let view: MapView | null = null;
 let screen: Screen = 'top';
+let heroMode = false; // 時代選びを、武将として遊ぶのために開いている
 let scen = '1560';
 let pick = 'oda';
 let diff: R.Difficulty = 'normal';
@@ -49,7 +51,7 @@ let wired = false;
 
 const $ = (id: string) => document.getElementById(id)!;
 
-export function openTitleScreen(d: TitleDeps) {
+export function openTitleScreen(d: TitleDeps, at: 'top' | 'hero-era' = 'top') {
   deps = d;
   const root = $('title');
   root.hidden = false;
@@ -76,7 +78,8 @@ export function openTitleScreen(d: TitleDeps) {
     };
   }
   setPreview();
-  go('top');
+  heroMode = at === 'hero-era';
+  go(heroMode ? 'era' : 'top');
 }
 export const titleOpen = () => !$('title').hidden;
 export function closeTitleScreen() { $('title').hidden = true; }
@@ -133,13 +136,14 @@ function onClick(e: Event) {
   const btn = (e.target as HTMLElement).closest('[data-act]') as HTMLElement | null;
   if (!btn || !deps) return;
   const act = btn.dataset.act!, id = btn.dataset.id ?? '';
-  if (act === 't-new') go('era');
-  else if (act === 't-hero') { closeTitleScreen(); deps.hero(); }
+  if (act === 't-new') { heroMode = false; go('era'); }
+  else if (act === 't-hero') { heroMode = true; go('era'); } // 武将として遊ぶも、大名と同じ時代選びから
   else if (act === 't-story') { closeTitleScreen(); deps.story(); }
   else if (act === 't-continue') { const xs = savesOf(deps); if (xs.length > 1) go('cont'); else if (xs[0]) runSave(deps, xs[0].act); }
   else if (act === 'cont-pick') runSave(deps, id);
   else if (act === 't-help') go('help');
   else if (act === 't-back') back();
+  else if (act === 'pick-scen' && heroMode) { closeTitleScreen(); deps.heroScen(id); }
   else if (act === 'pick-scen') { scen = id; setPreview(); if (OPENINGS[scen]?.length && openingOn() && !opSeen.has(scen)) { opSeen.add(scen); startOpening(); } else go('clan'); } // 時代を選んだら、まず序幕（同じ時代は一度だけ）
   else if (act === 'pick-clan') choose(id, true);
   else if (act === 'pick-diff') { diff = id as R.Difficulty; render(); }
@@ -187,7 +191,8 @@ function topHtml() {
 function eraHtml() {
   return `<div class="ttl-era">
     <button type="button" class="ttl-back" data-act="t-back">← 戻る</button>
-    <h2>時代を選ぶ</h2>
+    ${heroMode ? `<button type="button" class="era-guide" data-act="t-story"><b>はじめての方は、物語「前田利家 ― 残り火」から</b><span>荒子の浪人から加賀百万石まで、利家の一生を追いながら、町・主命・槍働き・家・城・領主の遊び方を章ごとに覚える。</span></button>` : ''}
+    <h2>時代を選ぶ${heroMode ? '<small>武将として遊ぶ</small>' : ''}</h2>
     <div class="era-cards">${[...SCENARIOS].sort((a, b) => a.year - b.year).map((x) => `<button type="button" class="era-card" data-act="pick-scen" data-id="${x.id}">
       <span class="era-y">${ERA_KANJI[x.id] ?? kanjiNum(x.year)}<small>（${x.year}）</small></span>
       <span class="era-n">${esc(ERA_NAME[x.id] ?? x.title)}</span>

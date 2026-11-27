@@ -12,7 +12,7 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 場面での選び方は e2e_jo で試す
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
-  await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200);
+  await p.click('#title [data-act="pick-scen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200);
   await p.click('[data-h="pick"][data-id="shibata_katsuie"]'); await p.waitForTimeout(800);
   await p.click('#btn-shuke'); await p.waitForTimeout(300);
   console.log(vp.tag, '主家の欄:', (await p.$eval('#modal-body', (e) => e.textContent.replace(/\s+/g, ' '))).match(/主君の疑い.*?主家の構え/)?.[0]);

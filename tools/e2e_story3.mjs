@@ -15,8 +15,8 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   p.on('console', (m) => { if (m.type() === 'error') errors.push(vp.tag + ' console ' + m.text()); });
   await p.addInitScript((j) => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
-  await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-  await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
+  await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+  await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(300);
   let shot = 0;
   const snap = async (n) => { if (shot < 36 && (vp.tag === 'pc' || shot < 14)) { shot++; await p.screenshot({ path: `${out}/s3-${vp.tag}-${String(shot).padStart(2, '0')}-${n}.png` }); } };
   const seen = new Set();

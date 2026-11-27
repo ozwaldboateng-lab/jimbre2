@@ -12,7 +12,7 @@ for (const [vp, act] of [[{ width: 1360, height: 820, tag: 'pc' }, 'rv-hei-ok'],
   await p.addInitScript(() => { try { localStorage.setItem('sengoku-kake', 'off'); } catch { /* */ } }); // 方面の場面は e2e_homen_kake で試す
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
-  await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200);
+  await p.click('#title [data-act="pick-scen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200);
   await p.click('[data-h="pick"][data-id="shibata_katsuie"]'); await p.waitForTimeout(800);
   // 方面軍団長にして、与力二人（一人は親しい）と目標を持たせる
   await p.evaluate(() => {

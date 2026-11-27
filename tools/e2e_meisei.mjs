@@ -19,8 +19,8 @@ for (const variant of ['kunishu', 'daimyo']) {
   p.on('console', (m) => { if (m.type() === 'error') errors.push(variant + ' ' + m.text()); });
   await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'off'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(500);
-  await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-  await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(500);
+  await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+  await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(500);
   const closeAll = async () => { for (const sel of ['[data-h="say-close"]', '[data-h="report-ok"]', '[data-h="pupil-no"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(100); } } };
   await closeAll();
   console.log(variant, '城下:', await p.$eval('#hero .hr-town', (e) => e.textContent.replace(/\s+/g, ' ')).catch(() => ''), '|', await p.$eval('#hero .hr-note', (e) => e.textContent).catch(() => ''));

@@ -770,3 +770,9 @@ table.ledger tr.sum td { border-top: 1px solid var(--gold-soft); border-bottom: 
 .ttl-item.cont { border-left-color: var(--vermilion); }
 .ttl-item b small { font-family: var(--font-body); font-size: 11px; letter-spacing: 0.05em; color: #9fcbe8; border: 1px solid rgba(143, 195, 232, 0.5); border-radius: 3px; padding: 1px 6px; margin-left: 10px; vertical-align: middle; }
 .ttl-menu.static { position: static; width: auto; }
+/* 時代選び: 武将として遊ぶの時の案内と見出し */
+.era-guide { display: block; width: 100%; text-align: left; margin: 0 0 14px; padding: 10px 14px; background: rgba(143, 195, 232, 0.08); border: 1px solid rgba(143, 195, 232, 0.5); border-radius: 3px; color: inherit; font: inherit; cursor: pointer; }
+.era-guide b { display: block; color: #9fcbe8; font-family: var(--font-display); font-weight: 400; font-size: 16px; letter-spacing: 0.06em; }
+.era-guide span { font-size: 12px; color: var(--paper-dim); }
+.era-guide:hover { background: rgba(143, 195, 232, 0.14); }
+.ttl-era h2 small { font-size: 13px; color: var(--gold); margin-left: 12px; letter-spacing: 0.1em; font-family: var(--font-body); }

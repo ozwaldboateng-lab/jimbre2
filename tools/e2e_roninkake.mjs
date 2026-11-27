@@ -20,8 +20,8 @@ for (const vp of [{ width: 390, height: 844, tag: 'sp' }, { width: 1360, height:
   p.on('console', (m) => { if (m.type() === 'error') errors.push(vp.tag + ' ' + m.text()); });
   await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'on'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, JSON.stringify(st));
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(500);
-  await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-  await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(500);
+  await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+  await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(500);
   const closeAll = async () => { for (let n = 0; n < 4; n++) for (const sel of ['[data-h="say-close"]', '[data-h="report-ok"]', '[data-h="pupil-no"]']) { const x = await p.$(sel); if (x) { await x.click().catch(() => {}); await p.waitForTimeout(120); } } };
   const idle = () => p.waitForFunction(() => !document.querySelector('.hr-busy'), null, { timeout: 60000 }).catch(() => {});
   const scene = () => p.$('#story:not([hidden]) .st-scene');

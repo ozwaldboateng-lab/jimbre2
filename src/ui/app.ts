@@ -1,5 +1,5 @@
 // 画面の組み立てと操作
-import { heroSaveLabel, openHero, openHeroWith, resumeHero, setDaimyo, setRyoshu, setStoryLink } from './hero';
+import { heroSaveLabel, openHero, openHeroAt, openHeroWith, resumeHero, setDaimyo, setRyoshu, setStoryLink } from './hero';
 import * as RY from '../engine/ryoshu';
 import * as KS from '../engine/kashin';
 import * as RH from '../engine/ryohyojo';
@@ -1474,7 +1474,7 @@ function reopen() {
 }
 
 setStoryLink(() => openStory((id, w) => face(id, w), () => openTitle())); // 武将として遊ぶの時代選びから、利家の物語へ
-function openTitle() {
+function openTitle(at: 'top' | 'hero-era' = 'top') {
   const auto = load(AUTO_KEY);
   mood('title');
   closeModal();
@@ -1483,12 +1483,13 @@ function openTitle() {
     heroLabel: heroSaveLabel(), storyLabel: storySaveLabel(), last: (() => { try { return localStorage.getItem('sengoku-last') ?? ''; } catch { return ''; } })(),
     resumeHero: () => resumeHero((id, w) => face(id, w), () => openTitle()),
     resumeStory: () => resumeStory((id, w) => face(id, w), () => openTitle()),
+    heroScen: (scen) => openHeroAt((id, w) => face(id, w), () => openTitle(), scen, () => openTitle('hero-era')),
     help: (st) => TABS.help(st), face: (id, w) => face(id, w),
     start: (clan, diff, scen) => { startWith(newGame(clan, diff, undefined, scen, campStart())); store(AUTO_KEY, JSON.stringify(s)); if (s && kidachiOn()) { const st = s; const b = kidachiBeats(st); if (b.length) playScene(view, st, `${st.clans[st.player].name}家、起つ`, b, (id, w) => face(id, w), () => { mapMood(st); const c = capital(st, st.player); if (c) view.centerOn(c.hex, Math.min(2.4, Math.max(1.4, view.w / 520))); refresh(); }); } },
     resume: () => { if (auto) startWith(auto); },
     hero: () => openHero((id, w) => face(id, w), () => openTitle()),
     story: () => openStory((id, w) => face(id, w), () => openTitle()),
-  });
+  }, at);
 }
 
 // ───────── 主メニュー（内政・軍事・外交・情報・商い・記録） ─────────

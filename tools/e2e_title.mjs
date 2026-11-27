@@ -17,7 +17,7 @@ const items = (p) => p.$$eval('#title .ttl-item', (es) => es.map((e) => e.queryS
   await p.screenshot({ path: `${out}/title-0.png` });
   // 武将の時代選びから物語へ
   await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
-  const g = await p.$('#hero [data-h="tostory"]'); console.log('物語への案内', !!g); if (!g) errors.push('物語への案内がない');
+  const g = await p.$('#title .era-guide'); console.log('物語への案内', !!g); if (!g) errors.push('物語への案内がない');
   if (g) { await g.click(); await p.waitForTimeout(300); console.log('物語の入口', await p.$eval('#story h2', (e) => e.textContent).catch(() => 'なし')); }
   await p.close(); }
 // 2. 武将の保存だけ → そのまま続きから

@@ -22,8 +22,8 @@ for (const [tag, hp] of [['tired', 20], ['fresh', 80], ['done', 80]]) {
   p.on('console', (m) => { if (m.type() === 'error') errors.push(tag + ' ' + m.text()); });
   await p.addInitScript((j) => { try { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
-  await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-  await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(400);
+  await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+  await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(400);
   for (const sel of ['[data-h="say-close"]', '[data-h="report-ok"]']) { const x = await p.$(sel); if (x) { await x.click(); await p.waitForTimeout(100); } }
   const spots = await p.$$eval('#hero .hr-spot', (es) => es.map((e) => e.textContent.replace(/\s+/g, ' ')));
   console.log(tag, '陣中:', spots.filter((t) => /陣中で過ごす|陣を離れる/.test(t)).join(' ／ '));

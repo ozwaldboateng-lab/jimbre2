@@ -9,7 +9,7 @@ const p = await b.newPage({ viewport: { width: 1360, height: 820 } });
 p.on('pageerror', (e) => errors.push(e.message));
 await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
 await p.click('[data-act="t-hero"]'); await p.waitForTimeout(300);
-await p.click('[data-h="pscen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200);
+await p.click('#title [data-act="pick-scen"][data-id="1560"]'); await p.waitForTimeout(400); await p.click('[data-h="pclan"][data-id="oda"]'); await p.waitForTimeout(200);
 await p.click('[data-h="pick"][data-id="shibata_katsuie"]'); await p.waitForTimeout(800);
 const st = () => p.evaluate(() => { const s = window.__sengoku.state; const h = s.generals[s.hero.id]; const a = Object.values(s.armies).concat(Object.values(s.camps ?? {})).find((x) => x.main === h.id); return { status: h.status, army: a ? { troops: a.troops, front: a.front, camp: a.camp !== undefined, hex: a.hex } : null, fief: (s.fronts ?? []).find((f) => f.manual)?.id, gov: s.castles[s.hero.fuchu]?.governor }; });
 await p.click('#btn-shuke'); await p.waitForTimeout(300);

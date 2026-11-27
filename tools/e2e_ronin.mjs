@@ -14,8 +14,8 @@ for (const vp of [{ width: 1360, height: 820, tag: 'pc' }, { width: 390, height:
   p.on('console', (m) => { if (m.type() === 'error') errors.push(vp.tag + ' console ' + m.text()); });
   await p.addInitScript((j) => { try { localStorage.setItem('sengoku-kake', 'off'); if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sengoku-hero-auto', j); sessionStorage.setItem('seeded', '1'); } } catch { /* */ } }, json);
   await p.goto('file://' + process.cwd() + '/dist/index.html'); await p.waitForTimeout(400);
-  await p.click('[data-act="t-hero"]'); await p.waitForTimeout(200);
-  await p.click('#hero [data-h="continue"]'); await p.waitForTimeout(300);
+  await p.click('[data-act="t-continue"]'); await p.waitForTimeout(200);
+  await p.waitForTimeout(100); /* 続きからはタイトルの「続きから」で */ await p.waitForTimeout(300);
   const idle = () => p.waitForFunction(() => !document.querySelector('#hero .hr-busy'), null, { timeout: 120000 });
   // 浪人の場面（誘いの使者・目通りなど。問いの鍵が r_）は、待つか最初の答えで片づけてから
   const drainR = async () => { for (let n = 0; n < 60; n++) { const head = await p.$eval('#story:not([hidden]) .hr-town b', (e) => e.textContent).catch(() => null); if (head === null || !/使者|目通り|連歌会|城下の噂|道場破り|野盗退治/.test(head)) return; const w = await p.$('#story [data-s="ask"][data-id="wait"]') ?? await p.$('#story [data-s="ask"]') ?? await p.$('#story .hr-say[data-s="next"]'); if (!w) return; await w.click(); await p.waitForTimeout(60); } };
