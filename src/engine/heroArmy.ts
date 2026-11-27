@@ -14,7 +14,7 @@ export const LEAD = { SHARE: 0.6, MIN: 500 }; // 城兵の6割まで連れて出
 export const leading = (s: GameState): Army | null => { const id = s.hero?.leads; return id !== undefined && s.armies[id] ? s.armies[id] : null; };
 export function canLead(s: GameState): string | null {
   const H = s.hero!, me = s.generals[H.id];
-  if (H.story === 'toshiie' || !me.clan) return '物語の外の主人公だけ';
+  if (!me.clan) return '主家に仕える身だけ';
   if (me.rank > 1) return '侍大将になってから';
   if (H.quest?.kind !== 'kouryaku' || H.quest.done >= H.quest.need) return '攻略の主命を受けている時だけ';
   if (H.field || H.army !== null && H.army !== undefined) return '城下にいる時だけ';

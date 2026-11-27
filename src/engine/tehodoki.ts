@@ -77,3 +77,24 @@ export function marks(s: GameState): { bld: Set<string>; cat: Set<string> } {
   for (const { g, done } of gs.list) if (!done) { if (g.bld) r.bld.add(g.bld); if (g.cat) r.cat.add(g.cat); }
   return r;
 }
+
+// ───────── 物語の支度（一度だけ）: 利家は槍の名手（武芸二段から）。家督のあとは、奥村永福・村井長頼が家臣（家中の進言の二人） ─────────
+type Kit = { kit?: { skill?: boolean; kashin?: boolean } };
+const KASHIN0: { id: string; name: string; bra: number; int: number; lea: number; cha: number; born: number }[] = [
+  { id: 'okumura', name: '奥村永福', bra: 72, int: 66, lea: 74, cha: 64, born: 1541 },
+  { id: 'murai', name: '村井長頼', bra: 74, int: 58, lea: 68, cha: 62, born: 1543 },
+];
+export function storyKit(s: GameState) {
+  const H = s.hero as (NonNullable<GameState['hero']> & Kit & { skill?: Record<string, number>; retainers?: string[] }) | null;
+  if (!H || H.story !== 'toshiie') return;
+  const K = (H.kit ??= {}), me = s.generals[H.id];
+  if (!K.skill) { K.skill = true; H.skill = { ...(H.skill ?? {}), yari: Math.max(H.skill?.yari ?? 0, 200) }; }
+  if (!K.kashin && (H.storyDone ?? []).includes('katoku') && me?.clan) {
+    K.kashin = true;
+    for (const k of KASHIN0) {
+      if (!s.generals[k.id]) s.generals[k.id] = { id: k.id, name: k.name, clan: me.clan, bra: k.bra, int: k.int, lea: k.lea, cha: k.cha, status: 'kashin', loc: H.town, army: null, captor: null, formerClan: null, rank: 3, merit: 0, born: k.born, liege: me.id };
+      if (!(H.retainers ??= []).includes(k.id)) H.retainers.push(k.id);
+      H.rel[k.id] = Math.max(H.rel[k.id] ?? 0, 60);
+    }
+  }
+}

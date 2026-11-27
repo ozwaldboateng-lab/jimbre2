@@ -32,6 +32,8 @@ export const CAREER = {
   RETIRE_AGE: 50, // この年からは隠居できる（国持ちになれば年に関わらず）
 };
 export const freeHero = (s: GameState) => !!s.hero && s.hero.story !== 'toshiie';
+// 武将で遊ぶの暮らしの仕組み（技能・体力・槍働き・軍勢を率いる・屋敷と名物と茶会・自分の評定・家臣など）は、利家の物語の中でも使う（STORY_TUTORIAL_DESIGN.md）。物語の外だけのもの（出世の階段・謀反・家族・隠居など）は freeHero のまま
+export const heroPlay = (s: GameState) => !!s.hero;
 const stepsOf = (s: GameState) => (s.hero!.career ??= { steps: [] }).steps;
 export const hasStep = (s: GameState, k: Step) => stepsOf(s).includes(k);
 const ageOf = (s: GameState) => { const g = s.generals[s.hero!.id]; return s.year - (g.born ?? s.year - 30); };

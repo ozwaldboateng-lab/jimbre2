@@ -198,18 +198,23 @@ export function choose(s: GameState, key: string, id: string): Beat[] {
 type YK = { battles: number; kubi?: boolean; hurt?: boolean; kumi?: boolean; asked?: number };
 const yk = (s: GameState): YK => { const H = s.hero as unknown as { yk?: YK }; return (H.yk ??= { battles: 0 }); };
 export const YOKICHI = { KUBI_AFTER: 2, KUBI_KILLS: 3, HURT_P: 0.3, ASK_AFTER: 4, ASK_AGAIN: 6 };
+// 利家の物語の中: 権六・与吉（汎用の主人公の組の者）は出さない。寄親・同輩・寄子・取り立て・城主の出来事は、物語の場面が語る
+const inStory = (s: GameState) => (s.hero as { story?: string } | undefined)?.story === 'toshiie';
+const NOT_IN_STORY = new Set(['yori', 'rival', 'ahead', 'rivalDead', 'suisen', 'promote', 'yokichi', 'yoriko', 'yorikoSour', 'quarrel', 'inkyo', 'letter', 'kazo', 'genpo', 'seki', 'zan', 'mitsushi', 'nyujo', 'homenGoal', 'homenRemind', 'homenOk', 'homenNg', 'yorikiWin', 'yorikiLost', 'gonjo', 'senpo']); // 城主・方面の出来事（ryokake.ts の RYO_KINDS）も物語が語る
+function storyCut<T extends { who?: string }>(s: GameState, xs: T[]): T[] { return inStory(s) ? xs.filter((x) => x.who !== 'g_gonroku' && x.who !== 'g_yokichi') : xs; }
 // 溜まった出来事の場面（取り立てがあれば、同じ月の「推挙されない」は出さない）
 export function pendingBeats(s: GameState, on: boolean): Beat[] {
   takeKumi(s, ['grow', 'hurt']); // 盤のあとの掛け合いで出しそびれた分は捨てる
-  const evs = takeKumi(s); if (!on || !evs.length || (s.hero as { story?: string } | undefined)?.story === 'toshiie') return []; // 利家の物語には、物語の場面がある
+  const evs = takeKumi(s).filter((e) => !inStory(s) || !NOT_IN_STORY.has(e.k)); if (!on || !evs.length) return [];
   const promoted = evs.some((e) => e.k === 'promote'), lastP = evs.filter((e) => e.k === 'promote').pop();
-  return evs.filter((e) => !(promoted && e.k === 'suisen') && (e.k !== 'promote' || e === lastP)).flatMap((e) => evBeats(s, e)); // 同じ月に二段上がれば、最後の身分の場面だけ
+  return storyCut(s, evs.filter((e) => !(promoted && e.k === 'suisen') && (e.k !== 'promote' || e === lastP)).flatMap((e) => evBeats(s, e))); // 同じ月に二段上がれば、最後の身分の場面だけ
 }
 
 // ───────── 合戦の前後（槍働きの盤） ─────────
 // 組の足軽（権六・与吉）がいるのは、足軽組頭・足軽大将のあいだ
 const kumiOf = (s: GameState) => { const me = heroOf(s); return !!me?.clan && me.rank >= 2; };
-export function battleIntro(s: GameState, mochi: string | undefined, seen: boolean): Beat[] {
+export function battleIntro(s: GameState, mochi: string | undefined, seen: boolean): Beat[] { return storyCut(s, battleIntro0(s, mochi, seen)); }
+function battleIntro0(s: GameState, mochi: string | undefined, seen: boolean): Beat[] {
   const me = heroOf(s)!, y = yoriOf(s), r = rivalOf(s), k = `${s.turn}|b`;
   if (!y && !r) return [];
   const yl = y ? (seen ? pick(mochi && K.YORI_BEFORE[mochi] ? K.YORI_BEFORE[mochi] : K.YORI_BEFORE.all, k) : pick(K.YORI_BEFORE_UNSEEN, k)) : null;
@@ -221,7 +226,8 @@ export function battleIntro(s: GameState, mochi: string | undefined, seen: boole
     { who: me.id, text: pick(K.HERO_BEFORE[temperOf(me)], k + 'h') },
   ]);
 }
-export function battleOutro(s: GameState, b: Ban, seen: boolean): Kake {
+export function battleOutro(s: GameState, b: Ban, seen: boolean): Kake { return storyCut(s, battleOutro0(s, b, seen)); }
+function battleOutro0(s: GameState, b: Ban, seen: boolean): Kake {
   const y = yoriOf(s), r = rivalOf(s), k = `${s.turn}|a`, out: Kake = [];
   // 組の足軽: 一番槍の歓声・首実検（権六が首を差し出し、寄親が検める）・手傷を案じる
   let story = false; // 与吉の物語が出た戦（掛け合いを五行まで）
@@ -252,7 +258,8 @@ export function battleOutro(s: GameState, b: Ban, seen: boolean): Kake {
 }
 
 // 盤のあとの家臣の一言（腕を上げた・型が変わった・手傷）。月の出来事から取り出す
-export function retainerKake(s: GameState): Kake {
+export function retainerKake(s: GameState): Kake { return storyCut(s, retainerKake0(s)); }
+function retainerKake0(s: GameState): Kake {
   const evs = takeKumi(s, ['grow', 'hurt']), out: Kake = [], seen = new Set<string>();
   for (const e of evs) {
     const g = gen(s, e.id); if (!g || seen.has(g.id + e.k)) continue; seen.add(g.id + e.k);
@@ -263,7 +270,8 @@ export function retainerKake(s: GameState): Kake {
 }
 
 // ───────── 小競り合いの主命（物見・夜討ち・砦の守り） ─────────
-export function zeriIntro(s: GameState, sub: string): Beat[] {
+export function zeriIntro(s: GameState, sub: string): Beat[] { return storyCut(s, zeriIntro0(s, sub)); }
+function zeriIntro0(s: GameState, sub: string): Beat[] {
   const me = heroOf(s)!, g = retainersOf(s)[0], k = `${s.turn}|z|${sub}`;
   return headed('小競り合い', [
     { bg: sub === 'youchi' ? 'tsukiyo' : sub === 'toride' ? 'jinmaku' : 'senjo', text: K.ZERI_NARR[sub] ?? '' },
@@ -272,7 +280,8 @@ export function zeriIntro(s: GameState, sub: string): Beat[] {
   ]);
 }
 export const zeriWon = (b: Ban) => (b.goal === 'hold' ? (b.over === 'time' || b.over === 'win') && !!b.pieces.find((p) => p.hero)?.alive && !b.breached : b.over === 'win');
-export function zeriOutro(s: GameState, won: boolean): Kake {
+export function zeriOutro(s: GameState, won: boolean): Kake { return storyCut(s, zeriOutro0(s, won)); }
+function zeriOutro0(s: GameState, won: boolean): Kake {
   const g = retainersOf(s)[0], k = `${s.turn}|zo`;
   return [{ who: g?.id ?? 'g_gonroku', line: pick(won ? K.ZERI_WIN : K.ZERI_LOSE, k) }];
 }
@@ -281,7 +290,8 @@ export function zeriOutro(s: GameState, won: boolean): Kake {
 export const GUNGI_REL = { ADOPT: 4, REJECT: 2 };
 let gungiRes: (ReturnType<typeof GG.gungi>) | null = null;
 export const takeGungi = () => { const r = gungiRes; gungiRes = null; return r; };
-export function gungiBeats(s: GameState): Beat[] {
+export function gungiBeats(s: GameState): Beat[] { return storyCut(s, gungiBeats0(s)); }
+function gungiBeats0(s: GameState): Beat[] {
   const c = GG.targetCastle(s); if (!c) return [];
   const adv = GG.advisers(s);
   return headed('攻略の軍議', [
@@ -291,7 +301,8 @@ export function gungiBeats(s: GameState): Beat[] {
   ]);
 }
 // ───────── 侍大将: 出陣（軍勢を率いて城を出る時。号令を選ぶ。権六は旗本、与吉は組頭として時々） ─────────
-export function shutsujinBeats(s: GameState): Beat[] {
+export function shutsujinBeats(s: GameState): Beat[] { return storyCut(s, shutsujinBeats0(s)); }
+function shutsujinBeats0(s: GameState): Beat[] {
   if (!leading(s)) return [];
   const k = `${s.turn}|sj`, rx = [...retainersOf(s), ...yorikoOf(s)];
   return headed('出陣', [
@@ -303,7 +314,8 @@ export function shutsujinBeats(s: GameState): Beat[] {
   ]);
 }
 // ───────── 侍大将: 論功行賞の反応（配る前に、配り方から決める） ─────────
-export function ronkoKake(s: GameState, alloc: Record<string, number>, won: boolean): Kake {
+export function ronkoKake(s: GameState, alloc: Record<string, number>, won: boolean): Kake { return storyCut(s, ronkoKake0(s, alloc, won)); }
+function ronkoKake0(s: GameState, alloc: Record<string, number>, won: boolean): Kake {
   const me = heroOf(s)!, k = `${s.turn}|rk`, out: Kake = [];
   const others = Object.entries(alloc).filter(([id]) => id !== me.id), total = Object.values(alloc).reduce((a, b) => a + b, 0);
   const top = others.filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])[0];

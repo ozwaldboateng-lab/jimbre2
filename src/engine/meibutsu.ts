@@ -114,8 +114,9 @@ export function chakai(s: GameState, guests: string[]): Act {
 // ───────── 毎月の掛かり（物語の外）: 手勢の扶持と屋敷の掛かり ─────────
 export function upkeepMonth(s: GameState): string[] {
   const H = s.hero!;
-  if (!H.ie || H.story === 'toshiie') return [];
-  const shu = Math.round(H.ie.shu / 100 * SHU_FUCHI), ya = kakuOf(s) * KAKU.UPKEEP, cost = shu + ya;
+  if (!H.ie) return [];
+  // 利家の物語では荒子衆は前田家の蔵で養う（屋敷の掛かりだけ払う）
+  const shu = H.story === 'toshiie' ? 0 : Math.round(H.ie.shu / 100 * SHU_FUCHI), ya = kakuOf(s) * KAKU.UPKEEP, cost = shu + ya;
   if (cost <= 0) return [];
   if (H.gold >= cost) { H.gold -= cost; return [`手勢の扶持${shu}貫${ya ? `・屋敷の掛かり${ya}貫` : ''}を払った。`]; }
   H.gold = 0;

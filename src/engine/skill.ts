@@ -24,7 +24,7 @@ export const SK = { MAX: 5, PER: 100, COST: 100, GAIN: 15, STAT_DIV: 6, SELF_MAX
 type SkX = { skill?: Partial<Record<SkillKey, number>>; hp?: number };
 const X = (s: GameState) => s.hero! as typeof s.hero & SkX;
 export const expOf = (s: GameState, k: SkillKey) => (s.hero ? X(s).skill?.[k] ?? 0 : 0);
-export const lv = (s: GameState, k: SkillKey) => (s.hero && s.hero.story !== 'toshiie' ? Math.min(SK.MAX, Math.floor(expOf(s, k) / SK.PER)) : 0);
+export const lv = (s: GameState, k: SkillKey) => (s.hero ? Math.min(SK.MAX, Math.floor(expOf(s, k) / SK.PER)) : 0);
 export function addExp(s: GameState, k: SkillKey, n: number): boolean {
   const H = X(s), before = lv(s, k);
   (H.skill ??= {})[k] = Math.min(SK.MAX * SK.PER, expOf(s, k) + n);
@@ -35,11 +35,11 @@ export function addExp(s: GameState, k: SkillKey, n: number): boolean {
 export const HP = { ACT: 5, WORK: 8, TRAVEL: 7, TRAIN: 12, CAMP: 10, CAMP_REST: 15, TIRED: 30, REST: 30, MONTH: 10, LOW: 15, SICK_P: 0.25, SICK_MAX: 2 };
 export const hpMax = (s: GameState) => { const me = s.generals[s.hero!.id], age = s.year - (me.born ?? s.year - 30); return Math.max(50, 100 - Math.max(0, age - 40) * 2); };
 export const hpOf = (s: GameState) => Math.min(hpMax(s), X(s).hp ?? hpMax(s));
-export function spendHp(s: GameState, n: number) { const H = X(s); if (H.story === 'toshiie') return; H.hp = Math.max(0, Math.min(hpMax(s), hpOf(s) - n)); }
-export const isSick = (s: GameState) => !!s.hero && s.hero.story !== 'toshiie' && (s.generals[s.hero.id]?.sick ?? 0) > 0;
+export function spendHp(s: GameState, n: number) { const H = X(s); H.hp = Math.max(0, Math.min(hpMax(s), hpOf(s) - n)); }
+export const isSick = (s: GameState) => !!s.hero && (s.generals[s.hero.id]?.sick ?? 0) > 0;
 // 月の終わり: 体力が少し戻る。尽きかけていれば病に倒れることがある（本体の病と同じ g.sick。病の月が過ぎれば癒える）
 export function hpMonth(s: GameState, r: () => number): string[] {
-  const H = X(s); if (H.story === 'toshiie') return [];
+  const H = X(s);
   const me = s.generals[H.id];
   if (isSick(s)) { H.hp = Math.min(hpMax(s), hpOf(s) + HP.MONTH); return []; }
   (H as { sickMild?: boolean }).sickMild = undefined; // 病が癒えた
@@ -102,7 +102,7 @@ export const bestSkill = (s: GameState): SkillKey | null => { const ks = (Object
 // 月の終わりに: 城下の武将（townsfolk は呼ぶ側が渡す）から弟子入りを願う者を選ぶ
 export function pupilEvent(s: GameState, folk: General[], r: () => number): General | null {
   const H = PX(s);
-  if (H.story === 'toshiie' || isSick(s) || H.field || H.army) return null;
+  if (isSick(s) || H.field || H.army) return null;
   const k = bestSkill(s);
   if (!k || r() >= PUPIL.P) return null;
   const cand = folk.filter((g) => g.status !== 'dead' && g.status !== 'young' && g.status !== 'captive' && masterSkill(g) !== k && g.id !== H.id);

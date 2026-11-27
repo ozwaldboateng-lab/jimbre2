@@ -28,7 +28,7 @@ const domainOf = (s: GameState): number[] => { const H = s.hero!; return [...(H.
 
 export function canHold(s: GameState): string | null {
   const H = X(s), me = s.generals[H.id];
-  if (H.story === 'toshiie' || !me.clan) return '物語の外の、主家に仕える主人公だけ';
+  if (!me.clan) return '主家に仕える身だけ';
   if (!domainOf(s).length) return '城を持ってから';
   if (H.field || H.army || !domainOf(s).includes(H.town) || s.castles[H.town].owner !== me.clan) return '治める城の城下で開く';
   return null;

@@ -28,7 +28,7 @@ export const retainersOf = (s: GameState): General[] => (s.hero?.retainers ?? []
 export const freeRetainers = (s: GameState) => retainersOf(s).filter((g) => !Object.values(s.hero!.daikan ?? {}).includes(g.id) && s.hero!.quest?.proxy !== g.id);
 const domain = (s: GameState) => { const H = s.hero!; return [...(H.fuchu !== undefined ? [H.fuchu] : []), ...(H.ryo ?? [])]; };
 const home = (s: GameState) => { const d = domain(s); return d.length ? d[0] : s.hero!.town; };
-export const canRecruit = (s: GameState, g: General) => { const H = s.hero!, me = s.generals[H.id]; return H.story !== 'toshiie' && !!me.clan && g.status === 'ronin' && g.loc === H.town && !H.followers?.includes(g.id); };
+export const canRecruit = (s: GameState, g: General) => { const H = s.hero!, me = s.generals[H.id]; return !!me.clan && g.status === 'ronin' && g.loc === H.town && !H.followers?.includes(g.id); };
 
 // 浪人を家臣に召し抱える（親しさ50・支度金・扶持）
 export function recruit(s: GameState, gid: string): Act {
@@ -94,7 +94,7 @@ export function proxy(s: GameState): Act {
 // 毎月: 扶持・城代の治め・遣わした家臣の首尾・家臣の居場所
 export function kashinMonth(s: GameState): string[] {
   const H = s.hero;
-  if (!H || H.story === 'toshiie') return [];
+  if (!H) return [];
   const me = s.generals[H.id], out: string[] = [];
   const rs = retainersOf(s);
   H.retainers = rs.map((g) => g.id);

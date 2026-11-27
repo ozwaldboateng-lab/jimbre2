@@ -26,7 +26,7 @@ export const deedScore = (d: Deeds) => d.kubi + d.duel * 3 + d.castles * 4 + d.w
 // 合戦の決着を記録する（hooks.ts の resolveBattle から）: 主人公の軍勢が攻め手か守り手のとき
 export function recordBattle(s: GameState, a: Army, t: Target, joined: Army[], r: BattleReport) {
   const H = s.hero;
-  if (!H || H.story === 'toshiie') return;
+  if (!H) return;
   const id = H.army ?? H.leads;
   if (id === null || id === undefined) return;
   const atk = a.id === id || joined.some((j) => j.id === id), def = t.kind === 'army' && t.army.id === id;

@@ -199,8 +199,8 @@ export function rumor(s: GameState): Act {
   const news = s.log.filter((l) => l.turn >= s.turn - 1 && (l.kind === 'battle' || l.kind === 'castle')).slice(-6);
   const n = news[Math.floor(rand(s) * news.length)];
   if (n) parts.push(`噂では、${n.text.replace(/。$/, '')}`);
-  if (s.hero!.story !== 'toshiie' && rand(s) < 0.6) { const m = masterRumor(s, c.i, () => rand(s), R.hx(12), hexDist); if (m) parts.push(m); } // 名人の居所
-  if (s.hero!.story !== 'toshiie') { // 浪人の居所（近く hx(10) 以内の、名の聞こえた者から二人まで）
+  if (rand(s) < 0.6) { const m = masterRumor(s, c.i, () => rand(s), R.hx(12), hexDist); if (m) parts.push(m); } // 名人の居所
+  { // 浪人の居所（近く hx(10) 以内の、名の聞こえた者から二人まで）
     const rs = Object.values(s.generals).filter((g) => g.status === 'ronin' && !g.ikki && g.loc !== c.i && hexDist(s.castles[g.loc].hex, c.hex) <= R.hx(10)).sort((a, b) => (b.bra + b.int + b.lea + b.cha) - (a.bra + a.int + a.lea + a.cha)).slice(0, 2);
     if (rs.length) parts.push(`浪人なら、${rs.map((g) => `${s.castles[g.loc].name}の城下に${g.name}がいる`).join('。')}と聞く`);
   }
@@ -279,7 +279,7 @@ export function joinArmy(s: GameState, id: number): Act {
   if (!attachAuto(s, a, me)) attach(s, a, a.main, me);
   H.army = a.id; H.joined = s.turn; H.dest = null;
   // 手勢を連れて加わる（家臣の統率で士気も上がる）
-  const shu = H.story !== 'toshiie' ? Math.min(H.ie?.shu ?? 0, heiCap(s)) : 0; // 連れて行く手勢は、身分の兵の上限まで
+  const shu = Math.min(H.ie?.shu ?? 0, heiCap(s)); // 連れて行く手勢は、身分の兵の上限まで
   if (shu > 0) { a.troops += shu; H.lent = { army: a.id, shu, troops: a.troops }; H.ie!.shu -= shu; }
   const boost = battleBoost(s) + lv(s, 'yari') * 0.02; if (boost > 0) a.morale = Math.min(1.5, a.morale + boost);
   followArmy(s, a);
@@ -357,7 +357,7 @@ export function tojo(s: GameState): Act {
   const H = s.hero!, me = heroOf(s)!, L = lordOf(s)!;
   const b = questBlock(s); if (b) return { ok: false, text: b };
   used(s);
-  if (H.story !== 'toshiie' && rewardDue(s)) { H.jun--; return reward(s, L.id); } // 論功行賞（旬は使わない。続けて登城すれば評定や報告）
+  if (rewardDue(s)) { H.jun--; return reward(s, L.id); } // 論功行賞（旬は使わない。続けて登城すれば評定や報告）
   const q = H.quest;
   if (q && q.done >= q.need) {
     // 報告
@@ -376,7 +376,7 @@ export function tojo(s: GameState): Act {
     return { ok: true, who: L.id, line: pickLine(s, SCOLD), text: `不首尾を報告した。主君の覚え−3。${q.note ?? ''}` };
   }
   if (q) return { ok: true, who: L.id, line: `${QUEST_NAME[q.kind]}の件、${s.castles[q.castle].name}の首尾はいかがした。期日は${monthsLeft(s, q)}か月のうちぞ。`, text: '主君に目通りした。' };
-  if (H.story !== 'toshiie') { // 物語の外: 主命は月の上旬の評定で、候補から選んで受ける
+  { // 主命は月の上旬の評定で、候補から選んで受ける（利家の物語でも。第五部の天下の静けさでは、候補が普請・献金・献上だけになる）
     if (H.declined === s.turn) return { ok: true, who: L.id, line: '今月の評定は済んだ。……次の評定に出よ。', text: '主君に目通りした。' };
     if (H.hyojo && H.hyojo.turn === s.turn) { H.jun--; return { ok: true, offer: true, who: L.id, line: 'まだ決めておらぬのか。……どれを受ける。', text: `評定の主命の候補が${H.hyojo.cands.length}つ。一つを選んで受けるか、断る。` }; }
     if (H.jun - 1 !== 0) { H.jun--; return { ok: false, text: `評定は月の上旬に開かれる（いまは${JUN_NAME[H.jun]}）。上旬に登城すれば主命を選べる。` }; }
@@ -385,11 +385,6 @@ export function tojo(s: GameState): Act {
     H.hyojo = { turn: s.turn, cands: cs };
     return { ok: true, offer: true, who: L.id, line: '皆、揃ったな。……この月の差配を申し付ける。望む役目を申してみよ。', text: `評定に出た。主命の候補が${cs.length}つ。一つを選んで受けるか、断る。` };
   }
-  const nq = H.declined === s.turn ? null : makeQuest(s); // 断った月は、もう申し付けない
-  if (!nq) return { ok: true, who: L.id, line: '今は申し付けることはない。腕を磨いておけ。', text: '主君に目通りした。' };
-  H.quest = nq;
-  note(s, `主命を受けた: ${questText(s, nq)}`);
-  return { ok: true, offer: true, who: L.id, line: ORDER_LINE[nq.kind].replace('{castle}', s.castles[nq.castle].name), text: `主命を申し付けられた。${questText(s, nq)}` };
 }
 // 評定で候補から主命を選んで受ける
 export const HYOJO = { CHOICES: 3 };
@@ -488,7 +483,7 @@ function questPool(s: GameState): Quest[] {
   if (frozen(s)) { const keep = pool.filter((q) => q.kind === 'fushin' || q.kind === 'kenkin' || q.kind === 'kenjo' || q.kind === 'tsukaiban'); pool.length = 0; pool.push(...keep); } // 天下の静けさ（物語の第五部）: 戦の主命は出ない
   return pool;
 }
-function makeQuest(s: GameState): Quest | null {
+export function makeQuest(s: GameState): Quest | null {
   const pool = questPool(s);
   if (!pool.length) return null;
   const pick = pool[Math.floor(rand(s) * pool.length)];
@@ -628,10 +623,11 @@ export function heroMonth(s: GameState): string[] {
   const chi = chigyo(s);
   H.gold += pay + chi; out.push(`俸禄 ${pay}貫${chi ? `と知行 ${chi}貫` : ''}を受け取った（手元 ${H.gold}貫）。`);
   out.push(...ieMonth(s));
-  if (freeHero(s)) out.push(...upkeepMonth(s));
-  if (freeHero(s)) { syncGovernor(s); out.push(...myHyojoMonth(s)); } // 自分の評定で申し付けた役目の首尾
+  out.push(...upkeepMonth(s));
+  if (freeHero(s)) syncGovernor(s);
+  out.push(...myHyojoMonth(s)); // 自分の評定で申し付けた役目の首尾
   if (freeHero(s) && s.month === 1) out.push(...familyYear(s));
-  if (freeHero(s)) out.push(...hpMonth(s, () => rand(s))); // 体力が戻る・尽きかけていれば病に // 正月: 子の誕生と元服
+  out.push(...hpMonth(s, () => rand(s))); // 体力が戻る・尽きかけていれば病に // 正月: 子の誕生と元服
   out.push(...roninMonth(s));
   out.push(...meiseiMonth(s));
   out.push(...sasoiMonth(s));
