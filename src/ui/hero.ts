@@ -389,7 +389,7 @@ function spotsHtml(st: GameState) {
   const mei = mo ? `<button class="hr-spot" data-h="buymei" data-id="${mo.id}" ${st.hero!.gold < mo.price ? 'disabled' : ''}><b>名物を求める: ${esc(mo.name)}（${mo.price.toLocaleString('ja-JP')}貫）</b><span>${mo.kind}の名物が売りに出ている。名声+${mo.fame}。茶会に使え、主君への献上は覚えと功績に大きく効く</span></button>` : '';
   const sc = CR.freeHero(st) ? PL.secretHere(st) : null;
   const secret = sc && H.heroOf(st)!.clan ? (() => { const why = PL.secretBlock(st, sc); return `<button class="hr-spot dim" data-h="secret" ${why ? 'disabled' : ''}><b>密約を持ちかける</b><span>${why ? esc(why) : `${esc(clanName(st, sc))}家の当主に、謀反の折の盟を内々に持ちかける（礼物${PL.EN.SECRET_GOLD}貫・見込み${Math.round(PL.secretChance(st, sc) * 100)}%・しくじると主君の耳に入ることがある・1旬）`}</span></button>`; })() : '';
-  const ryo = CR.freeHero(st) && toRyoshuUI && CR.hasStep(st, 'shiro') && !H.inArmy(st) && !HA.leading(st) && H.heroOf(st)!.clan ? `<button class="hr-spot main" data-h="ryo-back"><b>${st.hero!.mode === 'ryoshu' ? '領へ戻る' : '領主として治める'}</b><span>${st.hero!.mode === 'ryoshu' ? '大名の画面へ。城の政・陣立て・家臣・私事（人と交わる）・主家との縁（寝返り・謀反・出奔）は領の画面で' : '大名の画面で自分の領（城・軍勢・家臣）を治める（月刻み）。主家のことは主君が決める'}</span></button>` : '';
+  const ryo = (CR.freeHero(st) ? CR.hasStep(st, 'shiro') : TH.storyRyoOk(st)) && toRyoshuUI && !H.inArmy(st) && !HA.leading(st) && H.heroOf(st)!.clan ? `<button class="hr-spot main" data-h="ryo-back"><b>${st.hero!.mode === 'ryoshu' ? '領へ戻る' : '領主として治める'}</b><span>${st.hero!.mode === 'ryoshu' ? '大名の画面へ。城の政・陣立て・家臣・私事（人と交わる）・主家との縁（寝返り・謀反・出奔）は領の画面で' : '大名の画面で自分の領（城・軍勢・家臣）を治める（月刻み）。主家のことは主君が決める'}</span></button>` : '';
   const hf = ryoOut ? null : CR.homenOf(st);
   const homen = ryoOut ? '' : hf ? `<button class="hr-spot main" data-h="pane" data-id="homen"><b>方面の差配</b><span>${hf.castles.length}城・${FR.frontArmies(st, hf).length}軍勢。方針（${R.FRONT_POLICY_NAME[hf.policy]}）と攻略の目標を決める。謀反・出奔もここで</span></button>` : CR.freeHero(st) && H.heroOf(st)!.clan && !st.hero!.field && !H.inArmy(st) ? `<button class="hr-spot dim" data-h="pane" data-id="homen"><b>主家との縁</b><span>${CR.canRebel(st) === null ? '謀反を起こす・' : ''}出奔して浪人になる（他家に仕官し直せる）</span></button>` : '';
   const rk = YO.ronkoOf(st) ? `<button class="hr-spot main" data-h="ronko"><b>論功行賞を行う</b><span>${esc(YO.ronkoOf(st)!.foe)}との合戦の手柄${YO.ronkoOf(st)!.pool}を、寄子・家臣に配る（来月まで）</span></button>` : '';
@@ -753,7 +753,7 @@ const opt = (st: GameState) => CR.freeHero(st) ? { part2: false, label: CR.house
 function runStory() {
   if (!s || !theater || busy) return;
   const ev = storyDue(s);
-  if (!ev) return;
+  if (!ev) { const ob = kakeOn() ? TH.chapOpen(s) : (TH.chapOpen(s), []); if (ob.length) { const st0 = s; theater(ob, () => { save(); render(); }, chooser(st0), opt(st0)); } return; } // 章の始まりの一言（物語の場面がない時に）
   const st = s;
   theater(ev.beats, () => {
     const lines = [...M.takeNotes(), ...(ev.apply?.(st) ?? [])];
@@ -784,7 +784,7 @@ let toRyoshuUI: ((st: GameState) => void) | null = null;
 let pendRyo = false; // 城を預かったばかり（場面・報告を閉じたら領主の画面へ）
 export function setRyoshu(f: (st: GameState) => void) { toRyoshuUI = f; }
 function maybeRyoshu(st: GameState, force = false): boolean {
-  if (!toRyoshuUI || !CR.freeHero(st) || st.hero!.over || !CR.hasStep(st, 'shiro') || !H.heroOf(st)!.clan) return false;
+  if (!toRyoshuUI || !(CR.freeHero(st) ? CR.hasStep(st, 'shiro') : force && TH.storyRyoOk(st)) || st.hero!.over || !H.heroOf(st)!.clan) return false; // 利家の物語は第四部で、自分で押した時だけ
   if (st.hero!.out && !force) return false; // 城下に出ている間は、自分で「領へ戻る」まで
   if (H.inArmy(st) || HA.leading(st)) return false;
   st.hero!.out = undefined;

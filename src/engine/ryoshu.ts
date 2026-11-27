@@ -95,6 +95,7 @@ export function ryoshuAfter(s: GameState): { lines: string[]; back: boolean; bea
   const f = ryoshuOf(s);
   if (f) for (const i of domainOf(s)) if (s.castles[i].owner === me.clan && !f.castles.includes(i)) { for (const o of frontsOf(s)) if (o !== f) o.castles = o.castles.filter((x) => x !== i); f.castles.push(i); } // 国持ちで預かった城を領に
   if (!ryoshuOf(s) || !domainOf(s).some((i) => s.castles[i].owner === me.clan)) { toHero(s); return { lines: [...out, '治める城をすべて失い、城下を歩く身に戻った。'], back: true, beats: cev?.beats ?? [] }; }
+  if (H.story === 'toshiie') { toHero(s); return { lines: [...out, '領の差配を終え、城下へ戻った（物語は城下で動く）。'], back: true, beats: [] }; } // 利家の物語: 領主の画面はひと月ずつ
   return { lines: out, back: false, beats: cev?.beats ?? [] };
 }
 
