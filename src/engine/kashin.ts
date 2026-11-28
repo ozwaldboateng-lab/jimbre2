@@ -8,6 +8,8 @@ import { addLog, clamp100, rand } from './kashin_util';
 import type { GameState, General } from './types';
 import { retainerBonus } from './meibutsu';
 import { kinRetainers } from './family';
+import { canPoach, needRel, poachBlock, poachChance, poachRoll, prestigeBonus } from './hitode';
+export { canPoach, needRel, poachChance };
 
 export const KASHIN = {
   FUCHI: 30, // 家臣一人の月の扶持（貫）
@@ -36,10 +38,11 @@ export function recruit(s: GameState, gid: string): Act {
   if (!g || !canRecruit(s, g)) return { ok: false, text: 'その人は召し抱えられない' };
   if (retainersOf(s).length >= capOf(s)) return { ok: false, text: capOf(s) ? `家臣はいま${capOf(s)}人まで（出世すれば増やせる）` : '足軽大将になるまで家臣は持てない' };
   const rel = H.rel[gid] ?? 0;
-  if (rel < KASHIN.REL) return { ok: false, text: `まだ親しくない（親しさ${rel}／${KASHIN.REL}）` };
+  const need = needRel(s); // 浪人の身は50。仕えていれば主家の威信で下がる
+  if (rel < need) return { ok: false, text: `まだ親しくない（親しさ${rel}／${need}）` };
   if (H.gold < KASHIN.SHITAKU) return { ok: false, text: `支度金${KASHIN.SHITAKU}貫が要る` };
   H.jun++;
-  const p = 0.35 + (H.fame ?? 0) / 150 + me.cha / 300 + (rel - KASHIN.REL) / 150;
+  const p = 0.35 + (H.fame ?? 0) / 150 + me.cha / 300 + prestigeBonus(s) + (rel - need) / 150;
   if (rand(s) < Math.min(0.9, p)) {
     H.gold -= KASHIN.SHITAKU;
     take(s, g); pushKumi(s, { k: 'oath', id: g.id }); // 主従の盃の場面
@@ -47,6 +50,16 @@ export function recruit(s: GameState, gid: string): Act {
   }
   H.rel[gid] = clamp100(rel - 5);
   return { ok: true, who: gid, line: '……今はまだ、宮仕えの気にはなれぬ。', text: `${g.name}は召し抱えに応じなかった。名を上げれば、聞いてくれるかもしれない。` };
+}
+// 他家の武将を引き抜く（足軽大将以下・主家への恩が薄い者。親しさは召し抱えより10高く、支度金200貫）
+export function poach(s: GameState, gid: string): Act {
+  const g = s.generals[gid];
+  if (!g || !canPoach(s, g)) return { ok: false, text: 'その人は引き抜けない' };
+  const why = poachBlock(s, g, capOf(s), retainersOf(s).length);
+  if (why) return { ok: false, text: why };
+  const from = g.clan!, p = Math.round(poachChance(s, g) * 100);
+  if (poachRoll(s, g)) { take(s, g); pushKumi(s, { k: 'oath', id: g.id }); addLog(s, `${g.name}が主家を離れ、${s.generals[s.hero!.id].name}の家臣になった。`, 'info', true); return { ok: true, who: gid, line: '……今の主家に、もう未練はござらぬ。おぬしに賭けよう。', text: `${g.name}を引き抜いて家臣にした（見込み${p}%）。元の主家との仲は少し冷えた。` }; }
+  return { ok: true, who: gid, line: '……ありがたい話だが、今の主家を裏切るわけにはいかぬ。', text: `${g.name}は誘いを断った（見込み${p}%）。親しさ−8。${from ? '' : ''}` };
 }
 // 家臣にする（召し抱え・与力・仕官に連れて来た配下）
 export function take(s: GameState, g: General) {

@@ -21,6 +21,7 @@ import { runDelegation } from './delegate';
 import { ikkiOrders } from './ikki';
 import { monthCamps } from './jinbure';
 import { checkVictory } from './ops';
+import { roninSpawnMonth } from './hitode';
 import { rand } from './state';
 import type { GameState } from './types';
 
@@ -60,6 +61,7 @@ export async function endTurn(s: GameState) {
   cleanShugodai(s); // 守護でなくなった国の守護代を外す
   monthlyLife(s);
   monthlyRonin(s);
+  roninSpawnMonth(s); // 浪人が減りすぎていれば、名もない浪人が現れる
   monthlyNanban(s);
   expireTreaties(s);
   monthlyAnecdotes(s); // 逸話

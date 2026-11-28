@@ -1,4 +1,5 @@
 // 武将プレイ（試作）: 大名ではなく一人の武将として生きる。家は大名のAIが動かし、プレイヤーは城下を歩き、主命を果たし、人と交わる。
+import { fameVisitMonth } from './hitode';
 // 時は旬（10日）で刻む。1か月は3旬。3旬が過ぎると、裏で大名たちの1か月が進む（ゲームの endTurn）。
 // 武将は status 'hero' にして、AIの編成・城主・奉行に使われないようにする（主命・合戦はこちらで扱う）。
 import { pushKumi } from './kumiev';
@@ -10,7 +11,7 @@ import { ieMonth } from './maeda';
 import { bandits, tradeMonth } from './trade';
 import { frozen } from './story5';
 import { addFame, roninMonth } from './roninplay';
-import { battleBoost, kashinMonth } from './kashin';
+import { battleBoost, capOf, kashinMonth, retainersOf } from './kashin';
 import { leadMonth } from './heroArmy';
 import { upkeepMonth } from './meibutsu';
 import { familyYear } from './family';
@@ -628,7 +629,8 @@ export function heroMonth(s: GameState): string[] {
   if (freeHero(s)) syncGovernor(s);
   out.push(...myHyojoMonth(s)); // 自分の評定で申し付けた役目の首尾
   if (freeHero(s) && s.month === 1) out.push(...familyYear(s));
-  out.push(...hpMonth(s, () => rand(s))); // 体力が戻る・尽きかけていれば病に // 正月: 子の誕生と元服
+  out.push(...hpMonth(s, () => rand(s)));
+  if (heroOf(s)?.clan) out.push(...fameVisitMonth(s, capOf(s), retainersOf(s).length)); // 名声を聞いて浪人が訪ねてくる（仕えている時） // 体力が戻る・尽きかけていれば病に // 正月: 子の誕生と元服
   out.push(...roninMonth(s));
   out.push(...meiseiMonth(s));
   out.push(...sasoiMonth(s));
